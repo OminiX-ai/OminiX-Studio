@@ -1,0 +1,9 @@
+[package]
+name = "moly-chat"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+makepad-widgets.workspace = true
+moly-widgets = { path = "../../moly-widgets" }

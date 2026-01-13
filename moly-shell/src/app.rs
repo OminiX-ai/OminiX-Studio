@@ -6,18 +6,34 @@ live_design! {
     use link::widgets::*;
     use moly_widgets::theme::*;
 
+    // Import app widgets from internal modules
+    use crate::apps::chat::*;
+    use crate::apps::models::*;
+    use crate::apps::settings::*;
+    use crate::apps::mcp::*;
+
     // Icon dependencies
     ICON_HAMBURGER = dep("crate://self/resources/icons/hamburger.svg")
     ICON_SUN = dep("crate://self/resources/icons/sun.svg")
     ICON_MOON = dep("crate://self/resources/icons/moon.svg")
+    ICON_CHAT = dep("crate://self/resources/icons/chat.svg")
+    ICON_MODELS = dep("crate://self/resources/icons/app.svg")
+    ICON_SETTINGS = dep("crate://self/resources/icons/settings.svg")
 
-    // Navigation button style
-    NavButton = <Button> {
+    // Logo
+    IMG_LOGO = dep("crate://self/resources/moly-logo.png")
+
+    // Navigation button style with icon
+    NavButton = <View> {
         width: Fill, height: 48
         margin: {bottom: 4}
-        padding: {left: 16, right: 16}
+        padding: {left: 12, right: 12}
         align: {x: 0.0, y: 0.5}
+        flow: Right
+        spacing: 12
+        cursor: Hand
 
+        show_bg: true
         draw_bg: {
             instance hover: 0.0
             instance selected: 0.0
@@ -38,14 +54,6 @@ live_design! {
             fn pixel(self) -> vec4 {
                 return Pal::premul(self.get_bg_color());
             }
-        }
-
-        draw_text: {
-            instance dark_mode: 0.0
-            fn get_color(self) -> vec4 {
-                return mix(#1f2937, #f1f5f9, self.dark_mode);
-            }
-            text_style: { font_size: 13.0 }
         }
     }
 
@@ -100,6 +108,13 @@ live_design! {
                         }
                     }
 
+                    // Logo
+                    logo = <Image> {
+                        source: (IMG_LOGO)
+                        width: 32, height: 32
+                        margin: {right: 8}
+                    }
+
                     title_label = <Label> {
                         text: "Moly"
                         draw_text: {
@@ -150,105 +165,99 @@ live_design! {
                         flow: Down, padding: {top: 16, bottom: 16, left: 8, right: 8}
 
                         chat_btn = <NavButton> {
-                            text: "Chat"
+                            btn_icon = <Icon> {
+                                draw_icon: {
+                                    svg_file: (ICON_CHAT)
+                                    instance dark_mode: 0.0
+                                    fn get_color(self) -> vec4 {
+                                        // Blue - friendly communication color
+                                        return mix(#3b82f6, #60a5fa, self.dark_mode);
+                                    }
+                                }
+                                icon_walk: {width: 20, height: 20}
+                            }
+                            btn_label = <Label> {
+                                text: "Chat"
+                                draw_text: {
+                                    instance dark_mode: 0.0
+                                    fn get_color(self) -> vec4 {
+                                        return mix(#1f2937, #f1f5f9, self.dark_mode);
+                                    }
+                                    text_style: { font_size: 13.0 }
+                                }
+                            }
                         }
                         models_btn = <NavButton> {
-                            text: "Models"
+                            btn_icon = <Icon> {
+                                draw_icon: {
+                                    svg_file: (ICON_MODELS)
+                                    instance dark_mode: 0.0
+                                    fn get_color(self) -> vec4 {
+                                        // Purple - tech/AI color
+                                        return mix(#8b5cf6, #a78bfa, self.dark_mode);
+                                    }
+                                }
+                                icon_walk: {width: 20, height: 20}
+                            }
+                            btn_label = <Label> {
+                                text: "Models"
+                                draw_text: {
+                                    instance dark_mode: 0.0
+                                    fn get_color(self) -> vec4 {
+                                        return mix(#1f2937, #f1f5f9, self.dark_mode);
+                                    }
+                                    text_style: { font_size: 13.0 }
+                                }
+                            }
                         }
                         settings_btn = <NavButton> {
-                            text: "Settings"
+                            btn_icon = <Icon> {
+                                draw_icon: {
+                                    svg_file: (ICON_SETTINGS)
+                                    instance dark_mode: 0.0
+                                    fn get_color(self) -> vec4 {
+                                        // Amber - settings/tools color
+                                        return mix(#f59e0b, #fbbf24, self.dark_mode);
+                                    }
+                                }
+                                icon_walk: {width: 20, height: 20}
+                            }
+                            btn_label = <Label> {
+                                text: "Settings"
+                                draw_text: {
+                                    instance dark_mode: 0.0
+                                    fn get_color(self) -> vec4 {
+                                        return mix(#1f2937, #f1f5f9, self.dark_mode);
+                                    }
+                                    text_style: { font_size: 13.0 }
+                                }
+                            }
                         }
                     }
 
-                    // Main content views
+                    // Main content - app container
                     main_content = <View> {
                         width: Fill, height: Fill
                         flow: Overlay
 
-                        // Chat view
-                        chat_view = <View> {
+                        // Chat app
+                        chat_app = <ChatApp> {
                             visible: true
-                            width: Fill, height: Fill
-                            show_bg: true
-                            draw_bg: {
-                                instance dark_mode: 0.0
-                                fn pixel(self) -> vec4 {
-                                    return mix(#f5f7fa, #0f172a, self.dark_mode);
-                                }
-                            }
-                            flow: Down, align: {x: 0.5, y: 0.5}
-
-                            <Label> {
-                                text: "Chat View"
-                                draw_text: {
-                                    instance dark_mode: 0.0
-                                    fn get_color(self) -> vec4 {
-                                        return mix(#1f2937, #f1f5f9, self.dark_mode);
-                                    }
-                                    text_style: <THEME_FONT_BOLD>{ font_size: 32.0 }
-                                }
-                            }
-                            <Label> {
-                                margin: {top: 8}
-                                text: "Phase 1 Complete - Ready for Phase 2"
-                                draw_text: {
-                                    instance dark_mode: 0.0
-                                    fn get_color(self) -> vec4 {
-                                        return mix(#6b7280, #94a3b8, self.dark_mode);
-                                    }
-                                    text_style: { font_size: 14.0 }
-                                }
-                            }
                         }
 
-                        // Models view
-                        models_view = <View> {
+                        // Models app
+                        models_app = <ModelsApp> {
                             visible: false
-                            width: Fill, height: Fill
-                            show_bg: true
-                            draw_bg: {
-                                instance dark_mode: 0.0
-                                fn pixel(self) -> vec4 {
-                                    return mix(#f5f7fa, #0f172a, self.dark_mode);
-                                }
-                            }
-                            flow: Down, align: {x: 0.5, y: 0.5}
-
-                            <Label> {
-                                text: "Models View"
-                                draw_text: {
-                                    instance dark_mode: 0.0
-                                    fn get_color(self) -> vec4 {
-                                        return mix(#1f2937, #f1f5f9, self.dark_mode);
-                                    }
-                                    text_style: <THEME_FONT_BOLD>{ font_size: 32.0 }
-                                }
-                            }
                         }
 
-                        // Settings view
-                        settings_view = <View> {
+                        // Settings app
+                        settings_app = <SettingsApp> {
                             visible: false
-                            width: Fill, height: Fill
-                            show_bg: true
-                            draw_bg: {
-                                instance dark_mode: 0.0
-                                fn pixel(self) -> vec4 {
-                                    return mix(#f5f7fa, #0f172a, self.dark_mode);
-                                }
-                            }
-                            flow: Down, align: {x: 0.5, y: 0.5}
+                        }
 
-                            <Label> {
-                                text: "Settings View"
-                                draw_text: {
-                                    instance dark_mode: 0.0
-                                    fn get_color(self) -> vec4 {
-                                        return mix(#1f2937, #f1f5f9, self.dark_mode);
-                                    }
-                                    text_style: <THEME_FONT_BOLD>{ font_size: 32.0 }
-                                }
-                            }
+                        // MCP app (desktop only)
+                        mcp_app = <McpApp> {
+                            visible: false
                         }
                     }
                 }
@@ -273,17 +282,30 @@ pub struct App {
     current_view: NavigationTarget,
     #[rust]
     dark_mode: bool,
+    #[rust]
+    sidebar_expanded: bool,
 }
 
 impl LiveRegister for App {
     fn live_register(cx: &mut Cx) {
         makepad_widgets::live_design(cx);
         moly_widgets::live_design(cx);
+        // Register app widgets from internal modules
+        crate::apps::chat::live_design(cx);
+        crate::apps::models::live_design(cx);
+        crate::apps::settings::live_design(cx);
+        crate::apps::mcp::live_design(cx);
     }
 }
 
 impl MatchEvent for App {
     fn handle_actions(&mut self, cx: &mut Cx, actions: &Actions) {
+        // Handle hamburger menu click
+        if self.ui.view(ids!(hamburger_btn)).finger_down(&actions).is_some() {
+            self.sidebar_expanded = !self.sidebar_expanded;
+            self.update_sidebar(cx);
+        }
+
         // Handle theme toggle click
         if self.ui.view(ids!(theme_toggle)).finger_down(&actions).is_some() {
             self.dark_mode = !self.dark_mode;
@@ -291,13 +313,13 @@ impl MatchEvent for App {
         }
 
         // Handle navigation
-        if self.ui.button(ids!(chat_btn)).clicked(&actions) {
+        if self.ui.view(ids!(chat_btn)).finger_down(&actions).is_some() {
             self.navigate_to(cx, NavigationTarget::Chat);
         }
-        if self.ui.button(ids!(models_btn)).clicked(&actions) {
+        if self.ui.view(ids!(models_btn)).finger_down(&actions).is_some() {
             self.navigate_to(cx, NavigationTarget::Models);
         }
-        if self.ui.button(ids!(settings_btn)).clicked(&actions) {
+        if self.ui.view(ids!(settings_btn)).finger_down(&actions).is_some() {
             self.navigate_to(cx, NavigationTarget::Settings);
         }
     }
@@ -318,19 +340,19 @@ impl App {
 
         self.current_view = target;
 
-        // Update view visibility
-        self.ui.view(ids!(chat_view)).set_visible(cx, target == NavigationTarget::Chat);
-        self.ui.view(ids!(models_view)).set_visible(cx, target == NavigationTarget::Models);
-        self.ui.view(ids!(settings_view)).set_visible(cx, target == NavigationTarget::Settings);
+        // Update app visibility
+        self.ui.widget(ids!(chat_app)).set_visible(cx, target == NavigationTarget::Chat);
+        self.ui.widget(ids!(models_app)).set_visible(cx, target == NavigationTarget::Models);
+        self.ui.widget(ids!(settings_app)).set_visible(cx, target == NavigationTarget::Settings);
 
         // Update button selection state
-        self.ui.button(ids!(chat_btn)).apply_over(cx, live! {
+        self.ui.view(ids!(chat_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if target == NavigationTarget::Chat { 1.0 } else { 0.0 }) }
         });
-        self.ui.button(ids!(models_btn)).apply_over(cx, live! {
+        self.ui.view(ids!(models_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if target == NavigationTarget::Models { 1.0 } else { 0.0 }) }
         });
-        self.ui.button(ids!(settings_btn)).apply_over(cx, live! {
+        self.ui.view(ids!(settings_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if target == NavigationTarget::Settings { 1.0 } else { 0.0 }) }
         });
 
@@ -364,29 +386,64 @@ impl App {
         });
 
         // Update navigation buttons
-        self.ui.button(ids!(chat_btn)).apply_over(cx, live! {
+        self.ui.view(ids!(chat_btn)).apply_over(cx, live! {
             draw_bg: { dark_mode: (dark_mode_value) }
-            draw_text: { dark_mode: (dark_mode_value) }
         });
-        self.ui.button(ids!(models_btn)).apply_over(cx, live! {
-            draw_bg: { dark_mode: (dark_mode_value) }
-            draw_text: { dark_mode: (dark_mode_value) }
+        self.ui.icon(ids!(chat_btn.btn_icon)).apply_over(cx, live! {
+            draw_icon: { dark_mode: (dark_mode_value) }
         });
-        self.ui.button(ids!(settings_btn)).apply_over(cx, live! {
-            draw_bg: { dark_mode: (dark_mode_value) }
+        self.ui.label(ids!(chat_btn.btn_label)).apply_over(cx, live! {
             draw_text: { dark_mode: (dark_mode_value) }
         });
 
-        // Update content views
-        self.ui.view(ids!(chat_view)).apply_over(cx, live! {
+        self.ui.view(ids!(models_btn)).apply_over(cx, live! {
             draw_bg: { dark_mode: (dark_mode_value) }
         });
-        self.ui.view(ids!(models_view)).apply_over(cx, live! {
+        self.ui.icon(ids!(models_btn.btn_icon)).apply_over(cx, live! {
+            draw_icon: { dark_mode: (dark_mode_value) }
+        });
+        self.ui.label(ids!(models_btn.btn_label)).apply_over(cx, live! {
+            draw_text: { dark_mode: (dark_mode_value) }
+        });
+
+        self.ui.view(ids!(settings_btn)).apply_over(cx, live! {
             draw_bg: { dark_mode: (dark_mode_value) }
         });
-        self.ui.view(ids!(settings_view)).apply_over(cx, live! {
+        self.ui.icon(ids!(settings_btn.btn_icon)).apply_over(cx, live! {
+            draw_icon: { dark_mode: (dark_mode_value) }
+        });
+        self.ui.label(ids!(settings_btn.btn_label)).apply_over(cx, live! {
+            draw_text: { dark_mode: (dark_mode_value) }
+        });
+
+        // Update app dark mode
+        self.ui.widget(ids!(chat_app)).apply_over(cx, live! {
             draw_bg: { dark_mode: (dark_mode_value) }
         });
+        self.ui.widget(ids!(models_app)).apply_over(cx, live! {
+            draw_bg: { dark_mode: (dark_mode_value) }
+        });
+        self.ui.widget(ids!(settings_app)).apply_over(cx, live! {
+            draw_bg: { dark_mode: (dark_mode_value) }
+        });
+        self.ui.widget(ids!(mcp_app)).apply_over(cx, live! {
+            draw_bg: { dark_mode: (dark_mode_value) }
+        });
+
+        self.ui.redraw(cx);
+    }
+
+    fn update_sidebar(&mut self, cx: &mut Cx) {
+        let width = if self.sidebar_expanded { 250.0 } else { 60.0 };
+
+        self.ui.view(ids!(sidebar)).apply_over(cx, live! {
+            width: (width)
+        });
+
+        // Show/hide button labels based on sidebar state
+        self.ui.label(ids!(chat_btn.btn_label)).set_visible(cx, self.sidebar_expanded);
+        self.ui.label(ids!(models_btn.btn_label)).set_visible(cx, self.sidebar_expanded);
+        self.ui.label(ids!(settings_btn.btn_label)).set_visible(cx, self.sidebar_expanded);
 
         self.ui.redraw(cx);
     }
@@ -398,6 +455,7 @@ impl Default for App {
             ui: WidgetRef::default(),
             current_view: NavigationTarget::Chat,
             dark_mode: false,
+            sidebar_expanded: true,
         }
     }
 }

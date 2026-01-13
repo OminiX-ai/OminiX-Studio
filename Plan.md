@@ -198,59 +198,74 @@ moly/
 - Copy icons from: ../mofa-studio/mofa-studio-shell/resources/icons/
 - May need to create chat.svg, models.svg if not in mofa-studio
 
-## Phase 2: App Plugin System
+## Phase 2: App Plugin System ✅ COMPLETED
 
 ### Goal
 Implement MoFA's plugin architecture and create empty app containers.
 
+### Status
+✅ **COMPLETED** - Multi-app system working with internal module structure.
+
 ### Steps
 
-**2.1 Plugin Trait (moly-shell/src/app.rs)**
-```rust
-pub trait MolyApp {
-    fn app_id(&self) -> &str;
-    fn app_name(&self) -> &str;
-    fn app_icon(&self) -> LiveDependency;
-    fn handle_event(&mut self, cx: &mut Cx, event: &Event);
-    fn draw(&mut self, cx: &mut Cx2d, scope: &mut Scope) -> DrawStep;
-}
+**2.1 Plugin Trait (moly-shell/src/app.rs)** ✅ COMPLETED
+- Decision: Simplified to use Makepad Widget pattern instead of custom trait
+- Apps are Makepad widgets using `#[derive(Live, LiveHook, Widget)]`
+
+**2.2 App Containers** ✅ COMPLETED
+- ✅ Created moly-shell/src/apps/chat.rs (ChatApp widget)
+- ✅ Created moly-shell/src/apps/models.rs (ModelsApp widget)
+- ✅ Created moly-shell/src/apps/settings.rs (SettingsApp widget)
+- ✅ Created moly-shell/src/apps/mcp.rs (McpApp widget)
+
+**2.3 Shell Integration** ✅ COMPLETED
+- ✅ Apps load via live_design! and live_register()
+- ✅ Sidebar wired to switch apps via NavigationTarget enum
+- ✅ Content area displays active app with visibility toggling
+- ✅ Dark mode propagates to all apps
+
+**2.4 Verification** ✅ COMPLETED
+- ✅ Sidebar navigation switches between app screens
+- ✅ Each app shows placeholder text
+- ✅ Dark mode applies to all apps
+- ✅ Navigation state persists while switching
+
+**2.5 Enhancements** ✅ COMPLETED
+- ✅ Hamburger menu functionality (collapse/expand sidebar)
+- ✅ Collapsible sidebar (250px expanded → 60px collapsed)
+- ✅ Icon-based navigation (visible when collapsed)
+- ✅ Colored icons for better UX:
+  - Chat: Blue (#3b82f6) - Communication
+  - Models: Purple (#8b5cf6) - Tech/AI
+  - Settings: Amber (#f59e0b) - Tools
+- ✅ Logo added to header (moly-logo.png)
+- ✅ Icons adjust colors for dark mode
+
+### Implementation Notes
+- **Architecture Decision**: Used internal modules (moly-shell/src/apps/) instead of separate crates
+- **Rationale**: Makepad's `live_design!` DSL has limitations with cross-crate widget imports
+- **Pattern**: Each app is a Makepad Widget in its own module file
+- **Future**: Can refactor to separate crates once cross-crate pattern is better understood
+- Apps register via `live_design(cx)` calls in the shell's `LiveRegister` implementation
+- Navigation uses visibility toggling rather than dynamic widget instantiation
+- **Sidebar Toggle**: Uses `set_visible()` on labels to show/hide text while keeping icons
+- **Color Scheme**: Icons use semantic colors that adapt to dark mode for accessibility
+
+### Files Created (Phase 2)
+
 ```
-
-**2.2 App Containers**
-- Create apps/moly-chat/ (empty placeholder)
-- Create apps/moly-models/ (empty placeholder)
-- Create apps/moly-settings/ (empty placeholder)
-- Create apps/moly-mcp/ (empty placeholder, desktop only)
-
-**2.3 Shell Integration**
-- Load apps in shell
-- Wire sidebar to switch apps
-- Content area displays active app
-
-**2.4 Verification**
-- Sidebar navigation switches between empty app screens
-- Each app shows placeholder text
-
-### Files to Create (Phase 2)
-
-```
-apps/
-├── moly-chat/
-│   ├── Cargo.toml
-│   └── src/lib.rs                             # Empty MolyApp impl
-├── moly-models/
-│   ├── Cargo.toml
-│   └── src/lib.rs
-├── moly-settings/
-│   ├── Cargo.toml
-│   └── src/lib.rs
-└── moly-mcp/
-    ├── Cargo.toml
-    └── src/lib.rs
-
 moly-shell/src/
-└── app.rs                                     # Updated with plugin loading
+├── apps/
+│   ├── mod.rs                                 # Module exports
+│   ├── chat.rs                                # ChatApp widget
+│   ├── models.rs                              # ModelsApp widget
+│   ├── settings.rs                            # SettingsApp widget
+│   └── mcp.rs                                 # McpApp widget
+├── main.rs                                    # Updated with apps module
+└── app.rs                                     # Updated with app switching logic
 ```
+
+Note: External app crates (apps/moly-*/) exist but are not currently used.
 
 ## Phase 3: Shared State & Store
 

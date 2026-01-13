@@ -5,6 +5,10 @@ members = [
     "moly-widgets",
 ]
 
+# Note: apps/moly-* directories are kept for reference but not used
+# Widgets must be internal modules in moly-shell/src/apps/ due to
+# Makepad's live_design! macro limitation. See MAKEPAD_WIDGET_IMPORTS.md
+
 [workspace.package]
 version = "0.1.0"
 edition = "2021"

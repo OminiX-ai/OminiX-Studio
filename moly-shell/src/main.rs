@@ -1,4 +1,5 @@
 mod app;
+mod apps;
 
 fn main() {
     #[cfg(not(target_arch = "wasm32"))]
