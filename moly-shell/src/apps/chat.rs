@@ -4,7 +4,7 @@ use moly_kit::aitk::controllers::chat::{ChatStateMutation, ChatTask};
 use moly_kit::aitk::protocol::{Bot, BotId};
 use std::sync::{Arc, Mutex};
 
-use crate::data::Store;
+use crate::data::{ChatId, Store};
 
 live_design! {
     use link::theme::*;
@@ -12,6 +12,158 @@ live_design! {
     use link::widgets::*;
     use moly_widgets::theme::*;
     use moly_kit::widgets::chat::Chat;
+
+    // Individual chat history item - Widget with proper event handling
+    pub ChatHistoryItem = {{ChatHistoryItem}} {
+        width: Fill, height: Fit
+        padding: {left: 12, right: 12, top: 8, bottom: 8}
+        cursor: Hand
+        show_bg: true
+        draw_bg: {
+            instance dark_mode: 0.0
+            instance selected: 0.0
+            instance hover: 0.0
+            instance down: 0.0
+            fn pixel(self) -> vec4 {
+                let base = mix(#ffffff, #1e293b, self.dark_mode);
+                let selected_color = mix(#dbeafe, #1e3a8a, self.dark_mode);
+                let hover_color = mix(#f1f5f9, #334155, self.dark_mode);
+                let color = mix(base, selected_color, self.selected);
+                return mix(color, hover_color, self.hover * (1.0 - self.selected));
+            }
+        }
+
+        // Animator enables finger event handling
+        animator: {
+            hover = {
+                default: off
+                off = {
+                    from: {all: Forward {duration: 0.15}}
+                    apply: {
+                        draw_bg: {hover: 0.0}
+                    }
+                }
+                on = {
+                    from: {all: Forward {duration: 0.15}}
+                    apply: {
+                        draw_bg: {hover: 1.0}
+                    }
+                }
+            }
+            down = {
+                default: off
+                off = {
+                    from: {all: Forward {duration: 0.2}}
+                    apply: {
+                        draw_bg: {down: 0.0}
+                    }
+                }
+                on = {
+                    from: {all: Forward {duration: 0.1}}
+                    apply: {
+                        draw_bg: {down: 1.0}
+                    }
+                }
+            }
+        }
+
+        flow: Down
+        spacing: 2
+
+        title_label = <Label> {
+            width: Fill
+            draw_text: {
+                instance dark_mode: 0.0
+                fn get_color(self) -> vec4 {
+                    return mix(#1f2937, #f1f5f9, self.dark_mode);
+                }
+                text_style: { font_size: 12.0 }
+                wrap: Ellipsis
+            }
+            text: "New Chat"
+        }
+
+        date_label = <Label> {
+            width: Fill
+            draw_text: {
+                instance dark_mode: 0.0
+                fn get_color(self) -> vec4 {
+                    return mix(#6b7280, #9ca3af, self.dark_mode);
+                }
+                text_style: { font_size: 10.0 }
+            }
+            text: ""
+        }
+    }
+
+    // Template alias for PortalList
+    ChatHistoryItemTemplate = <ChatHistoryItem> {}
+
+    // Chat history panel as a separate widget
+    pub ChatHistoryPanel = {{ChatHistoryPanel}} {
+        width: 220, height: Fill
+        flow: Down
+        show_bg: true
+        draw_bg: {
+            instance dark_mode: 0.0
+            fn pixel(self) -> vec4 {
+                return mix(#f8fafc, #0f172a, self.dark_mode);
+            }
+        }
+
+        // New chat button
+        new_chat_container = <View> {
+            width: Fill, height: Fit
+            padding: 12
+
+            new_chat_button = <Button> {
+                width: Fill, height: Fit
+                padding: {left: 12, right: 12, top: 10, bottom: 10}
+                text: "+ New Chat"
+                draw_text: {
+                    text_style: { font_size: 12.0 }
+                    color: #ffffff
+                }
+                draw_bg: {
+                    instance dark_mode: 0.0
+                    instance hover: 0.0
+                    instance pressed: 0.0
+                    fn pixel(self) -> vec4 {
+                        let base = mix(#3b82f6, #2055ff, self.dark_mode);
+                        let hover_color = mix(#2055ff, #1045cc, self.dark_mode);
+                        let pressed_color = mix(#1045cc, #1040a0, self.dark_mode);
+                        let color = mix(base, hover_color, self.hover);
+                        return mix(color, pressed_color, self.pressed);
+                    }
+                }
+            }
+        }
+
+        // History header
+        history_header = <View> {
+            width: Fill, height: Fit
+            padding: {left: 12, right: 12, top: 8, bottom: 8}
+
+            history_title = <Label> {
+                text: "History"
+                draw_text: {
+                    instance dark_mode: 0.0
+                    fn get_color(self) -> vec4 {
+                        return mix(#6b7280, #9ca3af, self.dark_mode);
+                    }
+                    text_style: { font_size: 11.0 }
+                }
+            }
+        }
+
+        // Chat history list
+        history_list = <PortalList> {
+            width: Fill, height: Fill
+            flow: Down
+
+            ChatHistoryItem = <ChatHistoryItem> {}
+        }
+    }
 
     pub ChatApp = {{ChatApp}} {
         width: Fill, height: Fill
@@ -54,9 +206,243 @@ live_design! {
             }
         }
 
-        // Chat widget from moly-kit
-        chat = <Chat> {
+        // Main content area with history panel and chat
+        main_content = <View> {
             width: Fill, height: Fill
+            flow: Right
+
+            // Chat history panel (separate widget)
+            history_panel = <ChatHistoryPanel> {}
+
+            // Separator line
+            separator = <View> {
+                width: 1, height: Fill
+                show_bg: true
+                draw_bg: {
+                    instance dark_mode: 0.0
+                    fn pixel(self) -> vec4 {
+                        return mix(#e5e7eb, #374151, self.dark_mode);
+                    }
+                }
+            }
+
+            // Chat widget from moly-kit
+            chat = <Chat> {
+                width: Fill, height: Fill
+            }
+        }
+    }
+}
+
+// Actions emitted by ChatHistoryPanel
+#[derive(Clone, Debug, DefaultNone)]
+pub enum ChatHistoryAction {
+    None,
+    NewChat,
+    SelectChat(ChatId),
+}
+
+/// ChatHistoryItem Widget - handles its own click events
+#[derive(Live, LiveHook, Widget)]
+pub struct ChatHistoryItem {
+    #[deref]
+    view: View,
+
+    #[rust]
+    chat_id: Option<ChatId>,
+}
+
+impl Widget for ChatHistoryItem {
+    fn handle_event(&mut self, cx: &mut Cx, event: &Event, scope: &mut Scope) {
+        self.view.handle_event(cx, event, scope);
+    }
+
+    fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
+        self.view.draw_walk(cx, scope, walk)
+    }
+}
+
+impl ChatHistoryItem {
+    pub fn set_chat_id(&mut self, id: ChatId) {
+        self.chat_id = Some(id);
+    }
+
+    /// Check if this item was clicked - similar to EntityButton pattern
+    pub fn clicked(&self, actions: &Actions) -> bool {
+        if let Some(item) = actions.find_widget_action(self.view.widget_uid()) {
+            if let ViewAction::FingerDown(fd) = item.cast() {
+                return fd.tap_count == 1;
+            }
+        }
+        false
+    }
+
+    pub fn get_chat_id(&self) -> Option<ChatId> {
+        self.chat_id
+    }
+}
+
+impl ChatHistoryItemRef {
+    pub fn set_chat_id(&self, id: ChatId) {
+        if let Some(mut inner) = self.borrow_mut() {
+            inner.set_chat_id(id);
+        }
+    }
+
+    pub fn clicked(&self, actions: &Actions) -> bool {
+        if let Some(inner) = self.borrow() {
+            inner.clicked(actions)
+        } else {
+            false
+        }
+    }
+
+    pub fn get_chat_id(&self) -> Option<ChatId> {
+        if let Some(inner) = self.borrow() {
+            inner.get_chat_id()
+        } else {
+            None
+        }
+    }
+}
+
+/// Separate widget for chat history panel - handles its own PortalList drawing
+#[derive(Live, LiveHook, Widget)]
+pub struct ChatHistoryPanel {
+    #[deref]
+    view: View,
+
+    #[rust]
+    chat_count: usize,
+
+    #[rust]
+    current_chat_id: Option<ChatId>,
+
+    #[rust]
+    dark_mode: f64,
+}
+
+impl Widget for ChatHistoryPanel {
+    fn handle_event(&mut self, cx: &mut Cx, event: &Event, scope: &mut Scope) {
+        // Delegate events directly to view (like moly-ai pattern)
+        self.view.handle_event(cx, event, scope);
+
+        // Use WidgetMatchEvent pattern for handling actions
+        self.widget_match_event(cx, event, scope);
+    }
+
+    fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
+        // Get data from store
+        if let Some(store) = scope.data.get::<Store>() {
+            self.dark_mode = if store.is_dark_mode() { 1.0 } else { 0.0 };
+            self.chat_count = store.chats.saved_chats.len();
+        }
+
+        // Apply dark mode to panel
+        self.view.apply_over(cx, live! {
+            draw_bg: { dark_mode: (self.dark_mode) }
+        });
+        self.view.button(ids!(new_chat_button)).apply_over(cx, live! {
+            draw_bg: { dark_mode: (self.dark_mode) }
+        });
+
+        // Get the history_list PortalList
+        let history_list = self.view.portal_list(ids!(history_list));
+        let history_list_uid = history_list.widget_uid();
+
+        // Draw with PortalList handling
+        while let Some(widget) = self.view.draw_walk(cx, scope, walk).step() {
+            if widget.widget_uid() == history_list_uid {
+                if let Some(mut list) = widget.as_portal_list().borrow_mut() {
+                    list.set_item_range(cx, 0, self.chat_count);
+
+                    while let Some(item_id) = list.next_visible_item(cx) {
+                        if item_id < self.chat_count {
+                            // Get chat data
+                            let (chat_id, title, date_str, is_selected) = if let Some(store) = scope.data.get::<Store>() {
+                                if let Some(chat) = store.chats.saved_chats.get(item_id) {
+                                    let id = chat.id;
+                                    let title = chat.title.clone();
+                                    let date = chat.accessed_at.format("%b %d").to_string();
+                                    let selected = self.current_chat_id == Some(chat.id);
+                                    (id, title, date, selected)
+                                } else {
+                                    continue;
+                                }
+                            } else {
+                                continue;
+                            };
+
+                            // Draw the item - get as ChatHistoryItem widget
+                            let item_widget = list.item(cx, item_id, live_id!(ChatHistoryItem));
+
+                            // Set the chat_id on the item so we can retrieve it in handle_actions
+                            item_widget.as_chat_history_item().set_chat_id(chat_id);
+
+                            let selected_value = if is_selected { 1.0 } else { 0.0 };
+
+                            item_widget.apply_over(cx, live! {
+                                draw_bg: {
+                                    dark_mode: (self.dark_mode),
+                                    selected: (selected_value)
+                                }
+                            });
+
+                            item_widget.label(ids!(title_label)).set_text(cx, &title);
+                            item_widget.label(ids!(title_label)).apply_over(cx, live! {
+                                draw_text: { dark_mode: (self.dark_mode) }
+                            });
+
+                            item_widget.label(ids!(date_label)).set_text(cx, &date_str);
+                            item_widget.label(ids!(date_label)).apply_over(cx, live! {
+                                draw_text: { dark_mode: (self.dark_mode) }
+                            });
+
+                            item_widget.draw_all(cx, scope);
+                        }
+                    }
+                }
+            }
+        }
+
+        DrawStep::done()
+    }
+}
+
+impl ChatHistoryPanel {
+    pub fn set_current_chat(&mut self, chat_id: Option<ChatId>) {
+        self.current_chat_id = chat_id;
+    }
+}
+
+impl WidgetMatchEvent for ChatHistoryPanel {
+    fn handle_actions(&mut self, cx: &mut Cx, actions: &Actions, _scope: &mut Scope) {
+        // Handle new chat button click
+        let btn = self.button(ids!(new_chat_button));
+        if btn.clicked(actions) {
+            ::log::info!("New chat button clicked");
+            cx.action(ChatHistoryAction::NewChat);
+        }
+
+        // Handle chat history item clicks from PortalList
+        // Use the ChatHistoryItem widget's clicked() method (like moly-ai's EntityButton pattern)
+        let history_list = self.portal_list(ids!(history_list));
+        for (_item_id, item) in history_list.items_with_actions(actions) {
+            let history_item = item.as_chat_history_item();
+            if history_item.clicked(actions) {
+                if let Some(chat_id) = history_item.get_chat_id() {
+                    ::log::info!("Chat history item clicked: {:?}", chat_id);
+                    cx.action(ChatHistoryAction::SelectChat(chat_id));
+                }
+            }
+        }
+    }
+}
+
+impl ChatHistoryPanelRef {
+    pub fn set_current_chat(&self, chat_id: Option<ChatId>) {
+        if let Some(mut inner) = self.borrow_mut() {
+            inner.set_current_chat(chat_id);
         }
     }
 }
@@ -110,6 +496,26 @@ pub struct ChatApp {
     /// Whether we need to force re-set the controller (after models load or visibility change)
     #[rust]
     needs_controller_reset: bool,
+
+    /// Current chat ID being edited
+    #[rust]
+    current_chat_id: Option<ChatId>,
+
+    /// Last message count we synced (to detect changes)
+    #[rust]
+    last_synced_message_count: usize,
+
+    /// Whether there was a message being written in the last sync check
+    #[rust]
+    had_writing_message: bool,
+
+    /// Content length of last message at last sync (to detect streaming content)
+    #[rust]
+    last_synced_content_len: usize,
+
+    /// Whether we've initialized the chat from persistence
+    #[rust]
+    chat_initialized: bool,
 }
 
 impl LiveHook for ChatApp {
@@ -146,6 +552,203 @@ impl ChatApp {
     pub fn on_become_visible(&mut self) {
         self.needs_controller_reset = true;
     }
+
+    /// Initialize the chat from persistence (load or create the current chat)
+    fn maybe_initialize_chat(&mut self, cx: &mut Cx, scope: &mut Scope) {
+        if self.chat_initialized {
+            return;
+        }
+
+        let Some(store) = scope.data.get_mut::<Store>() else { return };
+
+        // Get or create the current chat
+        let chat_id = if let Some(id) = store.chats.current_chat_id {
+            id
+        } else {
+            // No current chat, create one
+            let current_bot_id = {
+                let ctrl = self.chat_controller.lock().unwrap();
+                ctrl.state().bot_id.clone()
+            };
+            ::log::info!("Creating new chat");
+            store.chats.create_chat(current_bot_id)
+        };
+
+        self.current_chat_id = Some(chat_id);
+
+        // Load messages from the chat into the controller
+        if let Some(chat) = store.chats.get_chat_by_id(chat_id) {
+            let messages = chat.messages.clone();
+            let message_count = messages.len();
+
+            if !messages.is_empty() {
+                ::log::info!("Loading {} messages from chat {}", message_count, chat_id);
+                let mut ctrl = self.chat_controller.lock().unwrap();
+                ctrl.dispatch_mutation(VecMutation::Set(messages));
+            }
+
+            self.last_synced_message_count = message_count;
+
+            // Also restore the bot_id if it was saved with the chat
+            if let Some(ref bot_id) = chat.bot_id {
+                ::log::info!("Chat {} has saved bot_id: {}", chat_id, bot_id.as_str());
+                // We'll let restore_saved_model handle the bot selection
+            }
+        }
+
+        self.chat_initialized = true;
+        self.view.redraw(cx);
+    }
+
+    /// Sync messages from controller to persistence when they change
+    fn sync_messages_to_persistence(&mut self, scope: &mut Scope) {
+        let Some(chat_id) = self.current_chat_id else { return };
+
+        // Get current messages from controller
+        let (messages, message_count, has_writing_message, last_msg_content_len) = {
+            let ctrl = self.chat_controller.lock().unwrap();
+            let msgs = ctrl.state().messages.clone();
+            let count = msgs.len();
+            // Check if any message is still being written
+            let writing = msgs.iter().any(|m| m.metadata.is_writing);
+            // Get the content length of the last message (to detect content changes)
+            let last_len = msgs.last().map(|m| m.content.text.len()).unwrap_or(0);
+            (msgs, count, writing, last_len)
+        };
+
+        // Sync if:
+        // 1. Message count changed (new message added)
+        // 2. OR there was a writing message that just finished (content now complete)
+        // 3. OR the last message content has grown (streaming in progress or just finished)
+        let count_changed = message_count != self.last_synced_message_count;
+        let writing_finished = self.had_writing_message && !has_writing_message;
+        let content_changed = last_msg_content_len != self.last_synced_content_len;
+
+        if !count_changed && !writing_finished && !content_changed {
+            return;
+        }
+
+        if count_changed {
+            ::log::debug!("Messages count changed: {} -> {}, syncing to persistence",
+                self.last_synced_message_count, message_count);
+        }
+        if writing_finished {
+            ::log::debug!("Message finished streaming, syncing to persistence");
+        }
+        if content_changed {
+            ::log::debug!("Message content changed: {} -> {} bytes, syncing to persistence",
+                self.last_synced_content_len, last_msg_content_len);
+        }
+
+        // Update the chat in persistence
+        if let Some(store) = scope.data.get_mut::<Store>() {
+            store.chats.update_chat_messages(chat_id, messages);
+        }
+
+        self.last_synced_message_count = message_count;
+        self.had_writing_message = has_writing_message;
+        self.last_synced_content_len = last_msg_content_len;
+    }
+
+    /// Sync the current bot_id to the chat when it changes
+    fn sync_bot_to_chat(&mut self, scope: &mut Scope) {
+        let Some(chat_id) = self.current_chat_id else { return };
+
+        // Get current bot_id from controller
+        let current_bot_id = {
+            let ctrl = self.chat_controller.lock().unwrap();
+            ctrl.state().bot_id.clone()
+        };
+
+        // Update the chat's bot_id
+        if let Some(store) = scope.data.get_mut::<Store>() {
+            if let Some(chat) = store.chats.get_chat_by_id(chat_id) {
+                // Only update if different
+                if chat.bot_id != current_bot_id {
+                    store.chats.update_chat_bot(chat_id, current_bot_id);
+                }
+            }
+        }
+    }
+
+    /// Create a new chat session
+    pub fn create_new_chat(&mut self, cx: &mut Cx, scope: &mut Scope) {
+        let Some(store) = scope.data.get_mut::<Store>() else { return };
+
+        // Get current bot_id to use for new chat
+        let current_bot_id = {
+            let ctrl = self.chat_controller.lock().unwrap();
+            ctrl.state().bot_id.clone()
+        };
+
+        // Create new chat
+        let chat_id = store.chats.create_chat(current_bot_id.clone());
+        self.current_chat_id = Some(chat_id);
+
+        // Clear messages in controller
+        {
+            let mut ctrl = self.chat_controller.lock().unwrap();
+            ctrl.dispatch_mutation(VecMutation::<Message>::Set(vec![]));
+        }
+
+        // Reset all sync tracking state for the new empty chat
+        self.last_synced_message_count = 0;
+        self.had_writing_message = false;
+        self.last_synced_content_len = 0;
+
+        ::log::info!("Created new chat {}", chat_id);
+        self.view.redraw(cx);
+    }
+
+    /// Switch to a different chat
+    pub fn switch_to_chat(&mut self, cx: &mut Cx, scope: &mut Scope, chat_id: ChatId) {
+        if self.current_chat_id == Some(chat_id) {
+            return;
+        }
+
+        let Some(store) = scope.data.get_mut::<Store>() else { return };
+
+        // Set as current chat in persistence
+        store.chats.set_current_chat(Some(chat_id));
+        self.current_chat_id = Some(chat_id);
+
+        // Load the chat's messages into controller
+        if let Some(chat) = store.chats.get_chat_by_id(chat_id) {
+            // Clone messages and reset is_writing flag on all of them
+            // This is needed because in-memory messages may still have is_writing: true
+            // from when they were being streamed, even though it's not persisted to disk
+            let mut messages = chat.messages.clone();
+            for msg in &mut messages {
+                msg.metadata.is_writing = false;
+            }
+            let message_count = messages.len();
+            let last_content_len = messages.last().map(|m| m.content.text.len()).unwrap_or(0);
+
+            ::log::info!("Switching to chat {} with {} messages", chat_id, message_count);
+
+            {
+                let mut ctrl = self.chat_controller.lock().unwrap();
+                ctrl.dispatch_mutation(VecMutation::Set(messages));
+
+                // Also restore the bot if saved with the chat
+                if let Some(ref bot_id) = chat.bot_id {
+                    ctrl.dispatch_mutation(ChatStateMutation::SetBotId(Some(bot_id.clone())));
+                }
+            }
+
+            // Reset all sync tracking state for the loaded chat
+            self.last_synced_message_count = message_count;
+            self.had_writing_message = false;
+            self.last_synced_content_len = last_content_len;
+
+            // Reset the scroll position to bottom to avoid PortalList first_id > range_end errors
+            // This is needed because switching from a chat with many messages to one with fewer
+            // can leave the scroll position pointing to a non-existent message index
+            self.view.chat(ids!(chat)).write().messages_ref().write().instant_scroll_to_bottom(cx);
+        }
+
+        self.view.redraw(cx);
+    }
 }
 
 impl Widget for ChatApp {
@@ -174,45 +777,85 @@ impl Widget for ChatApp {
         // Check for loaded bots from the ChatController
         self.check_for_loaded_bots(cx, scope);
 
+        // Initialize chat from persistence (load or create)
+        self.maybe_initialize_chat(cx, scope);
+
         // Track model selection changes and save to preferences
         self.track_model_selection(scope);
 
+        // Sync messages to persistence when they change
+        self.sync_messages_to_persistence(scope);
+
+        // Sync bot selection to current chat
+        self.sync_bot_to_chat(scope);
+
+        // Delegate events directly to view (like moly-ai does)
+        // Don't use capture_actions as it can interfere with nested widget event handling
         self.view.handle_event(cx, event, scope);
+
+        // Use WidgetMatchEvent pattern for handling actions
+        self.widget_match_event(cx, event, scope);
     }
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
-        // Access Store from Scope to get dark mode state
-        if let Some(store) = scope.data.get::<Store>() {
-            let dark_mode_value = if store.is_dark_mode() { 1.0 } else { 0.0 };
+        // Get dark mode state
+        let dark_mode_value = if let Some(store) = scope.data.get::<Store>() {
+            if store.is_dark_mode() { 1.0 } else { 0.0 }
+        } else {
+            0.0
+        };
 
-            // Apply dark mode to background
-            self.view.apply_over(cx, live! {
-                draw_bg: { dark_mode: (dark_mode_value) }
-            });
+        // Apply dark mode to background
+        self.view.apply_over(cx, live! {
+            draw_bg: { dark_mode: (dark_mode_value) }
+        });
 
-            // Apply dark mode to header labels
-            self.view.label(ids!(title_label)).apply_over(cx, live! {
-                draw_text: { dark_mode: (dark_mode_value) }
-            });
-            self.view.label(ids!(status_label)).apply_over(cx, live! {
-                draw_text: { dark_mode: (dark_mode_value) }
-            });
+        // Apply dark mode to header labels
+        self.view.label(ids!(title_label)).apply_over(cx, live! {
+            draw_text: { dark_mode: (dark_mode_value) }
+        });
+        self.view.label(ids!(status_label)).apply_over(cx, live! {
+            draw_text: { dark_mode: (dark_mode_value) }
+        });
 
-            // Update status label based on provider configuration
-            if self.providers_configured {
-                let num_providers = self.fetched_provider_ids.len();
-                if num_providers == 1 {
-                    let provider_name = self.current_provider_id.as_deref().unwrap_or("Unknown");
-                    self.view.label(ids!(status_label)).set_text(cx,
-                        &format!("Connected to {}", provider_name));
-                } else if num_providers > 1 {
-                    self.view.label(ids!(status_label)).set_text(cx,
-                        &format!("Connected to {} providers", num_providers));
-                }
+        // Apply dark mode to separator
+        self.view.view(ids!(separator)).apply_over(cx, live! {
+            draw_bg: { dark_mode: (dark_mode_value) }
+        });
+
+        // Update status label based on provider configuration
+        if self.providers_configured {
+            let num_providers = self.fetched_provider_ids.len();
+            if num_providers == 1 {
+                let provider_name = self.current_provider_id.as_deref().unwrap_or("Unknown");
+                self.view.label(ids!(status_label)).set_text(cx,
+                    &format!("Connected to {}", provider_name));
+            } else if num_providers > 1 {
+                self.view.label(ids!(status_label)).set_text(cx,
+                    &format!("Connected to {} providers", num_providers));
             }
         }
 
+        // Update history panel's current chat
+        self.view.chat_history_panel(ids!(history_panel)).set_current_chat(self.current_chat_id);
+
+        // Simply delegate to view's draw_walk - no step() pattern needed
+        // ChatHistoryPanel handles its own PortalList, Chat handles its own
         self.view.draw_walk(cx, scope, walk)
+    }
+}
+
+impl WidgetMatchEvent for ChatApp {
+    fn handle_actions(&mut self, cx: &mut Cx, actions: &Actions, scope: &mut Scope) {
+        // Handle ChatHistoryPanel actions
+        for action in actions.iter() {
+            if let ChatHistoryAction::NewChat = action.cast() {
+                self.create_new_chat(cx, scope);
+            }
+            if let ChatHistoryAction::SelectChat(chat_id) = action.cast() {
+                self.switch_to_chat(cx, scope, chat_id);
+            }
+        }
     }
 }
 

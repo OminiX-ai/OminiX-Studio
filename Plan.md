@@ -325,13 +325,13 @@ moly-shell/src/
 └── app.rs                                     # Updated with Store integration
 ```
 
-## Phase 4: Chat Feature - IN PROGRESS
+## Phase 4: Chat Feature ✅ COMPLETED
 
 ### Goal
 Implement full chat functionality in moly-chat app.
 
 ### Status
-🟡 **IN PROGRESS** - Multi-provider model loading working, chat messaging functional.
+✅ **COMPLETED** - Full chat functionality with multi-provider support, persistence, and chat history UI.
 
 ### Steps
 
@@ -369,12 +369,28 @@ Implement full chat functionality in moly-chat app.
 - ✅ `on_become_visible()` method resets controller when returning to Chat
 - ✅ Force re-set controller pattern to bypass early return checks
 
-**4.6 Verification** 🟡 PARTIAL
+**4.6 Chat Persistence** ✅ COMPLETED
+- ✅ Chats saved to `~/.moly/chats/{id}.chat.json`
+- ✅ Messages synced to disk when count changes
+- ✅ Chats loaded on app startup
+- ✅ Auto-generated title from first user message
+
+**4.7 Chat History UI** ✅ COMPLETED
+- ✅ Chat history sidebar panel with list of saved chats
+- ✅ "New Chat" button to create new chat sessions
+- ✅ Click handling on chat history items (ChatHistoryItem Widget)
+- ✅ Chat switching with proper scroll position reset
+- ✅ Message sync tracking (detects streaming completion)
+- ✅ Content persistence (saves streaming content properly)
+
+**4.8 Verification** ✅ COMPLETED
 - ✅ Model dropdown shows all available models
 - ✅ Model selection changes provider correctly
 - ✅ Selected model persists across restarts
-- ⬜ Chat history persistence (messages not saved yet)
-- ⬜ Multiple chat sessions
+- ✅ Chat history persistence (messages saved to disk)
+- ✅ Multiple chat sessions with chat list and switching
+- ✅ Chat history items clickable and functional
+- ✅ Streaming messages persist correctly after completion
 
 ### Implementation Notes
 
@@ -426,6 +442,67 @@ pub fn on_become_visible(&mut self) {
 // 3. Trigger redraw
 ```
 
+**Key Pattern**: ChatHistoryItem Widget for Click Handling
+Converted from View template to proper Widget struct to enable click detection:
+```rust
+#[derive(Live, LiveHook, Widget)]
+pub struct ChatHistoryItem {
+    #[deref]
+    view: View,
+    #[rust]
+    chat_id: Option<ChatId>,
+}
+
+impl ChatHistoryItem {
+    pub fn clicked(&self, actions: &Actions) -> bool {
+        if let Some(item) = actions.find_widget_action(self.view.widget_uid()) {
+            if let ViewAction::FingerDown(fd) = item.cast() {
+                return fd.tap_count == 1;
+            }
+        }
+        false
+    }
+}
+```
+
+**Key Fix**: Message Sync Tracking for Streaming Content
+Track multiple conditions to properly persist streaming messages:
+```rust
+#[rust]
+last_synced_message_count: usize,
+#[rust]
+had_writing_message: bool,
+#[rust]
+last_synced_content_len: usize,
+
+fn sync_messages_to_persistence(&mut self, scope: &mut Scope) {
+    let count_changed = message_count != self.last_synced_message_count;
+    let writing_finished = self.had_writing_message && !has_writing_message;
+    let content_changed = last_msg_content_len != self.last_synced_content_len;
+
+    if !count_changed && !writing_finished && !content_changed {
+        return;
+    }
+    // ... sync to store
+}
+```
+
+**Key Fix**: PortalList Scroll Position Reset
+When switching chats, reset scroll position to avoid "first_id > range_end" errors:
+```rust
+pub fn switch_to_chat(&mut self, cx: &mut Cx, scope: &mut Scope, chat_id: ChatId) {
+    // ... load messages ...
+
+    // Reset scroll position to avoid PortalList errors
+    self.view.chat(ids!(chat)).write().messages_ref().write().instant_scroll_to_bottom(cx);
+
+    // Reset sync tracking state
+    self.last_synced_message_count = message_count;
+    self.had_writing_message = false;
+    self.last_synced_content_len = last_content_len;
+}
+```
+
 ### Files Created/Modified (Phase 4)
 
 ```
@@ -445,10 +522,12 @@ Cargo.toml (workspace)                         # Added moly-kit, aitk, moly-prot
 moly-shell/Cargo.toml                          # Added workspace dependencies
 ```
 
-### Next Steps (Phase 4 Completion)
-1. Implement chat history persistence
-2. Add multiple chat sessions support
-3. Test end-to-end chat flow with message streaming
+### Phase 4 Complete
+All chat functionality implemented:
+- ✅ Chat history persistence
+- ✅ Multiple chat sessions UI (chat list, new chat button, chat switching)
+- ✅ End-to-end chat flow with message streaming
+- ✅ Proper sync of streaming content to disk
 
 ## Phase 5: Provider Settings
 

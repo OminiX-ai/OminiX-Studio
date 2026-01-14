@@ -92,9 +92,12 @@ impl Store {
         let enabled_providers: Vec<_> = preferences.get_enabled_providers();
         providers_manager.configure_providers(&enabled_providers);
 
+        // Load chats from disk
+        let chats = Chats::load();
+
         Self {
             preferences,
-            chats: Chats::new(),
+            chats,
             chat_controller: Some(chat_controller),
             providers_manager,
             initialized: true,

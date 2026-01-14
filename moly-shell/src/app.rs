@@ -363,11 +363,15 @@ impl MatchEvent for App {
 
 impl AppMain for App {
     fn handle_event(&mut self, cx: &mut Cx, event: &Event) {
-        self.match_event(cx, event);
-
         // Pass Store to child widgets via Scope
+        // IMPORTANT: ui.handle_event must be called BEFORE match_event
+        // because actions are generated during handle_event and then
+        // processed by match_event's handle_actions
         let scope = &mut Scope::with_data(&mut self.store);
         self.ui.handle_event(cx, event, scope);
+
+        // Process actions after they've been generated
+        self.match_event(cx, event);
     }
 }
 
