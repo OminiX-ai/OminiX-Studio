@@ -267,84 +267,188 @@ moly-shell/src/
 
 Note: External app crates (apps/moly-*/) exist but are not currently used.
 
-## Phase 3: Shared State & Store
+## Phase 3: Shared State & Store ✅ COMPLETED
 
 ### Goal
 Implement Moly's Store pattern in the shell, enable app communication.
 
+### Status
+✅ **COMPLETED** - Store pattern implemented following moly-ai's architecture.
+
 ### Steps
 
-**3.1 Store Implementation (moly-shell/src/data/)**
-- Copy Store structure from moly-ai
-- Implement async loading
-- Add preferences persistence
-- Create StoreAction enum
+**3.1 Store Implementation (moly-shell/src/data/)** ✅ COMPLETED
+- ✅ Created Store struct with Preferences
+- ✅ Synchronous loading (simplified from moly-ai's async pattern)
+- ✅ Preferences persistence to JSON file
+- ✅ Created StoreAction enum for future action handling
 
-**3.2 Store Integration**
-- Shell owns Store instance
-- Apps receive Store reference via custom events
-- Apps post actions to modify Store
-- Shell propagates Store updates to apps
+**3.2 Store Integration** ✅ COMPLETED
+- ✅ Shell owns Store instance
+- ✅ Apps receive Store reference via Makepad's Scope mechanism
+- ✅ Apps read Store state in draw_walk()
+- ✅ Shell updates Store and triggers redraws
 
-**3.3 Verification**
-- Store loads preferences on startup
-- Apps can read/write Store
-- Preferences persist across restarts
+**3.3 Verification** ✅ COMPLETED
+- ✅ Store loads preferences on startup
+- ✅ Apps can read Store via `scope.data.get::<Store>()`
+- ✅ Preferences persist across restarts (dark_mode, sidebar_expanded, current_view)
 
-### Files to Create (Phase 3)
+### Implementation Notes
+
+**Architecture Decision**: Used Makepad's native Scope pattern instead of custom events:
+```rust
+// In App's handle_event
+let scope = &mut Scope::with_data(&mut self.store);
+self.ui.handle_event(cx, event, scope);
+
+// In child widgets' draw_walk
+if let Some(store) = scope.data.get::<Store>() {
+    let dark_mode = store.is_dark_mode();
+    // Apply state
+}
+```
+
+**Preferences Persistence**:
+- File location: `<executable_dir>/preferences/preferences.json`
+- Format: JSON with serde serialization
+- Auto-saves on state changes
+
+### Files Created (Phase 3)
 
 ```
 moly-shell/src/
 ├── data/
-│   ├── mod.rs
-│   ├── store.rs                               # Store pattern
-│   ├── preferences.rs                         # User preferences
-│   └── actions.rs                             # StoreAction enum
-└── app.rs                                     # Updated with Store
+│   ├── mod.rs                                 # Module exports
+│   ├── store.rs                               # Store struct & StoreAction
+│   └── preferences.rs                         # Preferences with persistence
+└── app.rs                                     # Updated with Store integration
 ```
 
-## Phase 4: Chat Feature
+## Phase 4: Chat Feature - IN PROGRESS
 
 ### Goal
 Implement full chat functionality in moly-chat app.
 
+### Status
+🟡 **IN PROGRESS** - Multi-provider model loading working, chat messaging functional.
+
 ### Steps
 
-**4.1 Dependencies**
-- Add aitk, moly-kit to moly-chat
-- Add moly-protocol if needed
+**4.1 Dependencies** ✅ COMPLETED
+- ✅ Added moly-kit (local path from ../moly-ai/moly-kit)
+- ✅ Added aitk (git: moly-ai/aitk, rev: 7c20045b)
+- ✅ Added moly-protocol (git: moly-ai/moly-local, rev: 788cac14d)
+- ✅ Added uuid, chrono, futures dependencies
 
-**4.2 Chat UI (apps/moly-chat/src/)**
-- Port ChatScreen from moly-ai
-- Adapt to MoFA styling (use moly-widgets theme)
-- Integrate with Store for chat persistence
-- Add ChatController
+**4.2 Chat UI** ✅ COMPLETED
+- ✅ Integrated moly-kit's Chat widget into ChatApp
+- ✅ Messages widget working (displays message history)
+- ✅ PromptInput widget working (text input with send button)
+- ✅ ChatController initialized with basic spawner
+- ✅ Registered moly-kit widgets via live_design(cx)
 
-**4.3 BotContext**
-- Port bot_context module
-- Implement in Store
-- Wire to chat app
+**4.3 Chat Data Models** ✅ COMPLETED
+- ✅ Created moly-shell/src/data/chats.rs with:
+  - ChatId type
+  - ChatData struct (id, title, bot_id, messages, timestamps)
+  - Chats manager struct
+- ✅ Integrated Chats into Store
+- ✅ ChatController stored in Store (for future sharing)
 
-**4.4 Verification**
-- Create new chats
-- Send messages (with provider configured)
-- Chat history persists
-- Multiple chats work
+**4.4 BotContext/Provider Integration** ✅ COMPLETED
+- ✅ ProvidersManager configured with OpenAI and Gemini support
+- ✅ BotClient created per provider with API credentials
+- ✅ Model dropdown shows 164+ models from all enabled providers
+- ✅ Bot selection working with `switch_to_provider_for_bot()`
+- ✅ Provider switching preserves model list (re-dispatch bots after set_client)
+- ✅ Selected model persists via Preferences
 
-### Files to Create/Modify (Phase 4)
+**4.5 View State Management** ✅ COMPLETED
+- ✅ Models persist when switching between views (Chat ↔ Models ↔ Settings)
+- ✅ `on_become_visible()` method resets controller when returning to Chat
+- ✅ Force re-set controller pattern to bypass early return checks
+
+**4.6 Verification** 🟡 PARTIAL
+- ✅ Model dropdown shows all available models
+- ✅ Model selection changes provider correctly
+- ✅ Selected model persists across restarts
+- ⬜ Chat history persistence (messages not saved yet)
+- ⬜ Multiple chat sessions
+
+### Implementation Notes
+
+**Architecture Decision**: Used moly-kit's Chat widget directly instead of porting individual components:
+- Chat widget includes Messages + PromptInput + voice modal
+- ChatController manages state, streaming, and plugins
+- Used `after_new_from_doc` LiveHook to initialize controller before draw
+
+**Key Pattern**: Initialize ChatController with default value to avoid "no chat controller set" panic:
+```rust
+#[rust(ChatController::new_arc())]
+chat_controller: Arc<Mutex<ChatController>>,
+
+impl LiveHook for ChatApp {
+    fn after_new_from_doc(&mut self, cx: &mut Cx) {
+        self.chat_controller.lock().unwrap().set_basic_spawner();
+        self.view.chat(ids!(chat))
+            .write()
+            .set_chat_controller(cx, Some(self.chat_controller.clone()));
+    }
+}
+```
+
+**Key Fix**: Provider Switching Preserves Bots
+The `set_client()` method on ChatController clears all bots. Solution:
+```rust
+fn switch_to_provider_for_bot(&mut self, bot_id: &BotId, scope: &mut Scope) {
+    // Save all bots before switching
+    let all_bots = store.providers_manager.get_all_bots().to_vec();
+
+    // set_client() clears bots
+    ctrl.set_client(Some(Box::new(client)));
+
+    // Re-dispatch bots after set_client
+    ctrl.dispatch_mutation(VecMutation::Set(all_bots));
+}
+```
+
+**Key Fix**: View Switching Preserves Model List
+When navigating away and back to Chat, the controller needs to be re-set:
+```rust
+pub fn on_become_visible(&mut self) {
+    self.needs_controller_reset = true;
+}
+
+// In handle_event, when needs_controller_reset is true:
+// 1. Force re-set controller (set to None, then back to Some)
+// 2. Re-dispatch bots mutation
+// 3. Trigger redraw
+```
+
+### Files Created/Modified (Phase 4)
 
 ```
-apps/moly-chat/
-├── Cargo.toml                                 # Add aitk, moly-kit
-└── src/
-    ├── lib.rs                                 # MolyApp impl
-    ├── chat_screen.rs                         # Main chat UI
-    └── ...                                    # Other chat modules
+moly-shell/src/
+├── data/
+│   ├── mod.rs                                 # Added chats, providers_manager exports
+│   ├── chats.rs                               # Chat data models
+│   ├── preferences.rs                         # Added current_chat_model persistence
+│   ├── providers_manager.rs                   # NEW: Multi-provider bot management
+│   └── store.rs                               # Added ProvidersManager integration
+├── apps/
+│   ├── chat.rs                                # Multi-provider support, view state fixes
+│   └── settings.rs                            # Provider configuration UI
+└── app.rs                                     # View visibility notifications
 
-moly-shell/src/data/
-├── store.rs                                   # Add chats, bot_context
-└── chat.rs                                    # Chat models
+Cargo.toml (workspace)                         # Added moly-kit, aitk, moly-protocol deps
+moly-shell/Cargo.toml                          # Added workspace dependencies
 ```
+
+### Next Steps (Phase 4 Completion)
+1. Implement chat history persistence
+2. Add multiple chat sessions support
+3. Test end-to-end chat flow with message streaming
 
 ## Phase 5: Provider Settings
 

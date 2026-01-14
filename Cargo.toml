@@ -18,6 +18,15 @@ license = "Apache-2.0"
 # Makepad UI framework (using moly-ai's revision for compatibility)
 makepad-widgets = { git = "https://github.com/wyeworks/makepad", rev = "53b2e5c84" }
 
+# Moly-kit for chat widgets (local path from moly-ai)
+moly-kit = { path = "../moly-ai/moly-kit", features = ["full"] }
+
+# AI toolkit for chat controller and clients (from aitk git repo)
+aitk = { git = "https://github.com/moly-ai/aitk", rev = "7c20045b", features = ["async-rt", "http", "mcp"] }
+
+# Moly protocol for message types
+moly-protocol = { git = "https://github.com/moly-ai/moly-local", package = "moly-protocol", rev = "788cac14d" }
+
 # Common utilities
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -28,3 +37,4 @@ chrono = "0.4"
 url = "2.5.8"
 futures = "0.3.31"
 reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"], default-features = false }
+uuid = { version = "1.18.0", features = ["js", "v7"] }

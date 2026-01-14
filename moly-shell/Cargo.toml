@@ -11,11 +11,20 @@ path = "src/main.rs"
 [dependencies]
 makepad-widgets.workspace = true
 moly-widgets = { path = "../moly-widgets" }
+moly-kit.workspace = true
+aitk.workspace = true
+moly-protocol.workspace = true
 
 log.workspace = true
 env_logger.workspace = true
 anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+futures.workspace = true
 cfg-if = "1.0.0"
+dirs = "5.0"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1", features = ["rt", "rt-multi-thread"] }
