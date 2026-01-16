@@ -4,6 +4,7 @@ pub mod design;
 
 use makepad_widgets::*;
 use moly_data::{Store, ProviderId, ProviderConnectionStatus};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::path::Path;
 use serde::Deserialize;
@@ -60,9 +61,9 @@ pub struct SettingsApp {
     #[rust]
     model_count: Option<usize>,
 
-    /// List of models fetched from the provider
+    /// List of models fetched from the provider (name, enabled)
     #[rust]
-    fetched_models: Vec<String>,
+    fetched_models: Vec<(String, bool)>,
 
     /// Whether the Add Provider modal is visible
     #[rust]
@@ -92,7 +93,7 @@ impl Widget for SettingsApp {
         }
 
         // Check for connection test results
-        self.check_connection_test_result(cx);
+        self.check_connection_test_result(cx, scope);
 
         // Handle events
         let actions = cx.capture_actions(|cx| {
@@ -132,6 +133,9 @@ impl Widget for SettingsApp {
         if self.view.button(ids!(delete_provider_button)).clicked(&actions) {
             self.delete_provider(cx, scope);
         }
+
+        // Handle model checkbox clicks
+        self.handle_model_checkbox_clicks(cx, scope, &actions);
     }
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
@@ -182,7 +186,7 @@ impl Widget for SettingsApp {
 
                     while let Some(item_id) = list.next_visible_item(cx) {
                         if item_id < self.fetched_models.len() {
-                            let model_name = &self.fetched_models[item_id];
+                            let (model_name, enabled) = &self.fetched_models[item_id];
                             let item_widget = list.item(cx, item_id, live_id!(ModelItem));
 
                             // Set model name
@@ -190,6 +194,9 @@ impl Widget for SettingsApp {
                             item_widget.label(ids!(model_name)).apply_over(cx, live!{
                                 draw_text: { dark_mode: (dark_mode_value) }
                             });
+
+                            // Set checkbox state
+                            item_widget.check_box(ids!(model_enabled)).set_active(cx, *enabled);
 
                             item_widget.draw_all(cx, scope);
                         }
@@ -255,9 +262,6 @@ impl SettingsApp {
                 ::log::info!("Setting API key input: len={}", key_text.len());
                 self.view.text_input(ids!(api_key_input)).set_text(cx, &key_text);
 
-                // Update enabled checkbox
-                self.view.check_box(ids!(enabled_checkbox)).set_active(cx, provider.enabled);
-
                 // Show/hide delete button based on whether provider was custom added
                 self.view.button(ids!(delete_provider_button)).set_visible(cx, provider.was_customly_added);
 
@@ -277,15 +281,13 @@ impl SettingsApp {
         // Get values from inputs
         let url = self.view.text_input(ids!(api_host_input)).text();
         let api_key_text = self.view.text_input(ids!(api_key_input)).text();
-        let enabled = self.view.check_box(ids!(enabled_checkbox)).active(cx);
 
-        ::log::info!("save_provider: provider={}, url={}, api_key_len={}, enabled={}",
-            provider_id, url, api_key_text.len(), enabled);
+        ::log::info!("save_provider: provider={}, url={}, api_key_len={}",
+            provider_id, url, api_key_text.len());
 
         // Save to Store
         if let Some(store) = scope.data.get_mut::<Store>() {
             store.preferences.set_provider_url(provider_id, url);
-            store.preferences.set_provider_enabled(provider_id, enabled);
 
             // Only update API key if user entered something, or if explicitly clearing
             // This prevents accidentally clearing the key if text input returns empty
@@ -332,7 +334,7 @@ impl SettingsApp {
             let item_widget = list.item(cx, item_id, live_id!(ProviderListItem));
 
             // Get provider info from store
-            let (name, _enabled) = if let Some(store) = scope.data.get::<Store>() {
+            let (name, enabled) = if let Some(store) = scope.data.get::<Store>() {
                 if let Some(provider) = store.preferences.get_provider(provider_id) {
                     (provider.name.clone(), provider.enabled)
                 } else {
@@ -369,6 +371,9 @@ impl SettingsApp {
                 ::log::debug!("No icon configured for provider: {}", provider_id);
             }
 
+            // Set enabled checkbox state
+            item_widget.check_box(ids!(provider_enabled)).set_active(cx, enabled);
+
             item_widget.draw_all(cx, scope);
         }
     }
@@ -378,12 +383,67 @@ impl SettingsApp {
         let providers_list = self.view.portal_list(ids!(providers_list));
 
         for (item_id, item) in providers_list.items_with_actions(actions) {
-            // Check for finger down on the item
+            // Handle enabled checkbox toggle
+            let checkbox = item.check_box(ids!(provider_enabled));
+            if let Some(new_state) = checkbox.changed(actions) {
+                if item_id < self.provider_ids.len() {
+                    let provider_id = self.provider_ids[item_id].clone();
+                    // Save enabled state to preferences
+                    if let Some(store) = scope.data.get_mut::<Store>() {
+                        store.preferences.set_provider_enabled(&provider_id, new_state);
+                        ::log::info!("Provider '{}' enabled: {}", provider_id, new_state);
+                    }
+                    self.view.redraw(cx);
+                }
+                continue; // Don't select provider when toggling checkbox
+            }
+
+            // Check for finger down on the item (for selection)
             if let Some(fd) = item.as_view().finger_down(actions) {
                 if fd.tap_count == 1 && item_id < self.provider_ids.len() {
                     let provider_id = self.provider_ids[item_id].clone();
                     self.select_provider(cx, scope, &provider_id);
                 }
+            }
+        }
+    }
+
+    /// Handle model checkbox toggle events
+    fn handle_model_checkbox_clicks(&mut self, cx: &mut Cx, scope: &mut Scope, actions: &Actions) {
+        let models_list = self.view.portal_list(ids!(models_list));
+
+        for (item_id, item) in models_list.items_with_actions(actions) {
+            let checkbox = item.check_box(ids!(model_enabled));
+            if let Some(new_state) = checkbox.changed(actions) {
+                if item_id < self.fetched_models.len() {
+                    let model_name = self.fetched_models[item_id].0.clone();
+
+                    // Update local state
+                    self.fetched_models[item_id].1 = new_state;
+
+                    // Save to preferences
+                    self.save_model_enabled_state(scope, &model_name, new_state);
+
+                    ::log::info!("Model '{}' enabled: {}", model_name, new_state);
+                    self.view.redraw(cx);
+                }
+            }
+        }
+    }
+
+    /// Save model enabled state to preferences
+    fn save_model_enabled_state(&mut self, scope: &mut Scope, model_name: &str, enabled: bool) {
+        let Some(provider_id) = &self.selected_provider_id else { return };
+
+        if let Some(store) = scope.data.get_mut::<Store>() {
+            if let Some(provider) = store.preferences.get_provider_mut(provider_id) {
+                // Find and update or add the model entry
+                if let Some(model_entry) = provider.models.iter_mut().find(|(name, _)| name == model_name) {
+                    model_entry.1 = enabled;
+                } else {
+                    provider.models.push((model_name.to_string(), enabled));
+                }
+                store.preferences.save();
             }
         }
     }
@@ -418,11 +478,6 @@ impl SettingsApp {
         });
         self.view.text_input(ids!(api_key_input)).apply_over(cx, live!{
             draw_bg: { dark_mode: (dark_mode) }
-            draw_text: { dark_mode: (dark_mode) }
-        });
-
-        // Apply to checkbox
-        self.view.check_box(ids!(enabled_checkbox)).apply_over(cx, live!{
             draw_text: { dark_mode: (dark_mode) }
         });
 
@@ -529,7 +584,7 @@ impl SettingsApp {
     }
 
     /// Check for connection test results and update UI
-    fn check_connection_test_result(&mut self, cx: &mut Cx) {
+    fn check_connection_test_result(&mut self, cx: &mut Cx, scope: &mut Scope) {
         if !self.connection_test_in_progress {
             return;
         }
@@ -544,12 +599,29 @@ impl SettingsApp {
         };
 
         if let Some(test_result) = result {
-            // Only apply if this is for the currently selected provider
+            // Only apply detailed results if this is for the currently selected provider
             if self.selected_provider_id.as_ref() == Some(&test_result.provider_id) {
                 self.connection_status = test_result.status.clone();
                 self.model_count = test_result.model_count;
-                self.fetched_models = test_result.models;
                 self.connection_test_in_progress = false;
+
+                // Get stored model preferences for this provider
+                let stored_models: HashMap<String, bool> = if let Some(store) = scope.data.get::<Store>() {
+                    if let Some(provider) = store.preferences.get_provider(&test_result.provider_id) {
+                        provider.models.iter().cloned().collect()
+                    } else {
+                        HashMap::new()
+                    }
+                } else {
+                    HashMap::new()
+                };
+
+                // Merge fetched models with stored enabled state
+                self.fetched_models = test_result.models.into_iter().map(|name| {
+                    // Use stored preference, default to enabled if not found
+                    let enabled = stored_models.get(&name).copied().unwrap_or(true);
+                    (name, enabled)
+                }).collect();
 
                 // Update status message
                 let status_text = match &test_result.status {
@@ -564,8 +636,8 @@ impl SettingsApp {
                     _ => String::new(),
                 };
                 self.view.label(ids!(status_message)).set_text(cx, &status_text);
-                self.view.redraw(cx);
             }
+            self.view.redraw(cx);
         }
     }
 
