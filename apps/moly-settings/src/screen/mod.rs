@@ -3,7 +3,34 @@
 pub mod design;
 
 use makepad_widgets::*;
-use moly_data::{Store, ProviderId};
+use moly_data::{Store, ProviderId, ProviderConnectionStatus};
+use std::sync::{Arc, Mutex};
+use std::path::Path;
+use serde::Deserialize;
+
+/// Result from connection test stored in shared state
+#[derive(Clone, Debug)]
+struct ConnectionTestResult {
+    provider_id: String,
+    status: ProviderConnectionStatus,
+    model_count: Option<usize>,
+    models: Vec<String>,
+}
+
+/// Shared state for async connection testing
+type ConnectionTestState = Arc<Mutex<Option<ConnectionTestResult>>>;
+
+/// Response from OpenAI-compatible /models endpoint
+#[derive(Deserialize)]
+struct ModelsResponse {
+    data: Vec<ModelInfo>,
+}
+
+#[derive(Deserialize)]
+#[allow(dead_code)]
+struct ModelInfo {
+    id: String,
+}
 
 #[derive(Live, LiveHook, Widget)]
 pub struct SettingsApp {
@@ -16,72 +43,177 @@ pub struct SettingsApp {
 
     #[rust]
     selected_provider_id: Option<ProviderId>,
+
+    /// Shared state for connection test results
+    #[rust]
+    connection_test_state: ConnectionTestState,
+
+    /// Whether a connection test is currently in progress
+    #[rust]
+    connection_test_in_progress: bool,
+
+    /// Current connection status for selected provider
+    #[rust]
+    connection_status: ProviderConnectionStatus,
+
+    /// Number of models found (if connected)
+    #[rust]
+    model_count: Option<usize>,
+
+    /// List of models fetched from the provider
+    #[rust]
+    fetched_models: Vec<String>,
+
+    /// Whether the Add Provider modal is visible
+    #[rust]
+    modal_visible: bool,
+
+    /// Cached list of provider IDs for the PortalList
+    #[rust]
+    provider_ids: Vec<String>,
 }
 
 impl Widget for SettingsApp {
     fn handle_event(&mut self, cx: &mut Cx, event: &Event, scope: &mut Scope) {
+        // Initialize shared state if needed
+        if Arc::strong_count(&self.connection_test_state) == 0 {
+            self.connection_test_state = Arc::new(Mutex::new(None));
+        }
+
         // Initialize with first provider selected (before handling events)
         if self.selected_provider_id.is_none() {
             self.selected_provider_id = Some("openai".to_string());
+            self.connection_test_state = Arc::new(Mutex::new(None));
             self.load_provider_data(cx, scope);
             self.view.redraw(cx);
+
+            // Log icon paths at startup for debugging (debug level)
+            ::log::debug!("Provider icons count: {}", self.provider_icons.len());
         }
 
-        // Handle provider item clicks
+        // Check for connection test results
+        self.check_connection_test_result(cx);
+
+        // Handle events
         let actions = cx.capture_actions(|cx| {
             self.view.handle_event(cx, event, scope);
         });
 
-        // Provider selection
-        if self.view.view(ids!(openai_item)).finger_down(&actions).is_some() {
-            self.select_provider(cx, scope, "openai");
-        }
-        if self.view.view(ids!(anthropic_item)).finger_down(&actions).is_some() {
-            self.select_provider(cx, scope, "anthropic");
-        }
-        if self.view.view(ids!(gemini_item)).finger_down(&actions).is_some() {
-            self.select_provider(cx, scope, "gemini");
-        }
-        if self.view.view(ids!(ollama_item)).finger_down(&actions).is_some() {
-            self.select_provider(cx, scope, "ollama");
-        }
-        if self.view.view(ids!(groq_item)).finger_down(&actions).is_some() {
-            self.select_provider(cx, scope, "groq");
-        }
-        if self.view.view(ids!(deepseek_item)).finger_down(&actions).is_some() {
-            self.select_provider(cx, scope, "deepseek");
-        }
+        // Handle provider list item clicks
+        self.handle_provider_list_clicks(cx, scope, &actions);
 
         // Save button click
         if self.view.button(ids!(save_button)).clicked(&actions) {
             self.save_provider(cx, scope);
         }
+
+        // Test Connection button click
+        if self.view.button(ids!(test_button)).clicked(&actions) {
+            self.test_connection(cx, scope);
+        }
+
+        // Add Provider button click
+        if self.view.button(ids!(add_provider_button)).clicked(&actions) {
+            self.open_add_provider_modal(cx);
+        }
+
+        // Close modal button clicks
+        if self.view.button(ids!(close_modal_button)).clicked(&actions)
+            || self.view.button(ids!(cancel_modal_button)).clicked(&actions) {
+            self.close_add_provider_modal(cx);
+        }
+
+        // Save new provider button click
+        if self.view.button(ids!(save_new_provider_button)).clicked(&actions) {
+            self.save_new_provider(cx, scope);
+        }
+
+        // Delete provider button click
+        if self.view.button(ids!(delete_provider_button)).clicked(&actions) {
+            self.delete_provider(cx, scope);
+        }
     }
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
+        // Get dark mode value
+        let dark_mode_value = if let Some(store) = scope.data.get::<Store>() {
+            if store.is_dark_mode() { 1.0 } else { 0.0 }
+        } else {
+            0.0
+        };
+
         // Apply dark mode
-        if let Some(store) = scope.data.get::<Store>() {
-            let dark_mode_value = if store.is_dark_mode() { 1.0 } else { 0.0 };
-            self.apply_dark_mode(cx, dark_mode_value);
-        }
+        self.apply_dark_mode(cx, dark_mode_value);
 
         // Update selection highlighting
         self.update_selection(cx);
 
-        self.view.draw_walk(cx, scope, walk)
+        // Show/hide models section based on fetched models
+        let has_models = !self.fetched_models.is_empty();
+        self.view.view(ids!(models_section)).set_visible(cx, has_models);
+
+        // Show/hide add provider modal
+        self.view.view(ids!(add_provider_modal)).set_visible(cx, self.modal_visible);
+
+        // Update provider list from store
+        if let Some(store) = scope.data.get::<Store>() {
+            self.provider_ids = store.preferences.providers_preferences
+                .iter()
+                .map(|p| p.id.clone())
+                .collect();
+        }
+
+        // Get PortalList widget UIDs for step pattern
+        let providers_list = self.view.portal_list(ids!(providers_list));
+        let providers_list_uid = providers_list.widget_uid();
+        let models_list = self.view.portal_list(ids!(models_list));
+        let models_list_uid = models_list.widget_uid();
+
+        // Draw with PortalList handling
+        while let Some(widget) = self.view.draw_walk(cx, scope, walk).step() {
+            // Draw providers list
+            if widget.widget_uid() == providers_list_uid {
+                self.draw_providers_list(cx, scope, widget, dark_mode_value);
+            }
+            // Draw models list
+            else if widget.widget_uid() == models_list_uid {
+                if let Some(mut list) = widget.as_portal_list().borrow_mut() {
+                    list.set_item_range(cx, 0, self.fetched_models.len());
+
+                    while let Some(item_id) = list.next_visible_item(cx) {
+                        if item_id < self.fetched_models.len() {
+                            let model_name = &self.fetched_models[item_id];
+                            let item_widget = list.item(cx, item_id, live_id!(ModelItem));
+
+                            // Set model name
+                            item_widget.label(ids!(model_name)).set_text(cx, model_name);
+                            item_widget.label(ids!(model_name)).apply_over(cx, live!{
+                                draw_text: { dark_mode: (dark_mode_value) }
+                            });
+
+                            item_widget.draw_all(cx, scope);
+                        }
+                    }
+                }
+            }
+        }
+
+        DrawStep::done()
     }
 }
 
 impl SettingsApp {
     /// Get provider icon from the loaded LiveDependency list
     fn get_provider_icon(&self, provider_id: &str) -> Option<&LiveDependency> {
-        // Icons are stored in order: openai, anthropic, gemini, ollama, deepseek
+        // Icons are stored in order: openai, anthropic, gemini, ollama, deepseek, nvidia, groq
         let index = match provider_id {
             "openai" => Some(0),
             "anthropic" => Some(1),
             "gemini" => Some(2),
             "ollama" => Some(3),
             "deepseek" => Some(4),
+            "nvidia" => Some(5),
+            "groq" => Some(6),
             _ => None,
         };
         index.and_then(|i| self.provider_icons.get(i))
@@ -89,6 +221,11 @@ impl SettingsApp {
 
     fn select_provider(&mut self, cx: &mut Cx, scope: &mut Scope, id: &str) {
         self.selected_provider_id = Some(id.to_string());
+        // Reset connection status when changing providers
+        self.connection_status = ProviderConnectionStatus::NotConnected;
+        self.model_count = None;
+        self.fetched_models.clear();
+        self.connection_test_in_progress = false;
         self.load_provider_data(cx, scope);
         self.view.redraw(cx);
     }
@@ -107,7 +244,7 @@ impl SettingsApp {
                 // Update provider title icon using LiveDependency from live_design
                 if let Some(icon_dep) = self.get_provider_icon(&provider_id) {
                     let icon_path = icon_dep.as_str();
-                    let _ = self.view.image(ids!(provider_title_icon)).load_image_dep_by_path(cx, icon_path);
+                    let _ = self.view.image(ids!(provider_title_icon)).load_image_file_by_path(cx, Path::new(icon_path));
                 }
 
                 // Update URL input
@@ -120,6 +257,9 @@ impl SettingsApp {
 
                 // Update enabled checkbox
                 self.view.check_box(ids!(enabled_checkbox)).set_active(cx, provider.enabled);
+
+                // Show/hide delete button based on whether provider was custom added
+                self.view.button(ids!(delete_provider_button)).set_visible(cx, provider.was_customly_added);
 
                 // Clear status message
                 self.view.label(ids!(status_message)).set_text(cx, "");
@@ -172,48 +312,78 @@ impl SettingsApp {
         self.view.redraw(cx);
     }
 
-    fn update_selection(&mut self, cx: &mut Cx2d) {
-        let selected = self.selected_provider_id.as_deref().unwrap_or("");
+    fn update_selection(&mut self, _cx: &mut Cx2d) {
+        // Selection highlighting is now handled in draw_providers_list
+    }
 
-        // Reset all items
-        let items = ["openai_item", "anthropic_item", "gemini_item", "ollama_item", "groq_item", "deepseek_item"];
-        let ids = ["openai", "anthropic", "gemini", "ollama", "groq", "deepseek"];
+    /// Draw the providers PortalList
+    fn draw_providers_list(&mut self, cx: &mut Cx2d, scope: &mut Scope, widget: WidgetRef, dark_mode: f64) {
+        let binding = widget.as_portal_list();
+        let Some(mut list) = binding.borrow_mut() else { return };
 
-        for (item, id) in items.iter().zip(ids.iter()) {
-            let selected_val = if *id == selected { 1.0 } else { 0.0 };
+        list.set_item_range(cx, 0, self.provider_ids.len());
 
-            match *item {
-                "openai_item" => {
-                    self.view.view(ids!(openai_item)).apply_over(cx, live!{
-                        draw_bg: { selected: (selected_val) }
-                    });
+        while let Some(item_id) = list.next_visible_item(cx) {
+            if item_id >= self.provider_ids.len() {
+                continue;
+            }
+
+            let provider_id = &self.provider_ids[item_id];
+            let item_widget = list.item(cx, item_id, live_id!(ProviderListItem));
+
+            // Get provider info from store
+            let (name, _enabled) = if let Some(store) = scope.data.get::<Store>() {
+                if let Some(provider) = store.preferences.get_provider(provider_id) {
+                    (provider.name.clone(), provider.enabled)
+                } else {
+                    (provider_id.clone(), false)
                 }
-                "anthropic_item" => {
-                    self.view.view(ids!(anthropic_item)).apply_over(cx, live!{
-                        draw_bg: { selected: (selected_val) }
-                    });
+            } else {
+                (provider_id.clone(), false)
+            };
+
+            // Set selection state
+            let is_selected = self.selected_provider_id.as_deref() == Some(provider_id.as_str());
+            let selected_val = if is_selected { 1.0 } else { 0.0 };
+
+            // Apply styling
+            item_widget.apply_over(cx, live!{
+                draw_bg: { dark_mode: (dark_mode), selected: (selected_val) }
+            });
+            item_widget.label(ids!(provider_name)).set_text(cx, &name);
+            item_widget.label(ids!(provider_name)).apply_over(cx, live!{
+                draw_text: { dark_mode: (dark_mode) }
+            });
+
+            // Set icon if available - use file path loading
+            if let Some(icon_dep) = self.get_provider_icon(provider_id) {
+                let icon_path = icon_dep.as_str();
+                let image_ref = item_widget.image(ids!(provider_icon));
+                ::log::debug!("Icon for {}: path={}", provider_id, icon_path);
+                // Use file path loading since as_str() returns resolved filesystem path
+                match image_ref.load_image_file_by_path(cx, Path::new(icon_path)) {
+                    Ok(_) => ::log::debug!("Icon loaded OK for {}", provider_id),
+                    Err(e) => ::log::warn!("Icon load failed for {}: {:?}", provider_id, e),
                 }
-                "gemini_item" => {
-                    self.view.view(ids!(gemini_item)).apply_over(cx, live!{
-                        draw_bg: { selected: (selected_val) }
-                    });
+            } else {
+                ::log::debug!("No icon configured for provider: {}", provider_id);
+            }
+
+            item_widget.draw_all(cx, scope);
+        }
+    }
+
+    /// Handle clicks on provider list items
+    fn handle_provider_list_clicks(&mut self, cx: &mut Cx, scope: &mut Scope, actions: &Actions) {
+        let providers_list = self.view.portal_list(ids!(providers_list));
+
+        for (item_id, item) in providers_list.items_with_actions(actions) {
+            // Check for finger down on the item
+            if let Some(fd) = item.as_view().finger_down(actions) {
+                if fd.tap_count == 1 && item_id < self.provider_ids.len() {
+                    let provider_id = self.provider_ids[item_id].clone();
+                    self.select_provider(cx, scope, &provider_id);
                 }
-                "ollama_item" => {
-                    self.view.view(ids!(ollama_item)).apply_over(cx, live!{
-                        draw_bg: { selected: (selected_val) }
-                    });
-                }
-                "groq_item" => {
-                    self.view.view(ids!(groq_item)).apply_over(cx, live!{
-                        draw_bg: { selected: (selected_val) }
-                    });
-                }
-                "deepseek_item" => {
-                    self.view.view(ids!(deepseek_item)).apply_over(cx, live!{
-                        draw_bg: { selected: (selected_val) }
-                    });
-                }
-                _ => {}
             }
         }
     }
@@ -239,48 +409,7 @@ impl SettingsApp {
             draw_text: { dark_mode: (dark_mode) }
         });
 
-        // Apply to provider items
-        for id in ["openai_item", "anthropic_item", "gemini_item", "ollama_item", "groq_item", "deepseek_item"] {
-            match id {
-                "openai_item" => {
-                    self.view.view(ids!(openai_item)).apply_over(cx, live!{
-                        draw_bg: { dark_mode: (dark_mode) }
-                        provider_name = { draw_text: { dark_mode: (dark_mode) } }
-                    });
-                }
-                "anthropic_item" => {
-                    self.view.view(ids!(anthropic_item)).apply_over(cx, live!{
-                        draw_bg: { dark_mode: (dark_mode) }
-                        provider_name = { draw_text: { dark_mode: (dark_mode) } }
-                    });
-                }
-                "gemini_item" => {
-                    self.view.view(ids!(gemini_item)).apply_over(cx, live!{
-                        draw_bg: { dark_mode: (dark_mode) }
-                        provider_name = { draw_text: { dark_mode: (dark_mode) } }
-                    });
-                }
-                "ollama_item" => {
-                    self.view.view(ids!(ollama_item)).apply_over(cx, live!{
-                        draw_bg: { dark_mode: (dark_mode) }
-                        provider_name = { draw_text: { dark_mode: (dark_mode) } }
-                    });
-                }
-                "groq_item" => {
-                    self.view.view(ids!(groq_item)).apply_over(cx, live!{
-                        draw_bg: { dark_mode: (dark_mode) }
-                        provider_name = { draw_text: { dark_mode: (dark_mode) } }
-                    });
-                }
-                "deepseek_item" => {
-                    self.view.view(ids!(deepseek_item)).apply_over(cx, live!{
-                        draw_bg: { dark_mode: (dark_mode) }
-                        provider_name = { draw_text: { dark_mode: (dark_mode) } }
-                    });
-                }
-                _ => {}
-            }
-        }
+        // Provider items dark mode is now handled in draw_providers_list
 
         // Apply to text inputs
         self.view.text_input(ids!(api_host_input)).apply_over(cx, live!{
@@ -296,5 +425,338 @@ impl SettingsApp {
         self.view.check_box(ids!(enabled_checkbox)).apply_over(cx, live!{
             draw_text: { dark_mode: (dark_mode) }
         });
+
+        // Apply to test button
+        self.view.button(ids!(test_button)).apply_over(cx, live!{
+            draw_bg: { dark_mode: (dark_mode) }
+            draw_text: { dark_mode: (dark_mode) }
+        });
+
+        // Apply to models section
+        self.view.label(ids!(models_header)).apply_over(cx, live!{
+            draw_text: { dark_mode: (dark_mode) }
+        });
+        self.view.view(ids!(models_scroll)).apply_over(cx, live!{
+            draw_bg: { dark_mode: (dark_mode) }
+        });
+
+        // Apply to add provider button
+        self.view.button(ids!(add_provider_button)).apply_over(cx, live!{
+            draw_bg: { dark_mode: (dark_mode) }
+            draw_text: { dark_mode: (dark_mode) }
+        });
+
+        // Apply to modal
+        self.view.view(ids!(modal_content)).apply_over(cx, live!{
+            draw_bg: { dark_mode: (dark_mode) }
+        });
+        self.view.label(ids!(modal_title)).apply_over(cx, live!{
+            draw_text: { dark_mode: (dark_mode) }
+        });
+        self.view.button(ids!(close_modal_button)).apply_over(cx, live!{
+            draw_bg: { dark_mode: (dark_mode) }
+            draw_text: { dark_mode: (dark_mode) }
+        });
+        self.view.button(ids!(cancel_modal_button)).apply_over(cx, live!{
+            draw_bg: { dark_mode: (dark_mode) }
+            draw_text: { dark_mode: (dark_mode) }
+        });
+        self.view.text_input(ids!(new_provider_name)).apply_over(cx, live!{
+            draw_bg: { dark_mode: (dark_mode) }
+            draw_text: { dark_mode: (dark_mode) }
+        });
+        self.view.text_input(ids!(new_provider_url)).apply_over(cx, live!{
+            draw_bg: { dark_mode: (dark_mode) }
+            draw_text: { dark_mode: (dark_mode) }
+        });
+        self.view.text_input(ids!(new_provider_key)).apply_over(cx, live!{
+            draw_bg: { dark_mode: (dark_mode) }
+            draw_text: { dark_mode: (dark_mode) }
+        });
     }
+
+    /// Start a connection test for the currently selected provider
+    fn test_connection(&mut self, cx: &mut Cx, _scope: &mut Scope) {
+        let Some(provider_id) = self.selected_provider_id.clone() else { return };
+
+        // Get provider URL and API key from the current input values
+        let url = self.view.text_input(ids!(api_host_input)).text();
+        let api_key = self.view.text_input(ids!(api_key_input)).text();
+
+        if api_key.is_empty() {
+            self.connection_status = ProviderConnectionStatus::Error("No API key provided".to_string());
+            self.view.label(ids!(status_message)).set_text(cx, "Error: No API key provided");
+            self.view.redraw(cx);
+            return;
+        }
+
+        // Update status to connecting
+        self.connection_status = ProviderConnectionStatus::Connecting;
+        self.connection_test_in_progress = true;
+        self.view.label(ids!(status_message)).set_text(cx, "Testing connection...");
+        self.view.redraw(cx);
+
+        // Clone shared state for the thread
+        let state = self.connection_test_state.clone();
+        let provider_id_clone = provider_id.clone();
+        let url_clone = url.clone();
+        let api_key_clone = api_key.clone();
+
+        // Spawn a thread to test the connection
+        std::thread::spawn(move || {
+            let result = test_provider_connection(&url_clone, &api_key_clone);
+
+            let test_result = match result {
+                Ok((model_count, models)) => ConnectionTestResult {
+                    provider_id: provider_id_clone,
+                    status: ProviderConnectionStatus::Connected,
+                    model_count: Some(model_count),
+                    models,
+                },
+                Err(e) => ConnectionTestResult {
+                    provider_id: provider_id_clone,
+                    status: ProviderConnectionStatus::Error(e),
+                    model_count: None,
+                    models: vec![],
+                },
+            };
+
+            // Store result in shared state
+            if let Ok(mut guard) = state.lock() {
+                *guard = Some(test_result);
+            }
+        });
+    }
+
+    /// Check for connection test results and update UI
+    fn check_connection_test_result(&mut self, cx: &mut Cx) {
+        if !self.connection_test_in_progress {
+            return;
+        }
+
+        // Try to get the result from shared state
+        let result = {
+            if let Ok(mut guard) = self.connection_test_state.lock() {
+                guard.take()
+            } else {
+                None
+            }
+        };
+
+        if let Some(test_result) = result {
+            // Only apply if this is for the currently selected provider
+            if self.selected_provider_id.as_ref() == Some(&test_result.provider_id) {
+                self.connection_status = test_result.status.clone();
+                self.model_count = test_result.model_count;
+                self.fetched_models = test_result.models;
+                self.connection_test_in_progress = false;
+
+                // Update status message
+                let status_text = match &test_result.status {
+                    ProviderConnectionStatus::Connected => {
+                        if let Some(count) = test_result.model_count {
+                            format!("Connected! Found {} models", count)
+                        } else {
+                            "Connected!".to_string()
+                        }
+                    }
+                    ProviderConnectionStatus::Error(e) => format!("Error: {}", e),
+                    _ => String::new(),
+                };
+                self.view.label(ids!(status_message)).set_text(cx, &status_text);
+                self.view.redraw(cx);
+            }
+        }
+    }
+
+    /// Open the Add Provider modal
+    fn open_add_provider_modal(&mut self, cx: &mut Cx) {
+        self.modal_visible = true;
+        // Clear the input fields
+        self.view.text_input(ids!(new_provider_name)).set_text(cx, "");
+        self.view.text_input(ids!(new_provider_url)).set_text(cx, "https://api.example.com/v1");
+        self.view.text_input(ids!(new_provider_key)).set_text(cx, "");
+        self.view.redraw(cx);
+    }
+
+    /// Close the Add Provider modal
+    fn close_add_provider_modal(&mut self, cx: &mut Cx) {
+        self.modal_visible = false;
+        self.view.redraw(cx);
+    }
+
+    /// Save a new provider from the modal form
+    fn save_new_provider(&mut self, cx: &mut Cx, scope: &mut Scope) {
+        let name = self.view.text_input(ids!(new_provider_name)).text();
+        let url = self.view.text_input(ids!(new_provider_url)).text();
+        let api_key = self.view.text_input(ids!(new_provider_key)).text();
+
+        // Validate inputs
+        if name.trim().is_empty() {
+            ::log::warn!("Provider name is required");
+            return;
+        }
+        if url.trim().is_empty() {
+            ::log::warn!("Provider URL is required");
+            return;
+        }
+
+        // Generate a unique ID from the name
+        let id = name.trim().to_lowercase().replace(' ', "_");
+
+        ::log::info!("Adding new provider: id={}, name={}, url={}", id, name, url);
+
+        // Add to preferences
+        if let Some(store) = scope.data.get_mut::<Store>() {
+            // Check if provider already exists
+            if store.preferences.get_provider(&id).is_some() {
+                ::log::warn!("Provider with id '{}' already exists", id);
+                return;
+            }
+
+            // Create new provider
+            let mut new_provider = moly_data::ProviderPreferences::new(&id, name.trim(), url.trim());
+            new_provider.was_customly_added = true;
+            new_provider.enabled = true;
+            if !api_key.is_empty() {
+                new_provider.api_key = Some(api_key);
+            }
+
+            // Add to preferences and save
+            store.preferences.providers_preferences.push(new_provider);
+            store.preferences.save();
+
+            ::log::info!("New provider '{}' added successfully", id);
+        }
+
+        // Close modal and refresh
+        self.modal_visible = false;
+        self.view.redraw(cx);
+    }
+
+    /// Delete a custom provider
+    fn delete_provider(&mut self, cx: &mut Cx, scope: &mut Scope) {
+        let Some(provider_id) = self.selected_provider_id.clone() else { return };
+
+        if let Some(store) = scope.data.get_mut::<Store>() {
+            // Find and verify the provider can be deleted
+            if let Some(provider) = store.preferences.get_provider(&provider_id) {
+                if !provider.was_customly_added {
+                    ::log::warn!("Cannot delete built-in provider: {}", provider_id);
+                    return;
+                }
+            } else {
+                ::log::warn!("Provider not found: {}", provider_id);
+                return;
+            }
+
+            // Remove the provider
+            store.preferences.providers_preferences.retain(|p| p.id != provider_id);
+            store.preferences.save();
+            ::log::info!("Deleted provider: {}", provider_id);
+
+            // Select the first provider
+            self.selected_provider_id = Some("openai".to_string());
+            self.load_provider_data(cx, scope);
+        }
+
+        self.view.redraw(cx);
+    }
+}
+
+/// Test connection to a provider by fetching models
+/// Returns (model_count, model_names) on success, or an error message on failure
+fn test_provider_connection(base_url: &str, api_key: &str) -> Result<(usize, Vec<String>), String> {
+    use reqwest::blocking::Client;
+    use std::time::Duration;
+
+    let base = base_url.trim_end_matches('/');
+
+    // Try multiple endpoint patterns (different providers use different paths)
+    let endpoints_to_try = [
+        format!("{}/models", base),           // OpenAI standard: /v1/models
+        format!("{}/v1/models", base),        // Some need explicit /v1
+        format!("{}", base),                  // Base URL might already include /models
+    ];
+
+    // Create blocking client with timeout
+    let client = Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let mut last_error = String::new();
+
+    for models_url in &endpoints_to_try {
+        ::log::info!("Testing connection to: {}", models_url);
+
+        // Make request to models endpoint
+        let response = match client
+            .get(models_url)
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Content-Type", "application/json")
+            .send()
+        {
+            Ok(resp) => resp,
+            Err(e) => {
+                last_error = if e.is_timeout() {
+                    "Connection timed out".to_string()
+                } else if e.is_connect() {
+                    "Failed to connect to server".to_string()
+                } else {
+                    format!("Request failed: {}", e)
+                };
+                continue;
+            }
+        };
+
+        let status = response.status();
+
+        // If 404, try next endpoint
+        if status.as_u16() == 404 {
+            last_error = format!("Endpoint not found: {}", models_url);
+            continue;
+        }
+
+        // Check response status
+        if !status.is_success() {
+            let error_text = response.text().unwrap_or_default();
+            return Err(match status.as_u16() {
+                401 => "Invalid API key".to_string(),
+                403 => "Access denied".to_string(),
+                429 => "Rate limited".to_string(),
+                _ => format!("HTTP {}: {}", status.as_u16(), error_text),
+            });
+        }
+
+        // Parse response
+        let body = match response.text() {
+            Ok(b) => b,
+            Err(e) => {
+                last_error = format!("Failed to read response: {}", e);
+                continue;
+            }
+        };
+
+        // Try to parse as OpenAI-compatible models response
+        match serde_json::from_str::<ModelsResponse>(&body) {
+            Ok(models) => {
+                let model_names: Vec<String> = models.data.into_iter().map(|m| m.id).collect();
+                ::log::info!("Found {} models at {}", model_names.len(), models_url);
+                return Ok((model_names.len(), model_names));
+            }
+            Err(_) => {
+                // If we got a 200 but can't parse models, still consider it connected
+                ::log::warn!("Connected to {} but could not parse models response", models_url);
+                return Ok((0, vec![]));
+            }
+        }
+    }
+
+    // All endpoints failed
+    Err(if last_error.is_empty() {
+        "Could not find models endpoint".to_string()
+    } else {
+        last_error
+    })
 }

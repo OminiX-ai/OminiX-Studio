@@ -311,7 +311,7 @@ impl LiveHook for ChatApp {
 impl ChatApp {
     /// Get provider icon LiveDependency from the loaded list
     fn get_provider_icon(&self, provider_id: &str) -> Option<&LiveDependency> {
-        // Icons are stored in order: openai, anthropic, gemini, ollama, deepseek, openrouter, siliconflow
+        // Icons are stored in order: openai, anthropic, gemini, ollama, deepseek, openrouter, siliconflow, nvidia, groq
         let index = match provider_id {
             "openai" => Some(0),
             "anthropic" => Some(1),
@@ -320,6 +320,8 @@ impl ChatApp {
             "deepseek" => Some(4),
             "openrouter" => Some(5),
             "siliconflow" => Some(6),
+            "nvidia" => Some(7),
+            "groq" => Some(8),
             _ => None,
         };
         index.and_then(|i| self.provider_icons.get(i))
@@ -339,6 +341,7 @@ impl ChatApp {
             "ollama" => "Ollama",
             "deepseek" => "DeepSeek",
             "groq" => "Groq",
+            "nvidia" => "NVIDIA",
             "openrouter" => "OpenRouter",
             "siliconflow" => "SiliconFlow",
             _ => "Unknown",

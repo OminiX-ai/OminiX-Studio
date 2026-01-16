@@ -16,6 +16,8 @@ live_design! {
     ICON_GEMINI = dep("crate://self/resources/providers/gemini.png")
     ICON_OLLAMA = dep("crate://self/resources/providers/ollama.png")
     ICON_DEEPSEEK = dep("crate://self/resources/providers/deepseek.png")
+    ICON_NVIDIA = dep("crate://self/resources/providers/nvidia.png")
+    ICON_GROQ = dep("crate://self/resources/providers/groq.png")
 
     // Settings label style
     SettingsLabel = <Label> {
@@ -147,6 +149,43 @@ live_design! {
         text: "Save"
     }
 
+    // Test Connection button (secondary style)
+    TestButton = <Button> {
+        width: Fit, height: 40
+        padding: {left: 20, right: 20, top: 10, bottom: 10}
+
+        draw_bg: {
+            instance hover: 0.0
+            instance pressed: 0.0
+            instance radius: 6.0
+            instance dark_mode: 0.0
+
+            fn pixel(self) -> vec4 {
+                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                let sz = self.rect_size - 2.0;
+                // Secondary button: gray outline style
+                let bg = mix(#ffffff, #1e293b, self.dark_mode);
+                let border = mix(#d1d5db, #475569, self.dark_mode);
+                let hover_bg = mix(#f3f4f6, #334155, self.dark_mode);
+                let bg_color = mix(bg, hover_bg, self.hover);
+                sdf.box(1.0, 1.0, sz.x, sz.y, self.radius);
+                sdf.fill(bg_color);
+                sdf.stroke(border, 1.0);
+                return sdf.result;
+            }
+        }
+
+        draw_text: {
+            instance dark_mode: 0.0
+            fn get_color(self) -> vec4 {
+                return mix(#374151, #e2e8f0, self.dark_mode);
+            }
+            text_style: <THEME_FONT_BOLD>{ font_size: 12.0 }
+        }
+
+        text: "Test Connection"
+    }
+
     pub SettingsApp = {{SettingsApp}} {
         width: Fill, height: Fill
         flow: Right
@@ -158,13 +197,15 @@ live_design! {
             }
         }
 
-        // Provider icons for dynamic loading (order: openai, anthropic, gemini, ollama, deepseek)
+        // Provider icons for dynamic loading (order: openai, anthropic, gemini, ollama, deepseek, nvidia, groq)
         provider_icons: [
             (ICON_OPENAI),
             (ICON_ANTHROPIC),
             (ICON_GEMINI),
             (ICON_OLLAMA),
             (ICON_DEEPSEEK),
+            (ICON_NVIDIA),
+            (ICON_GROQ),
         ]
 
         // Left panel - provider list
@@ -179,10 +220,12 @@ live_design! {
                 }
             }
 
-            // Header
+            // Header with Add button
             <View> {
                 width: Fill, height: Fit
+                flow: Right
                 padding: {left: 16, right: 16, top: 16, bottom: 12}
+                align: {y: 0.5}
 
                 header_label = <Label> {
                     text: "Providers"
@@ -194,36 +237,45 @@ live_design! {
                         text_style: <THEME_FONT_BOLD>{ font_size: 20.0 }
                     }
                 }
+
+                <View> { width: Fill } // Spacer
+
+                add_provider_button = <Button> {
+                    width: 28, height: 28
+                    padding: 0
+                    draw_bg: {
+                        instance hover: 0.0
+                        instance pressed: 0.0
+                        instance radius: 4.0
+                        instance dark_mode: 0.0
+
+                        fn pixel(self) -> vec4 {
+                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                            let sz = self.rect_size - 2.0;
+                            let hover_color = mix(#e5e7eb, #374151, self.dark_mode);
+                            let color = mix(vec4(0.0), hover_color, self.hover);
+                            sdf.box(1.0, 1.0, sz.x, sz.y, self.radius);
+                            sdf.fill(color);
+                            return sdf.result;
+                        }
+                    }
+                    draw_text: {
+                        instance dark_mode: 0.0
+                        fn get_color(self) -> vec4 {
+                            return mix(#374151, #e2e8f0, self.dark_mode);
+                        }
+                        text_style: <THEME_FONT_BOLD>{ font_size: 16.0 }
+                    }
+                    text: "+"
+                }
             }
 
-            // Provider list
-            providers_list = <View> {
+            // Provider list (dynamic)
+            providers_list = <PortalList> {
                 width: Fill, height: Fill
-                flow: Down
+                drag_scrolling: false
 
-                openai_item = <ProviderItem> {
-                    provider_icon = { source: (ICON_OPENAI) }
-                    provider_name = { text: "OpenAI" }
-                }
-                anthropic_item = <ProviderItem> {
-                    provider_icon = { source: (ICON_ANTHROPIC) }
-                    provider_name = { text: "Anthropic" }
-                }
-                gemini_item = <ProviderItem> {
-                    provider_icon = { source: (ICON_GEMINI) }
-                    provider_name = { text: "Google Gemini" }
-                }
-                ollama_item = <ProviderItem> {
-                    provider_icon = { source: (ICON_OLLAMA) }
-                    provider_name = { text: "Ollama (Local)" }
-                }
-                groq_item = <ProviderItem> {
-                    provider_name = { text: "Groq" }
-                }
-                deepseek_item = <ProviderItem> {
-                    provider_icon = { source: (ICON_DEEPSEEK) }
-                    provider_name = { text: "DeepSeek" }
-                }
+                ProviderListItem = <ProviderItem> {}
             }
         }
 
@@ -337,6 +389,45 @@ live_design! {
                 margin: {top: 12}
 
                 save_button = <SaveButton> {}
+                test_button = <TestButton> {}
+
+                <View> { width: Fill } // Spacer
+
+                delete_provider_button = <Button> {
+                    width: Fit, height: 40
+                    padding: {left: 20, right: 20, top: 10, bottom: 10}
+                    visible: false
+
+                    draw_bg: {
+                        instance hover: 0.0
+                        instance pressed: 0.0
+                        instance radius: 6.0
+
+                        fn pixel(self) -> vec4 {
+                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                            let sz = self.rect_size - 2.0;
+                            // Red button colors: #ef4444 -> #dc2626 -> #b91c1c
+                            let base_color = vec4(0.937, 0.267, 0.267, 1.0);
+                            let hover_color = vec4(0.863, 0.149, 0.149, 1.0);
+                            let pressed_color = vec4(0.725, 0.110, 0.110, 1.0);
+                            let color = mix(
+                                mix(base_color, hover_color, self.hover),
+                                pressed_color,
+                                self.pressed
+                            );
+                            sdf.box(1.0, 1.0, sz.x, sz.y, self.radius);
+                            sdf.fill(color);
+                            return sdf.result;
+                        }
+                    }
+
+                    draw_text: {
+                        color: #ffffff
+                        text_style: <THEME_FONT_BOLD>{ font_size: 12.0 }
+                    }
+
+                    text: "Delete"
+                }
             }
 
             // Status message
@@ -351,8 +442,215 @@ live_design! {
                 }
             }
 
+            // Models section (shown after successful connection test)
+            models_section = <View> {
+                width: Fill, height: Fit
+                flow: Down
+                spacing: 8
+                margin: {top: 16}
+                visible: false
+
+                models_header = <Label> {
+                    text: "Available Models"
+                    draw_text: {
+                        instance dark_mode: 0.0
+                        fn get_color(self) -> vec4 {
+                            return mix(#374151, #e2e8f0, self.dark_mode);
+                        }
+                        text_style: <THEME_FONT_BOLD>{ font_size: 13.0 }
+                    }
+                }
+
+                models_scroll = <View> {
+                    width: Fill, height: 200
+                    flow: Down
+                    show_bg: true
+                    draw_bg: {
+                        instance radius: 6.0
+                        instance dark_mode: 0.0
+                        fn pixel(self) -> vec4 {
+                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                            let sz = self.rect_size - 2.0;
+                            sdf.box(1.0, 1.0, sz.x, sz.y, self.radius);
+                            let bg = mix(#f9fafb, #1e293b, self.dark_mode);
+                            let border = mix(#e5e7eb, #374151, self.dark_mode);
+                            sdf.fill(bg);
+                            sdf.stroke(border, 1.0);
+                            return sdf.result;
+                        }
+                    }
+
+                    models_list = <PortalList> {
+                        width: Fill, height: Fill
+                        drag_scrolling: false
+
+                        ModelItem = <View> {
+                            width: Fill, height: Fit
+                            padding: {left: 12, right: 12, top: 8, bottom: 8}
+
+                            model_name = <Label> {
+                                width: Fill
+                                draw_text: {
+                                    instance dark_mode: 0.0
+                                    fn get_color(self) -> vec4 {
+                                        return mix(#374151, #e2e8f0, self.dark_mode);
+                                    }
+                                    text_style: <THEME_FONT_REGULAR>{ font_size: 11.0 }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Spacer
             <View> { width: Fill, height: Fill }
+        }
+
+        // Add Provider Modal (overlay)
+        add_provider_modal = <View> {
+            width: Fill, height: Fill
+            flow: Overlay
+            visible: false
+            show_bg: true
+            draw_bg: {
+                fn pixel(self) -> vec4 {
+                    return vec4(0.0, 0.0, 0.0, 0.5); // Semi-transparent backdrop
+                }
+            }
+
+            // Center the modal content
+            <View> {
+                width: Fill, height: Fill
+                align: {x: 0.5, y: 0.5}
+
+                modal_content = <View> {
+                    width: 400, height: Fit
+                    flow: Down
+                    padding: 24
+                    spacing: 16
+                    show_bg: true
+                    draw_bg: {
+                        instance radius: 8.0
+                        instance dark_mode: 0.0
+                        fn pixel(self) -> vec4 {
+                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                            let sz = self.rect_size - 2.0;
+                            sdf.box(1.0, 1.0, sz.x, sz.y, self.radius);
+                            // Slightly gray background so white inputs stand out
+                            let bg = mix(#f3f4f6, #0f172a, self.dark_mode);
+                            let border = mix(#d1d5db, #334155, self.dark_mode);
+                            sdf.fill(bg);
+                            sdf.stroke(border, 1.0);
+                            return sdf.result;
+                        }
+                    }
+
+                    // Modal header
+                    modal_header = <View> {
+                        width: Fill, height: Fit
+                        flow: Right
+                        align: {y: 0.5}
+
+                        modal_title = <Label> {
+                            text: "Add Provider"
+                            draw_text: {
+                                instance dark_mode: 0.0
+                                fn get_color(self) -> vec4 {
+                                    return mix(#1f2937, #f1f5f9, self.dark_mode);
+                                }
+                                text_style: <THEME_FONT_BOLD>{ font_size: 18.0 }
+                            }
+                        }
+
+                        <View> { width: Fill } // Spacer
+
+                        close_modal_button = <Button> {
+                            width: 24, height: 24
+                            padding: 0
+                            draw_bg: {
+                                instance hover: 0.0
+                                instance pressed: 0.0
+                                instance radius: 4.0
+                                instance dark_mode: 0.0
+
+                                fn pixel(self) -> vec4 {
+                                    let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                    let sz = self.rect_size - 2.0;
+                                    let hover_color = mix(#e5e7eb, #374151, self.dark_mode);
+                                    let color = mix(vec4(0.0), hover_color, self.hover);
+                                    sdf.box(1.0, 1.0, sz.x, sz.y, self.radius);
+                                    sdf.fill(color);
+                                    return sdf.result;
+                                }
+                            }
+                            draw_text: {
+                                instance dark_mode: 0.0
+                                fn get_color(self) -> vec4 {
+                                    return mix(#6b7280, #9ca3af, self.dark_mode);
+                                }
+                                text_style: <THEME_FONT_REGULAR>{ font_size: 14.0 }
+                            }
+                            text: "×"
+                        }
+                    }
+
+                    // Provider name input
+                    name_section = <View> {
+                        width: Fill, height: Fit
+                        flow: Down
+                        spacing: 6
+
+                        <SettingsLabel> { text: "Provider Name" }
+                        new_provider_name = <SettingsTextInput> {
+                            empty_text: "My Provider"
+                        }
+                    }
+
+                    // API URL input
+                    url_section = <View> {
+                        width: Fill, height: Fit
+                        flow: Down
+                        spacing: 6
+
+                        <SettingsLabel> { text: "API URL" }
+                        new_provider_url = <SettingsTextInput> {
+                            text: "https://api.example.com/v1"
+                            empty_text: "https://api.example.com/v1"
+                        }
+                        <SettingsHint> { text: "OpenAI-compatible API endpoint" }
+                    }
+
+                    // API Key input
+                    key_section = <View> {
+                        width: Fill, height: Fit
+                        flow: Down
+                        spacing: 6
+
+                        <SettingsLabel> { text: "API Key (optional)" }
+                        new_provider_key = <SettingsTextInput> {
+                            is_password: true
+                            empty_text: "sk-..."
+                        }
+                    }
+
+                    // Modal actions
+                    modal_actions = <View> {
+                        width: Fill, height: Fit
+                        flow: Right
+                        spacing: 12
+                        margin: {top: 8}
+                        align: {x: 1.0}
+
+                        cancel_modal_button = <TestButton> {
+                            text: "Cancel"
+                        }
+                        save_new_provider_button = <SaveButton> {
+                            text: "Add Provider"
+                        }
+                    }
+                }
+            }
         }
     }
 }

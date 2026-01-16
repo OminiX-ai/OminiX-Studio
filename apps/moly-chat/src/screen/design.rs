@@ -21,6 +21,8 @@ live_design! {
     ICON_DEEPSEEK = dep("crate://self/resources/providers/deepseek.png")
     ICON_OPENROUTER = dep("crate://self/resources/providers/openrouter.png")
     ICON_SILICONFLOW = dep("crate://self/resources/providers/siliconflow.png")
+    ICON_NVIDIA = dep("crate://self/resources/providers/nvidia.png")
+    ICON_GROQ = dep("crate://self/resources/providers/groq.png")
 
     // Individual chat history item - Widget with proper event handling
     pub ChatHistoryItem = {{ChatHistoryItem}} {
@@ -186,7 +188,7 @@ live_design! {
         }
 
         // Provider icons for model selector and chat messages
-        // Order: openai, anthropic, gemini, ollama, deepseek, openrouter, siliconflow
+        // Order: openai, anthropic, gemini, ollama, deepseek, openrouter, siliconflow, nvidia, groq
         provider_icons: [
             (ICON_OPENAI),
             (ICON_ANTHROPIC),
@@ -195,6 +197,8 @@ live_design! {
             (ICON_DEEPSEEK),
             (ICON_OPENROUTER),
             (ICON_SILICONFLOW),
+            (ICON_NVIDIA),
+            (ICON_GROQ),
         ]
 
         // Header with provider status

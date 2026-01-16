@@ -8,3 +8,6 @@ makepad-widgets.workspace = true
 moly-data.workspace = true
 moly-widgets.workspace = true
 log.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
