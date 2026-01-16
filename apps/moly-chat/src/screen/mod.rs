@@ -1,238 +1,16 @@
+//! Chat Screen Widget Implementation
+
+pub mod design;
+
 use makepad_widgets::*;
 use moly_kit::prelude::*;
 use moly_kit::aitk::controllers::chat::{ChatStateMutation, ChatTask};
-use moly_kit::aitk::protocol::{Bot, BotId};
+use moly_kit::aitk::protocol::{Bot, BotId, EntityAvatar};
+use moly_kit::widgets::model_selector::{BotGroup, create_lookup_grouping};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use crate::data::{ChatId, Store};
-
-live_design! {
-    use link::theme::*;
-    use link::shaders::*;
-    use link::widgets::*;
-    use moly_widgets::theme::*;
-    use moly_kit::widgets::chat::Chat;
-
-    // Individual chat history item - Widget with proper event handling
-    pub ChatHistoryItem = {{ChatHistoryItem}} {
-        width: Fill, height: Fit
-        padding: {left: 12, right: 12, top: 8, bottom: 8}
-        cursor: Hand
-        show_bg: true
-        draw_bg: {
-            instance dark_mode: 0.0
-            instance selected: 0.0
-            instance hover: 0.0
-            instance down: 0.0
-            fn pixel(self) -> vec4 {
-                let base = mix(#ffffff, #1e293b, self.dark_mode);
-                let selected_color = mix(#dbeafe, #1e3a8a, self.dark_mode);
-                let hover_color = mix(#f1f5f9, #334155, self.dark_mode);
-                let color = mix(base, selected_color, self.selected);
-                return mix(color, hover_color, self.hover * (1.0 - self.selected));
-            }
-        }
-
-        // Animator enables finger event handling
-        animator: {
-            hover = {
-                default: off
-                off = {
-                    from: {all: Forward {duration: 0.15}}
-                    apply: {
-                        draw_bg: {hover: 0.0}
-                    }
-                }
-                on = {
-                    from: {all: Forward {duration: 0.15}}
-                    apply: {
-                        draw_bg: {hover: 1.0}
-                    }
-                }
-            }
-            down = {
-                default: off
-                off = {
-                    from: {all: Forward {duration: 0.2}}
-                    apply: {
-                        draw_bg: {down: 0.0}
-                    }
-                }
-                on = {
-                    from: {all: Forward {duration: 0.1}}
-                    apply: {
-                        draw_bg: {down: 1.0}
-                    }
-                }
-            }
-        }
-
-        flow: Down
-        spacing: 2
-
-        title_label = <Label> {
-            width: Fill
-            draw_text: {
-                instance dark_mode: 0.0
-                fn get_color(self) -> vec4 {
-                    return mix(#1f2937, #f1f5f9, self.dark_mode);
-                }
-                text_style: { font_size: 12.0 }
-                wrap: Ellipsis
-            }
-            text: "New Chat"
-        }
-
-        date_label = <Label> {
-            width: Fill
-            draw_text: {
-                instance dark_mode: 0.0
-                fn get_color(self) -> vec4 {
-                    return mix(#6b7280, #9ca3af, self.dark_mode);
-                }
-                text_style: { font_size: 10.0 }
-            }
-            text: ""
-        }
-    }
-
-    // Template alias for PortalList
-    ChatHistoryItemTemplate = <ChatHistoryItem> {}
-
-    // Chat history panel as a separate widget
-    pub ChatHistoryPanel = {{ChatHistoryPanel}} {
-        width: 220, height: Fill
-        flow: Down
-        show_bg: true
-        draw_bg: {
-            instance dark_mode: 0.0
-            fn pixel(self) -> vec4 {
-                return mix(#f8fafc, #0f172a, self.dark_mode);
-            }
-        }
-
-        // New chat button
-        new_chat_container = <View> {
-            width: Fill, height: Fit
-            padding: 12
-
-            new_chat_button = <Button> {
-                width: Fill, height: Fit
-                padding: {left: 12, right: 12, top: 10, bottom: 10}
-                text: "+ New Chat"
-                draw_text: {
-                    text_style: { font_size: 12.0 }
-                    color: #ffffff
-                }
-                draw_bg: {
-                    instance dark_mode: 0.0
-                    instance hover: 0.0
-                    instance pressed: 0.0
-                    fn pixel(self) -> vec4 {
-                        let base = mix(#3b82f6, #2055ff, self.dark_mode);
-                        let hover_color = mix(#2055ff, #1045cc, self.dark_mode);
-                        let pressed_color = mix(#1045cc, #1040a0, self.dark_mode);
-                        let color = mix(base, hover_color, self.hover);
-                        return mix(color, pressed_color, self.pressed);
-                    }
-                }
-            }
-        }
-
-        // History header
-        history_header = <View> {
-            width: Fill, height: Fit
-            padding: {left: 12, right: 12, top: 8, bottom: 8}
-
-            history_title = <Label> {
-                text: "History"
-                draw_text: {
-                    instance dark_mode: 0.0
-                    fn get_color(self) -> vec4 {
-                        return mix(#6b7280, #9ca3af, self.dark_mode);
-                    }
-                    text_style: { font_size: 11.0 }
-                }
-            }
-        }
-
-        // Chat history list
-        history_list = <PortalList> {
-            width: Fill, height: Fill
-            flow: Down
-
-            ChatHistoryItem = <ChatHistoryItem> {}
-        }
-    }
-
-    pub ChatApp = {{ChatApp}} {
-        width: Fill, height: Fill
-        flow: Down
-        show_bg: true
-        draw_bg: {
-            instance dark_mode: 0.0
-            fn pixel(self) -> vec4 {
-                return mix(#f5f7fa, #0f172a, self.dark_mode);
-            }
-        }
-
-        // Header with provider status
-        header = <View> {
-            width: Fill, height: Fit
-            flow: Down
-            padding: 16
-            spacing: 4
-
-            title_label = <Label> {
-                text: "Chat"
-                draw_text: {
-                    instance dark_mode: 0.0
-                    fn get_color(self) -> vec4 {
-                        return mix(#1f2937, #f1f5f9, self.dark_mode);
-                    }
-                    text_style: <THEME_FONT_BOLD>{ font_size: 20.0 }
-                }
-            }
-
-            status_label = <Label> {
-                text: "No provider configured - Go to Settings to add an API key"
-                draw_text: {
-                    instance dark_mode: 0.0
-                    fn get_color(self) -> vec4 {
-                        return mix(#f59e0b, #fbbf24, self.dark_mode);
-                    }
-                    text_style: <THEME_FONT_REGULAR>{ font_size: 11.0 }
-                }
-            }
-        }
-
-        // Main content area with history panel and chat
-        main_content = <View> {
-            width: Fill, height: Fill
-            flow: Right
-
-            // Chat history panel (separate widget)
-            history_panel = <ChatHistoryPanel> {}
-
-            // Separator line
-            separator = <View> {
-                width: 1, height: Fill
-                show_bg: true
-                draw_bg: {
-                    instance dark_mode: 0.0
-                    fn pixel(self) -> vec4 {
-                        return mix(#e5e7eb, #374151, self.dark_mode);
-                    }
-                }
-            }
-
-            // Chat widget from moly-kit
-            chat = <Chat> {
-                width: Fill, height: Fill
-            }
-        }
-    }
-}
+use moly_data::{ChatId, Store};
 
 // Actions emitted by ChatHistoryPanel
 #[derive(Clone, Debug, DefaultNone)]
@@ -452,6 +230,10 @@ pub struct ChatApp {
     #[deref]
     pub view: View,
 
+    /// Provider icons loaded from live_design for use in model selector and chat messages
+    #[live]
+    provider_icons: Vec<LiveDependency>,
+
     // We create our own controller and set it on the Chat widget
     #[rust(ChatController::new_arc())]
     chat_controller: Arc<Mutex<ChatController>>,
@@ -527,6 +309,82 @@ impl LiveHook for ChatApp {
 }
 
 impl ChatApp {
+    /// Get provider icon LiveDependency from the loaded list
+    fn get_provider_icon(&self, provider_id: &str) -> Option<&LiveDependency> {
+        // Icons are stored in order: openai, anthropic, gemini, ollama, deepseek, openrouter, siliconflow
+        let index = match provider_id {
+            "openai" => Some(0),
+            "anthropic" => Some(1),
+            "gemini" => Some(2),
+            "ollama" => Some(3),
+            "deepseek" => Some(4),
+            "openrouter" => Some(5),
+            "siliconflow" => Some(6),
+            _ => None,
+        };
+        index.and_then(|i| self.provider_icons.get(i))
+    }
+
+    /// Get provider icon path string from the loaded LiveDependency list
+    fn get_provider_icon_path(&self, provider_id: &str) -> Option<String> {
+        self.get_provider_icon(provider_id).map(|dep| dep.as_str().to_string())
+    }
+
+    /// Get provider display name
+    fn get_provider_display_name(provider_id: &str) -> &'static str {
+        match provider_id {
+            "openai" => "OpenAI",
+            "anthropic" => "Anthropic",
+            "gemini" => "Google Gemini",
+            "ollama" => "Ollama",
+            "deepseek" => "DeepSeek",
+            "groq" => "Groq",
+            "openrouter" => "OpenRouter",
+            "siliconflow" => "SiliconFlow",
+            _ => "Unknown",
+        }
+    }
+
+    /// Set up the grouping function for the model selector
+    fn setup_model_selector_grouping(&mut self, scope: &mut Scope) {
+        let Some(store) = scope.data.get::<Store>() else { return };
+
+        // Build lookup table: BotId -> BotGroup
+        let mut bot_groups: HashMap<BotId, BotGroup> = HashMap::new();
+
+        for bot in store.providers_manager.get_all_bots() {
+            // Get provider ID from ProvidersManager (not from bot.id.provider() which returns URL)
+            let provider_id = store.providers_manager.get_provider_for_bot(&bot.id)
+                .unwrap_or_else(|| bot.id.provider()); // fallback to URL if not found
+
+            let icon = self.get_provider_icon_path(provider_id)
+                .map(|path| EntityAvatar::Image(path));
+            let label = Self::get_provider_display_name(provider_id).to_string();
+
+            bot_groups.insert(
+                bot.id.clone(),
+                BotGroup {
+                    id: provider_id.to_string(),
+                    label,
+                    icon,
+                },
+            );
+        }
+
+        // Create grouping function
+        let grouping_fn = create_lookup_grouping(move |bot_id: &BotId| {
+            bot_groups.get(bot_id).cloned()
+        });
+
+        // Set grouping on the ModelSelector inside PromptInput
+        let chat = self.view.chat(ids!(chat));
+        chat.read()
+            .prompt_input_ref()
+            .widget(ids!(model_selector))
+            .as_model_selector()
+            .set_grouping(Some(grouping_fn));
+    }
+
     /// Set our controller on the Chat widget if not already done
     fn maybe_set_controller_on_widget(&mut self, cx: &mut Cx) {
         if self.controller_set_on_widget {
@@ -675,26 +533,42 @@ impl ChatApp {
     pub fn create_new_chat(&mut self, cx: &mut Cx, scope: &mut Scope) {
         let Some(store) = scope.data.get_mut::<Store>() else { return };
 
-        // Get current bot_id to use for new chat
-        let current_bot_id = {
+        // Get current bot_id and all bots to use for new chat
+        let (current_bot_id, all_bots) = {
             let ctrl = self.chat_controller.lock().unwrap();
-            ctrl.state().bot_id.clone()
+            (ctrl.state().bot_id.clone(), ctrl.state().bots.clone())
         };
 
         // Create new chat
         let chat_id = store.chats.create_chat(current_bot_id.clone());
         self.current_chat_id = Some(chat_id);
 
-        // Clear messages in controller
+        // Force reset the controller on the Chat widget to ensure clean state
+        // This is needed because the Messages widget caches state internally
+        {
+            let mut chat_ref = self.view.chat(ids!(chat));
+            chat_ref.write().set_chat_controller(cx, None);
+            chat_ref.write().set_chat_controller(cx, Some(self.chat_controller.clone()));
+        }
+
+        // Clear messages in controller and re-set bots (since set_chat_controller may clear them)
         {
             let mut ctrl = self.chat_controller.lock().unwrap();
             ctrl.dispatch_mutation(VecMutation::<Message>::Set(vec![]));
+            ctrl.dispatch_mutation(VecMutation::Set(all_bots));
+            // Re-set the bot_id
+            if let Some(bot_id) = current_bot_id {
+                ctrl.dispatch_mutation(ChatStateMutation::SetBotId(Some(bot_id)));
+            }
         }
 
         // Reset all sync tracking state for the new empty chat
         self.last_synced_message_count = 0;
         self.had_writing_message = false;
         self.last_synced_content_len = 0;
+
+        // Reset scroll position
+        self.view.chat(ids!(chat)).write().messages_ref().write().instant_scroll_to_bottom(cx);
 
         ::log::info!("Created new chat {}", chat_id);
         self.view.redraw(cx);
@@ -977,7 +851,7 @@ impl ChatApp {
         };
 
         // Get provider URL for BotId
-        let provider_url = store.preferences.get_provider(provider_id)
+        let _provider_url = store.preferences.get_provider(provider_id)
             .map(|p| p.url.clone())
             .unwrap_or_default();
 
@@ -1002,13 +876,22 @@ impl ChatApp {
         self.view.redraw(cx);
     }
 
+    /// Apply provider icon to all bots' avatars
+    fn apply_provider_icon_to_bots(bots: &mut Vec<Bot>, icon_path: Option<String>) {
+        if let Some(path) = icon_path {
+            for bot in bots.iter_mut() {
+                bot.avatar = EntityAvatar::Image(path.clone());
+            }
+        }
+    }
+
     /// Check for loaded bots and continue sequential fetching
     fn check_for_loaded_bots(&mut self, cx: &mut Cx, scope: &mut Scope) {
         if !self.fetch_in_progress {
             return;
         }
         // Get the bots from the controller state
-        let bots: Vec<Bot> = {
+        let mut bots: Vec<Bot> = {
             let ctrl = self.chat_controller.lock().unwrap();
             ctrl.state().bots.clone()
         };
@@ -1025,6 +908,10 @@ impl ChatApp {
 
         // Store bots for current provider
         if let Some(ref current_provider) = self.current_provider_id {
+            // Apply provider icon to bot avatars before storing
+            let icon_path = self.get_provider_icon_path(current_provider);
+            Self::apply_provider_icon_to_bots(&mut bots, icon_path);
+
             ::log::info!("Loaded {} bots from provider {}", bots.len(), current_provider);
             store.providers_manager.set_provider_bots(current_provider, bots.clone());
 
@@ -1080,6 +967,9 @@ impl ChatApp {
                 let mut ctrl = self.chat_controller.lock().unwrap();
                 ctrl.dispatch_mutation(VecMutation::Set(all_bots_for_reset.clone()));
             }
+
+            // Set up grouping with provider icons for the model selector
+            self.setup_model_selector_grouping(scope);
 
             // Redraw both the view and explicitly the chat widget
             self.view.redraw(cx);

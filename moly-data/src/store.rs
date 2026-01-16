@@ -2,9 +2,9 @@ use makepad_widgets::*;
 use moly_kit::prelude::*;
 use std::sync::{Arc, Mutex};
 
-use super::chats::Chats;
-use super::preferences::Preferences;
-use super::providers_manager::ProvidersManager;
+use crate::chats::Chats;
+use crate::preferences::Preferences;
+use crate::providers_manager::ProvidersManager;
 
 /// Actions that can be dispatched to modify the Store
 #[derive(Clone, Debug, DefaultNone)]
@@ -31,13 +31,13 @@ pub enum StoreAction {
 /// # Usage
 ///
 /// In App's handle_event:
-/// ```rust
+/// ```rust,ignore
 /// let scope = &mut Scope::with_data(&mut self.store);
 /// self.ui.handle_event(cx, event, scope);
 /// ```
 ///
 /// In child widgets:
-/// ```rust
+/// ```rust,ignore
 /// let store = scope.data.get::<Store>().unwrap();
 /// // Read from store
 ///

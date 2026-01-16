@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use moly_kit::aitk::clients::openai::OpenAiClient;
 use moly_kit::aitk::protocol::{Bot, BotId};
 
-use super::providers::ProviderPreferences;
+use crate::providers::ProviderPreferences;
 
 /// Manages multiple AI provider clients and their models
 pub struct ProvidersManager {

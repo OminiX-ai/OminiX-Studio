@@ -5,6 +5,7 @@ pub mod providers_manager;
 pub mod store;
 
 pub use chats::{ChatData, ChatId, Chats};
-pub use providers::{ProviderPreferences, ProviderId};
+pub use preferences::Preferences;
+pub use providers::{ProviderPreferences, ProviderId, ProviderType, get_supported_providers};
 pub use providers_manager::ProvidersManager;
-pub use store::Store;
+pub use store::{Store, StoreAction};

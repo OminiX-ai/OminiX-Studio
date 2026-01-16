@@ -113,6 +113,12 @@ impl ChatData {
     }
 }
 
+impl Default for ChatData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Manages chat sessions with persistence
 pub struct Chats {
     pub saved_chats: Vec<ChatData>,
@@ -295,5 +301,11 @@ impl Chats {
     /// Get the chats directory path
     pub fn chats_dir(&self) -> &PathBuf {
         &self.chats_dir
+    }
+}
+
+impl Default for Chats {
+    fn default() -> Self {
+        Self::new()
     }
 }

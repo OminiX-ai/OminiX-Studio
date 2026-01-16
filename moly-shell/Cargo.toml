@@ -9,12 +9,25 @@ name = "moly"
 path = "src/main.rs"
 
 [dependencies]
+# Makepad
 makepad-widgets.workspace = true
+
+# Internal workspace crates
 moly-widgets = { path = "../moly-widgets" }
+moly-data = { path = "../moly-data" }
+
+# App crates
+moly-chat = { path = "../apps/moly-chat" }
+moly-models = { path = "../apps/moly-models" }
+moly-settings = { path = "../apps/moly-settings" }
+moly-mcp = { path = "../apps/moly-mcp" }
+
+# Moly dependencies (needed for some integrations)
 moly-kit.workspace = true
 aitk.workspace = true
 moly-protocol.workspace = true
 
+# Utilities
 log.workspace = true
 env_logger.workspace = true
 anyhow.workspace = true

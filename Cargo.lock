@@ -2708,6 +2708,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "moly-chat"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "makepad-widgets",
+ "moly-data",
+ "moly-kit",
+ "moly-widgets",
+]
+
+[[package]]
+name = "moly-data"
+version = "0.1.0"
+dependencies = [
+ "aitk",
+ "chrono",
+ "dirs",
+ "log",
+ "makepad-widgets",
+ "moly-kit",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "moly-kit"
 version = "0.2.3"
 dependencies = [
@@ -2726,6 +2751,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "moly-mcp"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "makepad-widgets",
+ "moly-data",
+ "moly-widgets",
+]
+
+[[package]]
+name = "moly-models"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "makepad-widgets",
+ "moly-data",
+ "moly-widgets",
+]
+
+[[package]]
 name = "moly-protocol"
 version = "0.2.0"
 source = "git+https://github.com/moly-ai/moly-local?rev=788cac14d#788cac14d70047c7ea0e1d05d6b8da4bac1e802e"
@@ -2733,6 +2778,16 @@ dependencies = [
  "anyhow",
  "chrono",
  "serde",
+]
+
+[[package]]
+name = "moly-settings"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "makepad-widgets",
+ "moly-data",
+ "moly-widgets",
 ]
 
 [[package]]
@@ -2748,8 +2803,13 @@ dependencies = [
  "futures",
  "log",
  "makepad-widgets",
+ "moly-chat",
+ "moly-data",
  "moly-kit",
+ "moly-mcp",
+ "moly-models",
  "moly-protocol",
+ "moly-settings",
  "moly-widgets",
  "serde",
  "serde_json",

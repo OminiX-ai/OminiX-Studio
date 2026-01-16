@@ -1,6 +1,7 @@
 use makepad_widgets::*;
 
-use crate::data::Store;
+use moly_data::Store;
+use moly_widgets::MolyApp;
 
 live_design! {
     use link::theme::*;
@@ -8,11 +9,11 @@ live_design! {
     use link::widgets::*;
     use moly_widgets::theme::*;
 
-    // Import app widgets from internal modules
-    use crate::apps::chat::*;
-    use crate::apps::models::*;
-    use crate::apps::settings::*;
-    use crate::apps::mcp::*;
+    // Import app widgets from external app crates
+    use moly_chat::screen::design::*;
+    use moly_models::screen::design::*;
+    use moly_settings::screen::design::*;
+    use moly_mcp::screen::design::*;
 
     // Icon dependencies
     ICON_HAMBURGER = dep("crate://self/resources/icons/hamburger.svg")
@@ -24,6 +25,15 @@ live_design! {
 
     // Logo
     IMG_LOGO = dep("crate://self/resources/moly-logo.png")
+
+    // Provider icons - registered globally so they can be loaded by moly-kit
+    ICON_PROVIDER_OPENAI = dep("crate://self/resources/providers/openai.png")
+    ICON_PROVIDER_ANTHROPIC = dep("crate://self/resources/providers/anthropic.png")
+    ICON_PROVIDER_GEMINI = dep("crate://self/resources/providers/gemini.png")
+    ICON_PROVIDER_OLLAMA = dep("crate://self/resources/providers/ollama.png")
+    ICON_PROVIDER_DEEPSEEK = dep("crate://self/resources/providers/deepseek.png")
+    ICON_PROVIDER_OPENROUTER = dep("crate://self/resources/providers/openrouter.png")
+    ICON_PROVIDER_SILICONFLOW = dep("crate://self/resources/providers/siliconflow.png")
 
     // Navigation button style with icon
     NavButton = <View> {
@@ -317,11 +327,11 @@ impl LiveRegister for App {
         moly_widgets::live_design(cx);
         // Register moly-kit widgets (Chat, Messages, PromptInput, etc.)
         moly_kit::widgets::live_design(cx);
-        // Register app widgets from internal modules
-        crate::apps::chat::live_design(cx);
-        crate::apps::models::live_design(cx);
-        crate::apps::settings::live_design(cx);
-        crate::apps::mcp::live_design(cx);
+        // Register app widgets from external app crates via MolyApp trait
+        <moly_chat::MolyChatApp as MolyApp>::live_design(cx);
+        <moly_models::MolyModelsApp as MolyApp>::live_design(cx);
+        <moly_settings::MolySettingsApp as MolyApp>::live_design(cx);
+        <moly_mcp::MolyMcpApp as MolyApp>::live_design(cx);
     }
 }
 
@@ -405,7 +415,7 @@ impl App {
 
         // Notify ChatApp when it becomes visible (to refresh model list)
         if target == NavigationTarget::Chat {
-            if let Some(mut chat_app) = self.ui.widget(ids!(chat_app)).borrow_mut::<crate::apps::chat::ChatApp>() {
+            if let Some(mut chat_app) = self.ui.widget(ids!(chat_app)).borrow_mut::<moly_chat::screen::ChatApp>() {
                 chat_app.on_become_visible();
             }
         }

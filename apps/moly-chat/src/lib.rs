@@ -1,58 +1,27 @@
-use makepad_widgets::*;
+//! Moly Chat App
+//!
+//! Chat application with multi-provider support and chat history persistence.
 
-live_design! {
-    use link::theme::*;
-    use link::shaders::*;
-    use link::widgets::*;
-    use moly_widgets::theme::*;
+pub mod screen;
 
-    pub ChatApp = {{ChatApp}} {
-        width: Fill, height: Fill
-        flow: Down, align: {x: 0.5, y: 0.5}
-        show_bg: true
-        draw_bg: {
-            instance dark_mode: 0.0
-            fn pixel(self) -> vec4 {
-                return mix(#f5f7fa, #0f172a, self.dark_mode);
-            }
-        }
+use makepad_widgets::Cx;
+use moly_widgets::{MolyApp, AppInfo};
 
-        <Label> {
-            text: "Chat App"
-            draw_text: {
-                instance dark_mode: 0.0
-                fn get_color(self) -> vec4 {
-                    return mix(#1f2937, #f1f5f9, self.dark_mode);
-                }
-                text_style: <THEME_FONT_BOLD>{ font_size: 32.0 }
-            }
-        }
-        <Label> {
-            margin: {top: 8}
-            text: "Phase 2 - Plugin System Active"
-            draw_text: {
-                instance dark_mode: 0.0
-                fn get_color(self) -> vec4 {
-                    return mix(#6b7280, #94a3b8, self.dark_mode);
-                }
-                text_style: <THEME_FONT_REGULAR>{ font_size: 14.0 }
-            }
+pub use screen::{ChatApp, ChatAppRef, ChatHistoryAction};
+
+/// Main app struct for MolyApp trait implementation
+pub struct MolyChatApp;
+
+impl MolyApp for MolyChatApp {
+    fn info() -> AppInfo {
+        AppInfo {
+            name: "Chat",
+            id: "moly-chat",
+            description: "AI chat interface with multi-provider support",
         }
     }
-}
 
-#[derive(Live, LiveHook, Widget)]
-pub struct ChatApp {
-    #[deref]
-    pub view: View,
-}
-
-impl Widget for ChatApp {
-    fn handle_event(&mut self, cx: &mut Cx, event: &Event, scope: &mut Scope) {
-        self.view.handle_event(cx, event, scope);
-    }
-
-    fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
-        self.view.draw_walk(cx, scope, walk)
+    fn live_design(cx: &mut Cx) {
+        crate::screen::design::live_design(cx);
     }
 }

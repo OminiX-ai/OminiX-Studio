@@ -1,9 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-use super::providers::{get_supported_providers, ProviderId, ProviderPreferences};
+use crate::providers::{get_supported_providers, ProviderId, ProviderPreferences};
 
-const PREFERENCES_DIR: &str = "preferences";
 const PREFERENCES_FILENAME: &str = "preferences.json";
 
 /// User preferences that persist across sessions
@@ -106,7 +105,7 @@ impl Preferences {
             path
         } else {
             // Fallback to current directory
-            PathBuf::from(PREFERENCES_DIR).join(PREFERENCES_FILENAME)
+            PathBuf::from(".moly").join(PREFERENCES_FILENAME)
         }
     }
 
