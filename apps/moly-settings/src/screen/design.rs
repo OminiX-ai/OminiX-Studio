@@ -73,40 +73,6 @@ live_design! {
         }
     }
 
-    // Status indicator dot (colored circle showing connection status)
-    StatusDot = <View> {
-        width: 8, height: 8
-        show_bg: true
-        draw_bg: {
-            // status: 0=not_connected (gray), 1=connecting (blue), 2=connected (green), 3=error (red)
-            instance status: 0.0
-            instance dark_mode: 0.0
-
-            fn pixel(self) -> vec4 {
-                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                let center = self.rect_size * 0.5;
-                let radius = min(center.x, center.y);
-
-                // Colors for each status
-                let not_connected = mix(#9ca3af, #6b7280, self.dark_mode); // gray
-                let connecting = mix(#3b82f6, #60a5fa, self.dark_mode);    // blue
-                let connected = mix(#22c55e, #4ade80, self.dark_mode);     // green
-                let error = mix(#ef4444, #f87171, self.dark_mode);         // red
-
-                // Select color based on status
-                let color = mix(
-                    mix(not_connected, connecting, clamp(self.status, 0.0, 1.0)),
-                    mix(connected, error, clamp(self.status - 2.0, 0.0, 1.0)),
-                    step(1.5, self.status)
-                );
-
-                sdf.circle(center.x, center.y, radius);
-                sdf.fill(color);
-                return sdf.result;
-            }
-        }
-    }
-
     // Provider list item
     ProviderItem = <View> {
         width: Fill, height: Fit
@@ -147,8 +113,10 @@ live_design! {
             }
         }
 
-        // Status indicator on the right
-        status_dot = <StatusDot> {}
+        // Enabled checkbox on the right
+        provider_enabled = <CheckBox> {
+            width: Fit, height: Fit
+        }
     }
 
     // Save button
@@ -363,19 +331,6 @@ live_design! {
                                 return mix(#1f2937, #f1f5f9, self.dark_mode);
                             }
                             text_style: <THEME_FONT_BOLD>{ font_size: 20.0 }
-                        }
-                    }
-
-                    <View> { width: Fill } // Spacer
-
-                    enabled_checkbox = <CheckBox> {
-                        text: "Enabled"
-                        draw_text: {
-                            instance dark_mode: 0.0
-                            fn get_color(self) -> vec4 {
-                                return mix(#374151, #e2e8f0, self.dark_mode);
-                            }
-                            text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
                         }
                     }
                 }

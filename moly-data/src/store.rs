@@ -3,6 +3,7 @@ use moly_kit::prelude::*;
 use std::sync::{Arc, Mutex};
 
 use crate::chats::Chats;
+use crate::moly_client::MolyClient;
 use crate::preferences::Preferences;
 use crate::providers_manager::ProvidersManager;
 
@@ -57,6 +58,9 @@ pub struct Store {
     /// Multi-provider client manager
     pub providers_manager: ProvidersManager,
 
+    /// Moly Server client for model discovery and downloads
+    pub moly_client: MolyClient,
+
     /// Whether the Store has been fully initialized
     pub initialized: bool,
 }
@@ -70,6 +74,7 @@ impl Default for Store {
             chats: Chats::new(),
             chat_controller: None,
             providers_manager: ProvidersManager::new(),
+            moly_client: MolyClient::new(),
             initialized: false,
         }
     }
@@ -95,11 +100,15 @@ impl Store {
         // Load chats from disk
         let chats = Chats::load();
 
+        // Create MolyClient for model discovery
+        let moly_client = MolyClient::new();
+
         Self {
             preferences,
             chats,
             chat_controller: Some(chat_controller),
             providers_manager,
+            moly_client,
             initialized: true,
         }
     }

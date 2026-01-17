@@ -46,3 +46,4 @@ futures = "0.3.31"
 reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls", "blocking"], default-features = false }
 uuid = { version = "1.18.0", features = ["js", "v7"] }
 dirs = "5.0"
+tokio = { version = "1.43", features = ["rt", "time"] }

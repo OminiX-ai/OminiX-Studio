@@ -570,44 +570,108 @@ moly-shell/src/data/
 └── supported_providers.json                   # Provider whitelist
 ```
 
-## Phase 6: Model Discovery & Downloads
+## Phase 6: Model Discovery & Downloads ✅ COMPLETED
 
 ### Goal
 Implement MolyServer integration for model discovery/download.
 
+### Status
+✅ **COMPLETED** - Full model discovery and download management implemented.
+
 ### Steps
 
-**6.1 MolyClient**
-- Port MolyClient from moly-ai
-- Add to Store
-- Implement connection checking
+**6.1 MolyClient** ✅ COMPLETED
+- ✅ Created MolyClient in moly-data crate
+- ✅ Added to Store (moly-data/src/store.rs)
+- ✅ Connection status tracking (Disconnected/Connecting/Connected/Error)
+- ✅ Methods: test_connection, get_featured_models, search_models, get_downloaded_files, get_pending_downloads, download_file, pause_download, cancel_download, delete_file
 
-**6.2 Models UI**
-- Port landing screen from moly-ai
-- Model discovery, search, filtering
-- Download management UI
-- Progress tracking
+**6.2 Models UI** ✅ COMPLETED
+- ✅ Header with "Model Discovery" title and connection status badge
+- ✅ Search bar with refresh button
+- ✅ ModelCard component with:
+  - Model name, size, download count, like count
+  - Summary (truncated to 200 chars)
+  - Architecture and author info
+  - Files section with download button
+- ✅ DownloadItem component with progress bar (green theme)
+- ✅ Empty/loading/error states
+- ✅ Full dark mode support
 
-**6.3 Verification**
-- Browse featured models
-- Search models
-- Download models
-- Track progress
+**6.3 Download Management** ✅ COMPLETED
+- ✅ Download button on each model card
+- ✅ Async task handling with std::thread + tokio runtime
+- ✅ Progress tracking via polling (500ms interval)
+- ✅ Active downloads section showing current progress
+- ✅ Download status display (Initializing/Downloading %/Paused/Error)
 
-### Files to Create/Modify (Phase 6)
+**6.4 Verification** ✅ COMPLETED
+- ✅ Browse featured models (when Moly Server is running)
+- ✅ Search models by query
+- ✅ Start downloads via download button
+- ✅ Track progress in active downloads section
+
+### Implementation Notes
+
+**Architecture Decision**: MolyClient lives in moly-data crate (not moly-shell) for shared access:
+```rust
+// moly-data/src/store.rs
+pub struct Store {
+    pub moly_client: MolyClient,
+    // ... other fields
+}
+```
+
+**Async Pattern**: Uses std::thread with tokio runtime (same as moly-ai):
+```rust
+std::thread::spawn(move || {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    rt.block_on(async {
+        // async operations
+    });
+});
+```
+
+**Task Result Pattern**: Shared Arc<Mutex<Option<TaskResult>>> for async communication:
+```rust
+type TaskResultState = Arc<Mutex<Option<ModelsTaskResult>>>;
+
+enum ModelsTaskResult {
+    ConnectionResult(Result<(), String>),
+    ModelsResult(Result<Vec<Model>, String>),
+    DownloadStarted(Result<FileId, String>),
+    DownloadsUpdate(Result<Vec<PendingDownload>, String>),
+}
+```
+
+**Hex Color Limitation**: Colors with 'e' followed by digits (e.g., #2563eb) are interpreted as scientific notation in live_design!. Use vec4() instead:
+```rust
+// Instead of: let color = mix(#3b82f6, #2563eb, self.dark_mode);
+let light = vec4(0.231, 0.510, 0.965, 1.0);  // #3b82f6
+let dark = vec4(0.145, 0.388, 0.922, 1.0);   // #2563eb
+let color = mix(light, dark, self.dark_mode);
+```
+
+### Files Created/Modified (Phase 6)
 
 ```
-apps/moly-models/
-└── src/
-    ├── lib.rs
-    ├── discovery_screen.rs
-    ├── downloads_screen.rs
-    └── ...
+moly-data/
+├── Cargo.toml                                 # Added moly-protocol, reqwest, futures
+├── src/
+│   ├── lib.rs                                 # Added moly_client module, Model/File exports
+│   ├── moly_client.rs                         # NEW: HTTP client for Moly Server
+│   └── store.rs                               # Added MolyClient field
 
-moly-shell/src/data/
-├── store.rs                                   # Add search, downloads
-├── moly_client.rs                             # HTTP client
-└── models.rs                                  # Model data structures
+apps/moly-models/
+├── Cargo.toml                                 # Added moly-protocol, tokio, chrono
+└── src/
+    ├── lib.rs                                 # Screen module export
+    └── screen/
+        ├── mod.rs                             # ModelsApp widget implementation
+        └── design.rs                          # UI: ModelCard, DownloadItem, StatusBadge
 ```
 
 ## Phase 7: MCP Integration

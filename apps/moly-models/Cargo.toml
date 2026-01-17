@@ -7,4 +7,7 @@ edition.workspace = true
 makepad-widgets.workspace = true
 moly-data.workspace = true
 moly-widgets.workspace = true
+moly-protocol.workspace = true
 log.workspace = true
+chrono.workspace = true
+tokio.workspace = true

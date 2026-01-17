@@ -2725,9 +2725,12 @@ dependencies = [
  "aitk",
  "chrono",
  "dirs",
+ "futures",
  "log",
  "makepad-widgets",
  "moly-kit",
+ "moly-protocol",
+ "reqwest",
  "serde",
  "serde_json",
 ]
@@ -2764,10 +2767,13 @@ dependencies = [
 name = "moly-models"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "log",
  "makepad-widgets",
  "moly-data",
+ "moly-protocol",
  "moly-widgets",
+ "tokio",
 ]
 
 [[package]]
