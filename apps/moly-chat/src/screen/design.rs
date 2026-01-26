@@ -24,10 +24,13 @@ live_design! {
     ICON_NVIDIA = dep("crate://self/resources/providers/nvidia.png")
     ICON_GROQ = dep("crate://self/resources/providers/groq.png")
 
+    // Delete icon for chat history
+    ICON_TRASH = dep("crate://self/resources/icons/trash.svg")
+
     // Individual chat history item - Widget with proper event handling
     pub ChatHistoryItem = {{ChatHistoryItem}} {
         width: Fill, height: Fit
-        padding: {left: 12, right: 12, top: 8, bottom: 8}
+        padding: {left: 12, right: 8, top: 8, bottom: 8}
         cursor: Hand
         show_bg: true
         draw_bg: {
@@ -78,32 +81,81 @@ live_design! {
             }
         }
 
-        flow: Down
-        spacing: 2
+        flow: Right
+        spacing: 4
+        align: {y: 0.5}
 
-        title_label = <Label> {
-            width: Fill
-            draw_text: {
-                instance dark_mode: 0.0
-                fn get_color(self) -> vec4 {
-                    return mix(#1f2937, #f1f5f9, self.dark_mode);
+        // Left side: title and date
+        content = <View> {
+            width: Fill, height: Fit
+            flow: Down
+            spacing: 2
+
+            title_label = <Label> {
+                width: Fill
+                draw_text: {
+                    instance dark_mode: 0.0
+                    fn get_color(self) -> vec4 {
+                        return mix(#1f2937, #f1f5f9, self.dark_mode);
+                    }
+                    text_style: { font_size: 12.0 }
+                    wrap: Ellipsis
                 }
-                text_style: { font_size: 12.0 }
-                wrap: Ellipsis
+                text: "New Chat"
             }
-            text: "New Chat"
+
+            date_label = <Label> {
+                width: Fill
+                draw_text: {
+                    instance dark_mode: 0.0
+                    fn get_color(self) -> vec4 {
+                        return mix(#6b7280, #9ca3af, self.dark_mode);
+                    }
+                    text_style: { font_size: 10.0 }
+                }
+                text: ""
+            }
         }
 
-        date_label = <Label> {
-            width: Fill
-            draw_text: {
+        // Right side: delete button (visible on hover)
+        delete_button = <View> {
+            width: 24, height: 24
+            align: {x: 0.5, y: 0.5}
+            cursor: Hand
+            show_bg: true
+            draw_bg: {
+                instance hover: 0.0
                 instance dark_mode: 0.0
-                fn get_color(self) -> vec4 {
-                    return mix(#6b7280, #9ca3af, self.dark_mode);
+                fn pixel(self) -> vec4 {
+                    let hover_color = mix(#fee2e2, #7f1d1d, self.dark_mode);
+                    return mix(vec4(0.0, 0.0, 0.0, 0.0), hover_color, self.hover);
                 }
-                text_style: { font_size: 10.0 }
             }
-            text: ""
+
+            animator: {
+                hover = {
+                    default: off
+                    off = {
+                        from: {all: Forward {duration: 0.1}}
+                        apply: { draw_bg: {hover: 0.0} }
+                    }
+                    on = {
+                        from: {all: Forward {duration: 0.1}}
+                        apply: { draw_bg: {hover: 1.0} }
+                    }
+                }
+            }
+
+            delete_icon = <Icon> {
+                draw_icon: {
+                    svg_file: (ICON_TRASH)
+                    instance dark_mode: 0.0
+                    fn get_color(self) -> vec4 {
+                        return mix(#9ca3af, #6b7280, self.dark_mode);
+                    }
+                }
+                icon_walk: { width: 14, height: 14 }
+            }
         }
     }
 

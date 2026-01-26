@@ -18,6 +18,7 @@ pub enum ChatHistoryAction {
     None,
     NewChat,
     SelectChat(ChatId),
+    DeleteChat(ChatId),
 }
 
 /// ChatHistoryItem Widget - handles its own click events
@@ -45,9 +46,23 @@ impl ChatHistoryItem {
         self.chat_id = Some(id);
     }
 
-    /// Check if this item was clicked - similar to EntityButton pattern
+    /// Check if this item was clicked (but not the delete button)
     pub fn clicked(&self, actions: &Actions) -> bool {
+        // Don't count as clicked if delete button was clicked
+        if self.delete_clicked(actions) {
+            return false;
+        }
         if let Some(item) = actions.find_widget_action(self.view.widget_uid()) {
+            if let ViewAction::FingerDown(fd) = item.cast() {
+                return fd.tap_count == 1;
+            }
+        }
+        false
+    }
+
+    /// Check if the delete button was clicked
+    pub fn delete_clicked(&self, actions: &Actions) -> bool {
+        if let Some(item) = actions.find_widget_action(self.view.view(ids!(delete_button)).widget_uid()) {
             if let ViewAction::FingerDown(fd) = item.cast() {
                 return fd.tap_count == 1;
             }
@@ -70,6 +85,14 @@ impl ChatHistoryItemRef {
     pub fn clicked(&self, actions: &Actions) -> bool {
         if let Some(inner) = self.borrow() {
             inner.clicked(actions)
+        } else {
+            false
+        }
+    }
+
+    pub fn delete_clicked(&self, actions: &Actions) -> bool {
+        if let Some(inner) = self.borrow() {
+            inner.delete_clicked(actions)
         } else {
             false
         }
@@ -166,14 +189,22 @@ impl Widget for ChatHistoryPanel {
                                 }
                             });
 
-                            item_widget.label(ids!(title_label)).set_text(cx, &title);
-                            item_widget.label(ids!(title_label)).apply_over(cx, live! {
+                            item_widget.label(ids!(content.title_label)).set_text(cx, &title);
+                            item_widget.label(ids!(content.title_label)).apply_over(cx, live! {
                                 draw_text: { dark_mode: (self.dark_mode) }
                             });
 
-                            item_widget.label(ids!(date_label)).set_text(cx, &date_str);
-                            item_widget.label(ids!(date_label)).apply_over(cx, live! {
+                            item_widget.label(ids!(content.date_label)).set_text(cx, &date_str);
+                            item_widget.label(ids!(content.date_label)).apply_over(cx, live! {
                                 draw_text: { dark_mode: (self.dark_mode) }
+                            });
+
+                            // Apply dark mode to delete button
+                            item_widget.view(ids!(delete_button)).apply_over(cx, live! {
+                                draw_bg: { dark_mode: (self.dark_mode) }
+                            });
+                            item_widget.icon(ids!(delete_button.delete_icon)).apply_over(cx, live! {
+                                draw_icon: { dark_mode: (self.dark_mode) }
                             });
 
                             item_widget.draw_all(cx, scope);
@@ -207,7 +238,16 @@ impl WidgetMatchEvent for ChatHistoryPanel {
         let history_list = self.portal_list(ids!(history_list));
         for (_item_id, item) in history_list.items_with_actions(actions) {
             let history_item = item.as_chat_history_item();
-            if history_item.clicked(actions) {
+
+            // Check for delete button click first
+            if history_item.delete_clicked(actions) {
+                if let Some(chat_id) = history_item.get_chat_id() {
+                    ::log::info!("Delete button clicked for chat: {:?}", chat_id);
+                    cx.action(ChatHistoryAction::DeleteChat(chat_id));
+                }
+            }
+            // Then check for item click (select chat)
+            else if history_item.clicked(actions) {
                 if let Some(chat_id) = history_item.get_chat_id() {
                     ::log::info!("Chat history item clicked: {:?}", chat_id);
                     cx.action(ChatHistoryAction::SelectChat(chat_id));
@@ -626,6 +666,61 @@ impl ChatApp {
 
         self.view.redraw(cx);
     }
+
+    /// Delete a chat session
+    pub fn delete_chat(&mut self, cx: &mut Cx, scope: &mut Scope, chat_id: ChatId) {
+        let Some(store) = scope.data.get_mut::<Store>() else { return };
+
+        // Check if we're deleting the current chat
+        let is_current = self.current_chat_id == Some(chat_id);
+
+        // Delete from storage (this also updates current_chat_id if needed)
+        store.chats.delete_chat(chat_id);
+
+        ::log::info!("Deleted chat {}", chat_id);
+
+        // If we deleted the current chat, we need to switch to another chat or create a new one
+        if is_current {
+            if let Some(next_chat) = store.chats.saved_chats.first() {
+                // Switch to the next available chat
+                let next_id = next_chat.id;
+                self.current_chat_id = Some(next_id);
+                store.chats.set_current_chat(Some(next_id));
+
+                // Load the chat's messages into controller
+                if let Some(chat) = store.chats.get_chat_by_id(next_id) {
+                    let mut messages = chat.messages.clone();
+                    for msg in &mut messages {
+                        msg.metadata.is_writing = false;
+                    }
+                    let message_count = messages.len();
+                    let last_content_len = messages.last().map(|m| m.content.text.len()).unwrap_or(0);
+
+                    {
+                        let mut ctrl = self.chat_controller.lock().unwrap();
+                        ctrl.dispatch_mutation(VecMutation::Set(messages));
+
+                        if let Some(ref bot_id) = chat.bot_id {
+                            ctrl.dispatch_mutation(ChatStateMutation::SetBotId(Some(bot_id.clone())));
+                        }
+                    }
+
+                    self.last_synced_message_count = message_count;
+                    self.had_writing_message = false;
+                    self.last_synced_content_len = last_content_len;
+                }
+            } else {
+                // No chats left, create a new one
+                self.create_new_chat(cx, scope);
+                return; // create_new_chat handles redraw
+            }
+
+            // Reset scroll position
+            self.view.chat(ids!(chat)).write().messages_ref().write().instant_scroll_to_bottom(cx);
+        }
+
+        self.view.redraw(cx);
+    }
 }
 
 impl Widget for ChatApp {
@@ -635,15 +730,22 @@ impl Widget for ChatApp {
 
         // Handle pending controller reset (e.g., after models load or view becomes visible)
         // This ensures the model list is properly populated after visibility changes
+        // Also re-filters bots in case model settings changed in Settings
         if self.needs_controller_reset {
-            let bots_count = self.chat_controller.lock().unwrap().state().bots.len();
-            if bots_count > 0 {
-                self.force_reset_controller_on_widget(cx);
-                // Re-dispatch bots mutation so the new plugin sees them
-                let all_bots: Vec<_> = self.chat_controller.lock().unwrap().state().bots.clone();
-                self.chat_controller.lock().unwrap().dispatch_mutation(VecMutation::Set(all_bots));
-                self.view.redraw(cx);
-                self.view.chat(ids!(chat)).redraw(cx);
+            if let Some(store) = scope.data.get::<Store>() {
+                let all_bots = store.providers_manager.get_all_bots();
+                if !all_bots.is_empty() {
+                    // Re-filter bots based on current settings
+                    let enabled_bots = Self::filter_enabled_bots(all_bots, store);
+                    ::log::info!("Controller reset: filtering {} enabled bots from {} total",
+                        enabled_bots.len(), all_bots.len());
+
+                    self.force_reset_controller_on_widget(cx);
+                    // Re-dispatch filtered bots mutation so the new plugin sees them
+                    self.chat_controller.lock().unwrap().dispatch_mutation(VecMutation::Set(enabled_bots));
+                    self.view.redraw(cx);
+                    self.view.chat(ids!(chat)).redraw(cx);
+                }
             }
             self.needs_controller_reset = false;
         }
@@ -731,6 +833,9 @@ impl WidgetMatchEvent for ChatApp {
             }
             if let ChatHistoryAction::SelectChat(chat_id) = action.cast() {
                 self.switch_to_chat(cx, scope, chat_id);
+            }
+            if let ChatHistoryAction::DeleteChat(chat_id) = action.cast() {
+                self.delete_chat(cx, scope, chat_id);
             }
         }
     }
@@ -932,22 +1037,23 @@ impl ChatApp {
             ::log::info!("All providers fetched, {} total bots available", store.providers_manager.get_all_bots().len());
             self.fetch_in_progress = false;
 
-            // Update ChatController with combined bots
-            let all_bots = store.providers_manager.get_all_bots().to_vec();
-            let num_bots = all_bots.len();
-            ::log::info!("Setting {} bots on ChatController", num_bots);
+            // Update ChatController with filtered bots (only enabled models)
+            let all_bots = store.providers_manager.get_all_bots();
+            let enabled_bots = Self::filter_enabled_bots(all_bots, store);
+            let num_bots = enabled_bots.len();
+            ::log::info!("Setting {} enabled bots on ChatController (out of {} total)", num_bots, all_bots.len());
             {
                 let mut ctrl = self.chat_controller.lock().unwrap();
                 // VecMutation::Set automatically converts to ChatStateMutation::MutateBots
-                ctrl.dispatch_mutation(VecMutation::Set(all_bots));
+                ctrl.dispatch_mutation(VecMutation::Set(enabled_bots.clone()));
 
                 // Verify bots were set
                 let controller_bots = ctrl.state().bots.len();
                 ::log::info!("ChatController now has {} bots", controller_bots);
             }
 
-            // Get bots before restore (restore may clear them due to set_client)
-            let all_bots_for_reset = store.providers_manager.get_all_bots().to_vec();
+            // Get filtered bots before restore (restore may clear them due to set_client)
+            let all_bots_for_reset = enabled_bots;
 
             // Restore the saved model selection (this may switch client which clears bots)
             self.restore_saved_model(scope);
@@ -1045,8 +1151,9 @@ impl ChatApp {
             // Only switch if it's a different provider
             if self.current_provider_id.as_deref() != Some(provider_id) {
                 if let Some(client) = store.providers_manager.clone_client(provider_id) {
-                    // Get all bots before switching (set_client clears them)
-                    let all_bots = store.providers_manager.get_all_bots().to_vec();
+                    // Get filtered bots before switching (set_client clears them)
+                    let all_bots = store.providers_manager.get_all_bots();
+                    let enabled_bots = Self::filter_enabled_bots(all_bots, store);
 
                     {
                         let mut ctrl = self.chat_controller.lock().unwrap();
@@ -1056,16 +1163,50 @@ impl ChatApp {
                     self.current_provider_id = Some(provider_id.to_string());
                     ::log::info!("Switched to provider: {} for model", provider_id);
 
-                    // Re-set the bots after set_client cleared them
+                    // Re-set the filtered bots after set_client cleared them
                     {
                         let mut ctrl = self.chat_controller.lock().unwrap();
-                        ctrl.dispatch_mutation(VecMutation::Set(all_bots));
+                        ctrl.dispatch_mutation(VecMutation::Set(enabled_bots));
                     }
                 }
             }
         } else {
             ::log::warn!("Could not find provider for bot: {}", bot_id.as_str());
         }
+    }
+
+    /// Filter bots based on enabled status in provider preferences
+    /// Returns only bots that are either:
+    /// 1. Not in the provider's models list (default to enabled)
+    /// 2. Explicitly enabled in the provider's models list
+    fn filter_enabled_bots(all_bots: &[Bot], store: &Store) -> Vec<Bot> {
+        all_bots.iter()
+            .filter(|bot| {
+                // Find which provider this bot belongs to
+                let provider_id = store.providers_manager.get_provider_for_bot(&bot.id);
+
+                if let Some(provider_id) = provider_id {
+                    // Get the provider preferences
+                    let provider_id_string = provider_id.to_string();
+                    if let Some(provider) = store.preferences.get_provider(&provider_id_string) {
+                        // Check if this model is in the models list
+                        let model_name = bot.id.id();
+
+                        // Find the model in the provider's models list
+                        if let Some((_, enabled)) = provider.models.iter()
+                            .find(|(name, _)| name == model_name || name == &bot.name)
+                        {
+                            return *enabled;
+                        }
+                        // Model not in list - default to enabled
+                        return true;
+                    }
+                }
+                // Provider not found - default to showing the bot
+                true
+            })
+            .cloned()
+            .collect()
     }
 
     /// Restore the saved model selection from preferences
@@ -1080,15 +1221,18 @@ impl ChatApp {
         let saved_model = store.preferences.get_current_chat_model();
         let all_bots = store.providers_manager.get_all_bots();
 
-        if all_bots.is_empty() {
+        // Filter to only enabled bots
+        let enabled_bots = Self::filter_enabled_bots(all_bots, store);
+
+        if enabled_bots.is_empty() {
             self.restored_saved_model = true;
             return;
         }
 
-        // If no saved model, select the first available model
+        // If no saved model, select the first available enabled model
         if saved_model.is_none() {
-            let first_bot_id = all_bots[0].id.clone();
-            let first_bot_name = all_bots[0].name.clone();
+            let first_bot_id = enabled_bots[0].id.clone();
+            let first_bot_name = enabled_bots[0].name.clone();
             let _ = store;  // Release the borrow on store
 
             ::log::info!("No saved model, selecting first available: {}", first_bot_name);
@@ -1112,8 +1256,8 @@ impl ChatApp {
         // BotId format: <id_len>;<model_id>@<provider>
         let (saved_model_name, saved_provider) = Self::parse_bot_id_string(&saved_model);
 
-        // Check if this model exists in the available bots
-        let all_bots = store.providers_manager.get_all_bots();
+        // Check if this model exists in the enabled bots
+        let all_bots = &enabled_bots;
 
         // First try exact match
         let mut matching_bot = all_bots.iter().find(|bot| bot.id.as_str() == saved_model);

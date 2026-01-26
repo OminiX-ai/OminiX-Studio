@@ -72,6 +72,10 @@ pub struct SettingsApp {
     /// Cached list of provider IDs for the PortalList
     #[rust]
     provider_ids: Vec<String>,
+
+    /// Connection status per provider (persists after testing)
+    #[rust]
+    provider_statuses: HashMap<String, ProviderConnectionStatus>,
 }
 
 impl Widget for SettingsApp {
@@ -136,6 +140,9 @@ impl Widget for SettingsApp {
 
         // Handle model checkbox clicks
         self.handle_model_checkbox_clicks(cx, scope, &actions);
+
+        // Handle Select All toggle
+        self.handle_select_all_toggle(cx, scope, &actions);
     }
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
@@ -155,6 +162,12 @@ impl Widget for SettingsApp {
         // Show/hide models section based on fetched models
         let has_models = !self.fetched_models.is_empty();
         self.view.view(ids!(models_section)).set_visible(cx, has_models);
+
+        // Update select_all_toggle state: ON if all models enabled, OFF otherwise
+        if has_models {
+            let all_enabled = self.fetched_models.iter().all(|(_, enabled)| *enabled);
+            self.view.check_box(ids!(select_all_toggle)).set_active(cx, all_enabled);
+        }
 
         // Show/hide add provider modal
         self.view.view(ids!(add_provider_modal)).set_visible(cx, self.modal_visible);
@@ -348,6 +361,14 @@ impl SettingsApp {
             let is_selected = self.selected_provider_id.as_deref() == Some(provider_id.as_str());
             let selected_val = if is_selected { 1.0 } else { 0.0 };
 
+            // Get status for this provider
+            let status_val = match self.provider_statuses.get(provider_id) {
+                Some(ProviderConnectionStatus::NotConnected) | None => 0.0,
+                Some(ProviderConnectionStatus::Connecting) => 1.0,
+                Some(ProviderConnectionStatus::Connected) => 2.0,
+                Some(ProviderConnectionStatus::Error(_)) => 3.0,
+            };
+
             // Apply styling
             item_widget.apply_over(cx, live!{
                 draw_bg: { dark_mode: (dark_mode), selected: (selected_val) }
@@ -355,6 +376,11 @@ impl SettingsApp {
             item_widget.label(ids!(provider_name)).set_text(cx, &name);
             item_widget.label(ids!(provider_name)).apply_over(cx, live!{
                 draw_text: { dark_mode: (dark_mode) }
+            });
+
+            // Set status dot
+            item_widget.view(ids!(status_dot)).apply_over(cx, live!{
+                draw_bg: { status: (status_val), dark_mode: (dark_mode) }
             });
 
             // Set icon if available - use file path loading
@@ -431,6 +457,37 @@ impl SettingsApp {
         }
     }
 
+    /// Handle the Select All toggle for models
+    fn handle_select_all_toggle(&mut self, cx: &mut Cx, scope: &mut Scope, actions: &Actions) {
+        let select_all_toggle = self.view.check_box(ids!(select_all_toggle));
+        if let Some(new_state) = select_all_toggle.changed(actions) {
+            // Set all models to the new state
+            for (_, enabled) in &mut self.fetched_models {
+                *enabled = new_state;
+            }
+
+            // Save all model states to preferences
+            if let Some(provider_id) = &self.selected_provider_id {
+                if let Some(store) = scope.data.get_mut::<Store>() {
+                    if let Some(provider) = store.preferences.get_provider_mut(provider_id) {
+                        // Update all models in preferences
+                        for (model_name, enabled) in &self.fetched_models {
+                            if let Some(model_entry) = provider.models.iter_mut().find(|(name, _)| name == model_name) {
+                                model_entry.1 = *enabled;
+                            } else {
+                                provider.models.push((model_name.clone(), *enabled));
+                            }
+                        }
+                        store.preferences.save();
+                    }
+                }
+            }
+
+            ::log::info!("Select All toggled: all models set to {}", new_state);
+            self.view.redraw(cx);
+        }
+    }
+
     /// Save model enabled state to preferences
     fn save_model_enabled_state(&mut self, scope: &mut Scope, model_name: &str, enabled: bool) {
         let Some(provider_id) = &self.selected_provider_id else { return };
@@ -491,6 +548,9 @@ impl SettingsApp {
         self.view.label(ids!(models_header)).apply_over(cx, live!{
             draw_text: { dark_mode: (dark_mode) }
         });
+        self.view.label(ids!(select_all_label)).apply_over(cx, live!{
+            draw_text: { dark_mode: (dark_mode) }
+        });
         self.view.view(ids!(models_scroll)).apply_over(cx, live!{
             draw_bg: { dark_mode: (dark_mode) }
         });
@@ -547,6 +607,7 @@ impl SettingsApp {
 
         // Update status to connecting
         self.connection_status = ProviderConnectionStatus::Connecting;
+        self.provider_statuses.insert(provider_id.clone(), ProviderConnectionStatus::Connecting);
         self.connection_test_in_progress = true;
         self.view.label(ids!(status_message)).set_text(cx, "Testing connection...");
         self.view.redraw(cx);
@@ -599,6 +660,12 @@ impl SettingsApp {
         };
 
         if let Some(test_result) = result {
+            // Store the status for this provider (for the list indicator)
+            self.provider_statuses.insert(
+                test_result.provider_id.clone(),
+                test_result.status.clone()
+            );
+
             // Only apply detailed results if this is for the currently selected provider
             if self.selected_provider_id.as_ref() == Some(&test_result.provider_id) {
                 self.connection_status = test_result.status.clone();

@@ -73,6 +73,121 @@ live_design! {
         }
     }
 
+    // Custom toggle switch - bigger and green when enabled
+    EnableToggle = <CheckBoxFlat> {
+        width: 50, height: 26
+        margin: 0
+        padding: 0
+
+        draw_bg: {
+            uniform size: 28.0
+            uniform border_size: 0.0
+            uniform border_radius: 14.0
+
+            // Off state colors (gray)
+            uniform color: #9ca3af
+            uniform color_hover: #9ca3af
+            uniform color_down: #9ca3af
+            // On state colors (green)
+            uniform color_active: #22c55e
+            uniform color_focus: #22c55e
+            uniform color_disabled: #d1d5db
+
+            // No border
+            uniform border_color: #00000000
+            uniform border_color_hover: #00000000
+            uniform border_color_down: #00000000
+            uniform border_color_active: #00000000
+            uniform border_color_focus: #00000000
+            uniform border_color_disabled: #00000000
+
+            // Checkmark color (white circle/thumb)
+            uniform mark_color: #ffffff
+            uniform mark_color_hover: #ffffff
+            uniform mark_color_down: #ffffff
+            uniform mark_color_active: #ffffff
+            uniform mark_color_active_hover: #ffffff
+            uniform mark_color_focus: #ffffff
+            uniform mark_color_disabled: #f3f4f6
+
+            fn pixel(self) -> vec4 {
+                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+
+                // Track dimensions - pill/capsule shape with half-circle ends
+                let track_width = 50.0;
+                let track_height = 26.0;
+                let half_height = track_height / 2.0;
+
+                // Draw pill shape: rectangle in middle + two half circles on ends
+                // Left half-circle
+                sdf.circle(half_height, half_height, half_height);
+                // Right half-circle
+                sdf.circle(track_width - half_height, half_height, half_height);
+                // Middle rectangle
+                sdf.rect(half_height, 0.0, track_width - track_height, track_height);
+
+                // Use active state for on/off color
+                let off_color = self.color;
+                let on_color = self.color_active;
+                let track_color = mix(off_color, on_color, self.active);
+                sdf.fill(track_color);
+
+                // Thumb (circle) - moves based on active state
+                let thumb_size = 20.0;
+                let thumb_margin = 3.0;
+                let thumb_travel = track_width - thumb_size - (thumb_margin * 2.0);
+                let thumb_x = thumb_margin + (thumb_travel * self.active) + (thumb_size / 2.0);
+                let thumb_y = track_height / 2.0;
+
+                sdf.circle(thumb_x, thumb_y, thumb_size / 2.0);
+                sdf.fill(self.mark_color);
+
+                return sdf.result;
+            }
+        }
+
+        draw_text: {
+            text_style: <THEME_FONT_REGULAR>{ font_size: 0.0 }
+            fn get_color(self) -> vec4 {
+                return vec4(0.0, 0.0, 0.0, 0.0);
+            }
+        }
+    }
+
+    // Status indicator dot
+    StatusDot = <View> {
+        width: 8, height: 8
+        show_bg: true
+        draw_bg: {
+            // status: 0=not_connected (gray), 1=connecting (yellow), 2=connected (green), 3=error (red)
+            instance status: 0.0
+            instance dark_mode: 0.0
+
+            fn pixel(self) -> vec4 {
+                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                let center = self.rect_size / 2.0;
+                let radius = min(center.x, center.y);
+                sdf.circle(center.x, center.y, radius);
+
+                // Color based on status
+                let gray = mix(#9ca3af, #64748b, self.dark_mode);
+                let yellow = mix(#f59e0b, #fbbf24, self.dark_mode);
+                let green = mix(#22c55e, #4ade80, self.dark_mode);
+                let red = mix(#ef4444, #f87171, self.dark_mode);
+
+                // Select color based on status value
+                let color = mix(
+                    mix(gray, yellow, clamp(self.status, 0.0, 1.0)),
+                    mix(green, red, clamp(self.status - 2.0, 0.0, 1.0)),
+                    step(1.5, self.status)
+                );
+
+                sdf.fill(color);
+                return sdf.result;
+            }
+        }
+    }
+
     // Provider list item
     ProviderItem = <View> {
         width: Fill, height: Fit
@@ -102,6 +217,9 @@ live_design! {
             fit: Smallest
         }
 
+        // Status indicator
+        status_dot = <StatusDot> {}
+
         provider_name = <Label> {
             width: Fill
             draw_text: {
@@ -113,10 +231,8 @@ live_design! {
             }
         }
 
-        // Enabled checkbox on the right
-        provider_enabled = <CheckBox> {
-            width: Fit, height: Fit
-        }
+        // Enabled toggle on the right
+        provider_enabled = <EnableToggle> {}
     }
 
     // Save button
@@ -443,15 +559,38 @@ live_design! {
                 margin: {top: 16}
                 visible: false
 
-                models_header = <Label> {
-                    text: "Available Models"
-                    draw_text: {
-                        instance dark_mode: 0.0
-                        fn get_color(self) -> vec4 {
-                            return mix(#374151, #e2e8f0, self.dark_mode);
+                // Header row with label and Select All toggle
+                models_header_row = <View> {
+                    width: Fill, height: Fit
+                    flow: Right
+                    align: {y: 0.5}
+                    spacing: 12
+
+                    models_header = <Label> {
+                        text: "Available Models"
+                        draw_text: {
+                            instance dark_mode: 0.0
+                            fn get_color(self) -> vec4 {
+                                return mix(#374151, #e2e8f0, self.dark_mode);
+                            }
+                            text_style: <THEME_FONT_BOLD>{ font_size: 13.0 }
                         }
-                        text_style: <THEME_FONT_BOLD>{ font_size: 13.0 }
                     }
+
+                    <View> { width: Fill } // Spacer
+
+                    select_all_label = <Label> {
+                        text: "Select All"
+                        draw_text: {
+                            instance dark_mode: 0.0
+                            fn get_color(self) -> vec4 {
+                                return mix(#6b7280, #94a3b8, self.dark_mode);
+                            }
+                            text_style: <THEME_FONT_REGULAR>{ font_size: 11.0 }
+                        }
+                    }
+
+                    select_all_toggle = <EnableToggle> {}
                 }
 
                 models_scroll = <View> {
@@ -479,14 +618,12 @@ live_design! {
 
                         ModelItem = <View> {
                             width: Fill, height: Fit
-                            padding: {left: 12, right: 12, top: 6, bottom: 6}
+                            padding: {left: 12, right: 12, top: 8, bottom: 8}
                             flow: Right
                             align: {y: 0.5}
-                            spacing: 8
+                            spacing: 12
 
-                            model_enabled = <CheckBox> {
-                                width: Fit, height: Fit
-                            }
+                            model_enabled = <EnableToggle> {}
 
                             model_name = <Label> {
                                 width: Fill
