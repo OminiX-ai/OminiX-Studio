@@ -26,7 +26,7 @@ live_design! {
             fn get_color(self) -> vec4 {
                 return mix(#374151, #e2e8f0, self.dark_mode);
             }
-            text_style: <THEME_FONT_BOLD>{ font_size: 11.0 }
+            text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }
         }
     }
 
@@ -37,7 +37,7 @@ live_design! {
             fn get_color(self) -> vec4 {
                 return mix(#9ca3af, #64748b, self.dark_mode);
             }
-            text_style: <THEME_FONT_REGULAR>{ font_size: 10.0 }
+            text_style: <FONT_REGULAR>{ font_size: 10.0 }
         }
     }
 
@@ -69,20 +69,20 @@ live_design! {
             fn get_color(self) -> vec4 {
                 return mix(#1f2937, #f1f5f9, self.dark_mode);
             }
-            text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+            text_style: <FONT_REGULAR>{ font_size: 12.0 }
         }
     }
 
-    // Custom toggle switch - bigger and green when enabled
+    // Custom toggle switch - rounded rectangle, 20% smaller
     EnableToggle = <CheckBoxFlat> {
-        width: 50, height: 26
+        width: 40, height: 21
         margin: 0
         padding: 0
 
         draw_bg: {
-            uniform size: 28.0
+            uniform size: 22.0
             uniform border_size: 0.0
-            uniform border_radius: 14.0
+            uniform border_radius: 6.0
 
             // Off state colors (gray)
             uniform color: #9ca3af
@@ -113,18 +113,13 @@ live_design! {
             fn pixel(self) -> vec4 {
                 let sdf = Sdf2d::viewport(self.pos * self.rect_size);
 
-                // Track dimensions - pill/capsule shape with half-circle ends
-                let track_width = 50.0;
-                let track_height = 26.0;
-                let half_height = track_height / 2.0;
+                // Track dimensions - rectangle with small corner radius
+                let track_width = 40.0;
+                let track_height = 21.0;
+                let corner_radius = 3.0;
 
-                // Draw pill shape: rectangle in middle + two half circles on ends
-                // Left half-circle
-                sdf.circle(half_height, half_height, half_height);
-                // Right half-circle
-                sdf.circle(track_width - half_height, half_height, half_height);
-                // Middle rectangle
-                sdf.rect(half_height, 0.0, track_width - track_height, track_height);
+                // Draw rectangle track
+                sdf.box(0.0, 0.0, track_width, track_height, corner_radius);
 
                 // Use active state for on/off color
                 let off_color = self.color;
@@ -132,14 +127,16 @@ live_design! {
                 let track_color = mix(off_color, on_color, self.active);
                 sdf.fill(track_color);
 
-                // Thumb (circle) - moves based on active state
-                let thumb_size = 20.0;
+                // Thumb (rectangle) - moves based on active state
+                let thumb_width = 15.0;
+                let thumb_height = 15.0;
                 let thumb_margin = 3.0;
-                let thumb_travel = track_width - thumb_size - (thumb_margin * 2.0);
-                let thumb_x = thumb_margin + (thumb_travel * self.active) + (thumb_size / 2.0);
-                let thumb_y = track_height / 2.0;
+                let thumb_radius = 2.0;
+                let thumb_travel = track_width - thumb_width - (thumb_margin * 2.0);
+                let thumb_x = thumb_margin + (thumb_travel * self.active);
+                let thumb_y = (track_height - thumb_height) / 2.0;
 
-                sdf.circle(thumb_x, thumb_y, thumb_size / 2.0);
+                sdf.box(thumb_x, thumb_y, thumb_width, thumb_height, thumb_radius);
                 sdf.fill(self.mark_color);
 
                 return sdf.result;
@@ -147,7 +144,7 @@ live_design! {
         }
 
         draw_text: {
-            text_style: <THEME_FONT_REGULAR>{ font_size: 0.0 }
+            text_style: <FONT_REGULAR>{ font_size: 0.0 }
             fn get_color(self) -> vec4 {
                 return vec4(0.0, 0.0, 0.0, 0.0);
             }
@@ -213,7 +210,7 @@ live_design! {
         spacing: 12
 
         provider_icon = <Image> {
-            width: 24, height: 24
+            width: 32, height: 32
             fit: Smallest
         }
 
@@ -227,7 +224,7 @@ live_design! {
                 fn get_color(self) -> vec4 {
                     return mix(#1f2937, #f1f5f9, self.dark_mode);
                 }
-                text_style: <THEME_FONT_REGULAR>{ font_size: 13.0 }
+                text_style: <FONT_REGULAR>{ font_size: 11.3 }
             }
         }
 
@@ -265,7 +262,7 @@ live_design! {
 
         draw_text: {
             color: #ffffff
-            text_style: <THEME_FONT_BOLD>{ font_size: 12.0 }
+            text_style: <FONT_SEMIBOLD>{ font_size: 12.0 }
         }
 
         text: "Save"
@@ -302,7 +299,7 @@ live_design! {
             fn get_color(self) -> vec4 {
                 return mix(#374151, #e2e8f0, self.dark_mode);
             }
-            text_style: <THEME_FONT_BOLD>{ font_size: 12.0 }
+            text_style: <FONT_SEMIBOLD>{ font_size: 12.0 }
         }
 
         text: "Test Connection"
@@ -356,7 +353,7 @@ live_design! {
                         fn get_color(self) -> vec4 {
                             return mix(#1f2937, #f1f5f9, self.dark_mode);
                         }
-                        text_style: <THEME_FONT_BOLD>{ font_size: 20.0 }
+                        text_style: <FONT_SEMIBOLD>{ font_size: 20.0 }
                     }
                 }
 
@@ -386,7 +383,7 @@ live_design! {
                         fn get_color(self) -> vec4 {
                             return mix(#374151, #e2e8f0, self.dark_mode);
                         }
-                        text_style: <THEME_FONT_BOLD>{ font_size: 16.0 }
+                        text_style: <FONT_SEMIBOLD>{ font_size: 16.0 }
                     }
                     text: "+"
                 }
@@ -446,7 +443,7 @@ live_design! {
                             fn get_color(self) -> vec4 {
                                 return mix(#1f2937, #f1f5f9, self.dark_mode);
                             }
-                            text_style: <THEME_FONT_BOLD>{ font_size: 20.0 }
+                            text_style: <FONT_SEMIBOLD>{ font_size: 20.0 }
                         }
                     }
                 }
@@ -458,7 +455,7 @@ live_design! {
                         fn get_color(self) -> vec4 {
                             return mix(#6b7280, #94a3b8, self.dark_mode);
                         }
-                        text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                        text_style: <FONT_REGULAR>{ font_size: 12.0 }
                     }
                 }
             }
@@ -532,7 +529,7 @@ live_design! {
 
                     draw_text: {
                         color: #ffffff
-                        text_style: <THEME_FONT_BOLD>{ font_size: 12.0 }
+                        text_style: <FONT_SEMIBOLD>{ font_size: 12.0 }
                     }
 
                     text: "Delete"
@@ -547,7 +544,7 @@ live_design! {
                     fn get_color(self) -> vec4 {
                         return mix(#059669, #10b981, self.dark_mode);
                     }
-                    text_style: <THEME_FONT_REGULAR>{ font_size: 11.0 }
+                    text_style: <FONT_REGULAR>{ font_size: 11.0 }
                 }
             }
 
@@ -573,7 +570,7 @@ live_design! {
                             fn get_color(self) -> vec4 {
                                 return mix(#374151, #e2e8f0, self.dark_mode);
                             }
-                            text_style: <THEME_FONT_BOLD>{ font_size: 13.0 }
+                            text_style: <FONT_SEMIBOLD>{ font_size: 13.0 }
                         }
                     }
 
@@ -586,7 +583,7 @@ live_design! {
                             fn get_color(self) -> vec4 {
                                 return mix(#6b7280, #94a3b8, self.dark_mode);
                             }
-                            text_style: <THEME_FONT_REGULAR>{ font_size: 11.0 }
+                            text_style: <FONT_REGULAR>{ font_size: 11.0 }
                         }
                     }
 
@@ -632,7 +629,7 @@ live_design! {
                                     fn get_color(self) -> vec4 {
                                         return mix(#374151, #e2e8f0, self.dark_mode);
                                     }
-                                    text_style: <THEME_FONT_REGULAR>{ font_size: 11.0 }
+                                    text_style: <FONT_REGULAR>{ font_size: 11.0 }
                                 }
                             }
                         }
@@ -696,7 +693,7 @@ live_design! {
                                 fn get_color(self) -> vec4 {
                                     return mix(#1f2937, #f1f5f9, self.dark_mode);
                                 }
-                                text_style: <THEME_FONT_BOLD>{ font_size: 18.0 }
+                                text_style: <FONT_SEMIBOLD>{ font_size: 18.0 }
                             }
                         }
 
@@ -726,7 +723,7 @@ live_design! {
                                 fn get_color(self) -> vec4 {
                                     return mix(#6b7280, #9ca3af, self.dark_mode);
                                 }
-                                text_style: <THEME_FONT_REGULAR>{ font_size: 14.0 }
+                                text_style: <FONT_REGULAR>{ font_size: 14.0 }
                             }
                             text: "×"
                         }

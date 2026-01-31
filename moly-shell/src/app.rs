@@ -1,7 +1,7 @@
 use makepad_widgets::*;
 
 use moly_data::Store;
-use moly_widgets::MolyApp;
+use moly_widgets::{MolyApp, MolyAppData};
 
 live_design! {
     use link::theme::*;
@@ -14,6 +14,7 @@ live_design! {
     use moly_models::screen::design::*;
     use moly_settings::screen::design::*;
     use moly_mcp::screen::design::*;
+    use moly_local_models::screen::design::*;
 
     // Icon dependencies
     ICON_HAMBURGER = dep("crate://self/resources/icons/hamburger.svg")
@@ -22,6 +23,7 @@ live_design! {
     ICON_CHAT = dep("crate://self/resources/icons/chat.svg")
     ICON_MODELS = dep("crate://self/resources/icons/app.svg")
     ICON_SETTINGS = dep("crate://self/resources/icons/settings.svg")
+    ICON_LOCAL_MODELS = dep("crate://self/resources/icons/local-models.svg")
 
     // Logo
     IMG_LOGO = dep("crate://self/resources/moly-logo.png")
@@ -134,7 +136,7 @@ live_design! {
                             fn get_color(self) -> vec4 {
                                 return mix(#1f2937, #f1f5f9, self.dark_mode);
                             }
-                            text_style: <THEME_FONT_BOLD>{ font_size: 24.0 }
+                            text_style: <FONT_SEMIBOLD>{ font_size: 24.0 }
                         }
                     }
 
@@ -182,8 +184,7 @@ live_design! {
                                     svg_file: (ICON_CHAT)
                                     instance dark_mode: 0.0
                                     fn get_color(self) -> vec4 {
-                                        // Blue - friendly communication color
-                                        return mix(#3b82f6, #60a5fa, self.dark_mode);
+                                        return mix(#4b5563, #9ca3af, self.dark_mode);
                                     }
                                 }
                                 icon_walk: {width: 20, height: 20}
@@ -195,7 +196,7 @@ live_design! {
                                     fn get_color(self) -> vec4 {
                                         return mix(#1f2937, #f1f5f9, self.dark_mode);
                                     }
-                                    text_style: <THEME_FONT_LABEL>{ font_size: 13.0 }
+                                    text_style: <FONT_MEDIUM>{ font_size: 13.0 }
                                 }
                             }
                         }
@@ -205,8 +206,7 @@ live_design! {
                                     svg_file: (ICON_MODELS)
                                     instance dark_mode: 0.0
                                     fn get_color(self) -> vec4 {
-                                        // Purple - tech/AI color
-                                        return mix(#8b5cf6, #a78bfa, self.dark_mode);
+                                        return mix(#4b5563, #9ca3af, self.dark_mode);
                                     }
                                 }
                                 icon_walk: {width: 20, height: 20}
@@ -218,7 +218,30 @@ live_design! {
                                     fn get_color(self) -> vec4 {
                                         return mix(#1f2937, #f1f5f9, self.dark_mode);
                                     }
-                                    text_style: <THEME_FONT_LABEL>{ font_size: 13.0 }
+                                    text_style: <FONT_MEDIUM>{ font_size: 13.0 }
+                                }
+                            }
+                        }
+
+                        local_models_btn = <NavButton> {
+                            btn_icon = <Icon> {
+                                draw_icon: {
+                                    svg_file: (ICON_LOCAL_MODELS)
+                                    instance dark_mode: 0.0
+                                    fn get_color(self) -> vec4 {
+                                        return mix(#4b5563, #9ca3af, self.dark_mode);
+                                    }
+                                }
+                                icon_walk: {width: 20, height: 20}
+                            }
+                            btn_label = <Label> {
+                                text: "Local Models"
+                                draw_text: {
+                                    instance dark_mode: 0.0
+                                    fn get_color(self) -> vec4 {
+                                        return mix(#1f2937, #f1f5f9, self.dark_mode);
+                                    }
+                                    text_style: <FONT_MEDIUM>{ font_size: 13.0 }
                                 }
                             }
                         }
@@ -232,11 +255,10 @@ live_design! {
                                     svg_file: (ICON_SETTINGS)
                                     instance dark_mode: 0.0
                                     fn get_color(self) -> vec4 {
-                                        // Amber - settings/tools color
-                                        return mix(#f59e0b, #fbbf24, self.dark_mode);
+                                        return mix(#4b5563, #9ca3af, self.dark_mode);
                                     }
                                 }
-                                icon_walk: {width: 20, height: 20}
+                                icon_walk: {width: 24, height: 24}
                             }
                             btn_label = <Label> {
                                 text: "Settings"
@@ -245,7 +267,7 @@ live_design! {
                                     fn get_color(self) -> vec4 {
                                         return mix(#1f2937, #f1f5f9, self.dark_mode);
                                     }
-                                    text_style: <THEME_FONT_LABEL>{ font_size: 13.0 }
+                                    text_style: <FONT_MEDIUM>{ font_size: 13.0 }
                                 }
                             }
                         }
@@ -271,6 +293,11 @@ live_design! {
                             visible: false
                         }
 
+                        // Local Models app
+                        local_models_app = <LocalModelsApp> {
+                            visible: false
+                        }
+
                         // MCP app (desktop only)
                         mcp_app = <McpApp> {
                             visible: false
@@ -287,6 +314,7 @@ enum NavigationTarget {
     #[default]
     Chat,
     Models,
+    LocalModels,
     Settings,
 }
 
@@ -296,6 +324,8 @@ pub struct App {
     ui: WidgetRef,
     #[rust]
     store: Store,
+    #[rust]
+    app_data: MolyAppData,
     #[rust]
     current_view: NavigationTarget,
     #[rust]
@@ -311,9 +341,21 @@ impl LiveHook for App {
             // Set current_view from loaded preferences
             self.current_view = match self.store.current_view() {
                 "Models" => NavigationTarget::Models,
+                "LocalModels" => NavigationTarget::LocalModels,
                 "Settings" => NavigationTarget::Settings,
                 _ => NavigationTarget::Chat,
             };
+
+            // Initialize MolyAppData from Store preferences
+            self.app_data = MolyAppData::new(self.store.is_dark_mode());
+            self.app_data.sync_from_preferences(
+                self.store.is_dark_mode(),
+                self.store.is_sidebar_expanded(),
+                self.store.current_view(),
+                self.store.preferences.get_current_chat_model(),
+            );
+            // Snap theme to target (no animation on startup)
+            self.app_data.theme.snap_to_target();
 
             self.initialized = true;
             ::log::info!("App initialized via LiveHook, store loaded from disk");
@@ -332,17 +374,18 @@ impl LiveRegister for App {
         <moly_models::MolyModelsApp as MolyApp>::live_design(cx);
         <moly_settings::MolySettingsApp as MolyApp>::live_design(cx);
         <moly_mcp::MolyMcpApp as MolyApp>::live_design(cx);
+        <moly_local_models::MolyLocalModelsApp as MolyApp>::live_design(cx);
     }
 }
 
 impl MatchEvent for App {
     fn handle_startup(&mut self, cx: &mut Cx) {
-        // Apply initial state from Store
-        self.update_theme(cx);
+        // Apply initial state from Store (no animation on startup)
+        self.apply_theme_animation(cx);
         self.update_sidebar(cx);
         // Force apply view state on startup (bypass same-view check)
         self.apply_view_state(cx, self.current_view);
-        ::log::info!("App initialized with Store");
+        ::log::info!("App initialized with Store and MolyAppData");
     }
 
     fn handle_actions(&mut self, cx: &mut Cx, actions: &Actions) {
@@ -355,7 +398,9 @@ impl MatchEvent for App {
         // Handle theme toggle click
         if self.ui.view(ids!(theme_toggle)).finger_down(&actions).is_some() {
             self.store.toggle_dark_mode();
-            self.update_theme(cx);
+            self.app_data.theme.toggle_dark_mode();
+            // Start animation
+            cx.new_next_frame();
         }
 
         // Handle navigation
@@ -365,6 +410,9 @@ impl MatchEvent for App {
         if self.ui.view(ids!(models_btn)).finger_down(&actions).is_some() {
             self.navigate_to(cx, NavigationTarget::Models);
         }
+        if self.ui.view(ids!(local_models_btn)).finger_down(&actions).is_some() {
+            self.navigate_to(cx, NavigationTarget::LocalModels);
+        }
         if self.ui.view(ids!(settings_btn)).finger_down(&actions).is_some() {
             self.navigate_to(cx, NavigationTarget::Settings);
         }
@@ -373,7 +421,16 @@ impl MatchEvent for App {
 
 impl AppMain for App {
     fn handle_event(&mut self, cx: &mut Cx, event: &Event) {
+        // Handle theme animation on NextFrame
+        if let Event::NextFrame(_) = event {
+            if self.app_data.theme.animate_step(cx) {
+                self.apply_theme_animation(cx);
+            }
+        }
+
         // Pass Store to child widgets via Scope
+        // TODO: Migrate apps to use MolyAppData instead of Store directly
+        // For now, we pass Store for backwards compatibility
         // IMPORTANT: ui.handle_event must be called BEFORE match_event
         // because actions are generated during handle_event and then
         // processed by match_event's handle_actions
@@ -399,6 +456,7 @@ impl App {
         let view_name = match target {
             NavigationTarget::Chat => "Chat",
             NavigationTarget::Models => "Models",
+            NavigationTarget::LocalModels => "LocalModels",
             NavigationTarget::Settings => "Settings",
         };
         self.store.set_current_view(view_name);
@@ -411,6 +469,7 @@ impl App {
         // Update app visibility
         self.ui.widget(ids!(chat_app)).set_visible(cx, target == NavigationTarget::Chat);
         self.ui.widget(ids!(models_app)).set_visible(cx, target == NavigationTarget::Models);
+        self.ui.widget(ids!(local_models_app)).set_visible(cx, target == NavigationTarget::LocalModels);
         self.ui.widget(ids!(settings_app)).set_visible(cx, target == NavigationTarget::Settings);
 
         // Notify ChatApp when it becomes visible (to refresh model list)
@@ -427,6 +486,9 @@ impl App {
         self.ui.view(ids!(models_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if target == NavigationTarget::Models { 1.0 } else { 0.0 }) }
         });
+        self.ui.view(ids!(local_models_btn)).apply_over(cx, live! {
+            draw_bg: { selected: (if target == NavigationTarget::LocalModels { 1.0 } else { 0.0 }) }
+        });
         self.ui.view(ids!(settings_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if target == NavigationTarget::Settings { 1.0 } else { 0.0 }) }
         });
@@ -434,10 +496,29 @@ impl App {
         self.ui.redraw(cx);
     }
 
-    fn update_theme(&mut self, cx: &mut Cx) {
-        let dark_mode_value = if self.store.is_dark_mode() { 1.0 } else { 0.0 };
+    fn update_sidebar(&mut self, cx: &mut Cx) {
+        let expanded = self.store.is_sidebar_expanded();
+        let width = if expanded { 250.0 } else { 60.0 };
 
-        // Update all dark_mode instances
+        self.ui.view(ids!(sidebar)).apply_over(cx, live! {
+            width: (width)
+        });
+
+        // Show/hide button labels based on sidebar state
+        self.ui.label(ids!(chat_btn.btn_label)).set_visible(cx, expanded);
+        self.ui.label(ids!(models_btn.btn_label)).set_visible(cx, expanded);
+        self.ui.label(ids!(local_models_btn.btn_label)).set_visible(cx, expanded);
+        self.ui.label(ids!(settings_btn.btn_label)).set_visible(cx, expanded);
+
+        self.ui.redraw(cx);
+    }
+
+    /// Apply animated theme value to all UI elements
+    /// Called each frame during theme transition
+    fn apply_theme_animation(&mut self, cx: &mut Cx) {
+        let dark_mode_value = self.app_data.theme.dark_mode_anim;
+
+        // Update all dark_mode instances with animated value
         self.ui.view(ids!(body)).apply_over(cx, live! {
             draw_bg: { dark_mode: (dark_mode_value) }
         });
@@ -481,6 +562,16 @@ impl App {
             draw_text: { dark_mode: (dark_mode_value) }
         });
 
+        self.ui.view(ids!(local_models_btn)).apply_over(cx, live! {
+            draw_bg: { dark_mode: (dark_mode_value) }
+        });
+        self.ui.icon(ids!(local_models_btn.btn_icon)).apply_over(cx, live! {
+            draw_icon: { dark_mode: (dark_mode_value) }
+        });
+        self.ui.label(ids!(local_models_btn.btn_label)).apply_over(cx, live! {
+            draw_text: { dark_mode: (dark_mode_value) }
+        });
+
         self.ui.view(ids!(settings_btn)).apply_over(cx, live! {
             draw_bg: { dark_mode: (dark_mode_value) }
         });
@@ -498,28 +589,15 @@ impl App {
         self.ui.widget(ids!(models_app)).apply_over(cx, live! {
             draw_bg: { dark_mode: (dark_mode_value) }
         });
+        self.ui.widget(ids!(local_models_app)).apply_over(cx, live! {
+            draw_bg: { dark_mode: (dark_mode_value) }
+        });
         self.ui.widget(ids!(settings_app)).apply_over(cx, live! {
             draw_bg: { dark_mode: (dark_mode_value) }
         });
         self.ui.widget(ids!(mcp_app)).apply_over(cx, live! {
             draw_bg: { dark_mode: (dark_mode_value) }
         });
-
-        self.ui.redraw(cx);
-    }
-
-    fn update_sidebar(&mut self, cx: &mut Cx) {
-        let expanded = self.store.is_sidebar_expanded();
-        let width = if expanded { 250.0 } else { 60.0 };
-
-        self.ui.view(ids!(sidebar)).apply_over(cx, live! {
-            width: (width)
-        });
-
-        // Show/hide button labels based on sidebar state
-        self.ui.label(ids!(chat_btn.btn_label)).set_visible(cx, expanded);
-        self.ui.label(ids!(models_btn.btn_label)).set_visible(cx, expanded);
-        self.ui.label(ids!(settings_btn.btn_label)).set_visible(cx, expanded);
 
         self.ui.redraw(cx);
     }
