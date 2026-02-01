@@ -1,13 +1,21 @@
 use makepad_widgets::*;
 
 use moly_data::{ChatId, Store};
+use moly_kit::aitk::protocol::ToolCall;
+use moly_kit::a2ui::{A2uiSurface, A2uiSurfaceAction};
+use moly_kit::widgets::chat::ChatAction;
+use moly_kit::widgets::prompt_input::PromptInputAction;
+use moly_kit::widgets::take_pending_a2ui_tool_calls;
 use moly_widgets::{MolyApp, MolyAppData};
+
+use crate::a2ui_builder::A2uiBuilder;
 
 live_design! {
     use link::theme::*;
     use link::shaders::*;
     use link::widgets::*;
     use moly_widgets::theme::*;
+    use moly_kit::a2ui::surface::*;
 
     // Import app widgets from external app crates
     use moly_chat::screen::design::*;
@@ -481,10 +489,17 @@ live_design! {
                                 align: {x: 0.5}
                                 margin: {bottom: 40}
 
-                                search_container = <RoundedView> {
+                                search_container = <View> {
                                     width: 500, height: 48
                                     show_bg: true
-                                    draw_bg: { color: #e5e7eb, border_radius: 24.0 }
+                                    draw_bg: {
+                                        fn pixel(self) -> vec4 {
+                                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                            sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 12.0);
+                                            sdf.fill(#e5e7eb);
+                                            return sdf.result;
+                                        }
+                                    }
                                     padding: {left: 20, right: 20}
                                     align: {y: 0.5}
                                     flow: Right
@@ -517,7 +532,9 @@ live_design! {
                                             color: #1f2937
                                         }
                                         draw_bg: {
-                                            color: #0000
+                                            fn pixel(self) -> vec4 {
+                                                return vec4(0.0, 0.0, 0.0, 0.0);
+                                            }
                                         }
                                     }
                                 }
@@ -555,7 +572,7 @@ live_design! {
                                         visible: false
 
                                         chat_tile_0 = <RoundedView> {
-                                            width: 200, height: 144
+                                            width: Fill, height: 144
                                             show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
                                             flow: Down
                                             padding: {top: 16, left: 16, right: 16, bottom: 16}
@@ -567,7 +584,7 @@ live_design! {
                                                 align: {y: 0.0}
                                                 chat_tile_title_0 = <Label> {
                                                     width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 14.0 }, wrap: Ellipsis }
+                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
                                                 }
                                                 delete_btn_0 = <View> {
                                                     width: 28, height: 28
@@ -577,11 +594,11 @@ live_design! {
                                                 }
                                             }
                                             <View> { width: Fill, height: Fill }
-                                            chat_tile_date_0 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 12.0 } } }
+                                            chat_tile_date_0 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
                                         }
 
                                         chat_tile_1 = <RoundedView> {
-                                            width: 200, height: 144
+                                            width: Fill, height: 144
                                             show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
                                             flow: Down
                                             padding: {top: 16, left: 16, right: 16, bottom: 16}
@@ -593,7 +610,7 @@ live_design! {
                                                 align: {y: 0.0}
                                                 chat_tile_title_1 = <Label> {
                                                     width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 14.0 }, wrap: Ellipsis }
+                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
                                                 }
                                                 delete_btn_1 = <View> {
                                                     width: 28, height: 28
@@ -603,11 +620,11 @@ live_design! {
                                                 }
                                             }
                                             <View> { width: Fill, height: Fill }
-                                            chat_tile_date_1 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 12.0 } } }
+                                            chat_tile_date_1 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
                                         }
 
                                         chat_tile_2 = <RoundedView> {
-                                            width: 200, height: 144
+                                            width: Fill, height: 144
                                             show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
                                             flow: Down
                                             padding: {top: 16, left: 16, right: 16, bottom: 16}
@@ -619,7 +636,7 @@ live_design! {
                                                 align: {y: 0.0}
                                                 chat_tile_title_2 = <Label> {
                                                     width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 14.0 }, wrap: Ellipsis }
+                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
                                                 }
                                                 delete_btn_2 = <View> {
                                                     width: 28, height: 28
@@ -629,11 +646,11 @@ live_design! {
                                                 }
                                             }
                                             <View> { width: Fill, height: Fill }
-                                            chat_tile_date_2 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 12.0 } } }
+                                            chat_tile_date_2 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
                                         }
 
                                         chat_tile_3 = <RoundedView> {
-                                            width: 200, height: 144
+                                            width: Fill, height: 144
                                             show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
                                             flow: Down
                                             padding: {top: 16, left: 16, right: 16, bottom: 16}
@@ -645,7 +662,7 @@ live_design! {
                                                 align: {y: 0.0}
                                                 chat_tile_title_3 = <Label> {
                                                     width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 14.0 }, wrap: Ellipsis }
+                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
                                                 }
                                                 delete_btn_3 = <View> {
                                                     width: 28, height: 28
@@ -655,7 +672,7 @@ live_design! {
                                                 }
                                             }
                                             <View> { width: Fill, height: Fill }
-                                            chat_tile_date_3 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 12.0 } } }
+                                            chat_tile_date_3 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
                                         }
                                     }
 
@@ -668,7 +685,7 @@ live_design! {
                                         visible: false
 
                                         chat_tile_4 = <RoundedView> {
-                                            width: 200, height: 144
+                                            width: Fill, height: 144
                                             show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
                                             flow: Down
                                             padding: {top: 16, left: 16, right: 16, bottom: 16}
@@ -680,7 +697,7 @@ live_design! {
                                                 align: {y: 0.0}
                                                 chat_tile_title_4 = <Label> {
                                                     width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 14.0 }, wrap: Ellipsis }
+                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
                                                 }
                                                 delete_btn_4 = <View> {
                                                     width: 28, height: 28
@@ -690,11 +707,11 @@ live_design! {
                                                 }
                                             }
                                             <View> { width: Fill, height: Fill }
-                                            chat_tile_date_4 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 12.0 } } }
+                                            chat_tile_date_4 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
                                         }
 
                                         chat_tile_5 = <RoundedView> {
-                                            width: 200, height: 144
+                                            width: Fill, height: 144
                                             show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
                                             flow: Down
                                             padding: {top: 16, left: 16, right: 16, bottom: 16}
@@ -706,7 +723,7 @@ live_design! {
                                                 align: {y: 0.0}
                                                 chat_tile_title_5 = <Label> {
                                                     width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 14.0 }, wrap: Ellipsis }
+                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
                                                 }
                                                 delete_btn_5 = <View> {
                                                     width: 28, height: 28
@@ -716,11 +733,11 @@ live_design! {
                                                 }
                                             }
                                             <View> { width: Fill, height: Fill }
-                                            chat_tile_date_5 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 12.0 } } }
+                                            chat_tile_date_5 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
                                         }
 
                                         chat_tile_6 = <RoundedView> {
-                                            width: 200, height: 144
+                                            width: Fill, height: 144
                                             show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
                                             flow: Down
                                             padding: {top: 16, left: 16, right: 16, bottom: 16}
@@ -732,7 +749,7 @@ live_design! {
                                                 align: {y: 0.0}
                                                 chat_tile_title_6 = <Label> {
                                                     width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 14.0 }, wrap: Ellipsis }
+                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
                                                 }
                                                 delete_btn_6 = <View> {
                                                     width: 28, height: 28
@@ -742,11 +759,11 @@ live_design! {
                                                 }
                                             }
                                             <View> { width: Fill, height: Fill }
-                                            chat_tile_date_6 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 12.0 } } }
+                                            chat_tile_date_6 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
                                         }
 
                                         chat_tile_7 = <RoundedView> {
-                                            width: 200, height: 144
+                                            width: Fill, height: 144
                                             show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
                                             flow: Down
                                             padding: {top: 16, left: 16, right: 16, bottom: 16}
@@ -758,7 +775,7 @@ live_design! {
                                                 align: {y: 0.0}
                                                 chat_tile_title_7 = <Label> {
                                                     width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 14.0 }, wrap: Ellipsis }
+                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
                                                 }
                                                 delete_btn_7 = <View> {
                                                     width: 28, height: 28
@@ -768,7 +785,7 @@ live_design! {
                                                 }
                                             }
                                             <View> { width: Fill, height: Fill }
-                                            chat_tile_date_7 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 12.0 } } }
+                                            chat_tile_date_7 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
                                         }
                                     }
 
@@ -781,7 +798,7 @@ live_design! {
                                         visible: false
 
                                         chat_tile_8 = <RoundedView> {
-                                            width: 200, height: 144
+                                            width: Fill, height: 144
                                             show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
                                             flow: Down
                                             padding: {top: 16, left: 16, right: 16, bottom: 16}
@@ -793,7 +810,7 @@ live_design! {
                                                 align: {y: 0.0}
                                                 chat_tile_title_8 = <Label> {
                                                     width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 14.0 }, wrap: Ellipsis }
+                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
                                                 }
                                                 delete_btn_8 = <View> {
                                                     width: 28, height: 28
@@ -803,11 +820,11 @@ live_design! {
                                                 }
                                             }
                                             <View> { width: Fill, height: Fill }
-                                            chat_tile_date_8 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 12.0 } } }
+                                            chat_tile_date_8 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
                                         }
 
                                         chat_tile_9 = <RoundedView> {
-                                            width: 200, height: 144
+                                            width: Fill, height: 144
                                             show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
                                             flow: Down
                                             padding: {top: 16, left: 16, right: 16, bottom: 16}
@@ -819,7 +836,7 @@ live_design! {
                                                 align: {y: 0.0}
                                                 chat_tile_title_9 = <Label> {
                                                     width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 14.0 }, wrap: Ellipsis }
+                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
                                                 }
                                                 delete_btn_9 = <View> {
                                                     width: 28, height: 28
@@ -829,11 +846,11 @@ live_design! {
                                                 }
                                             }
                                             <View> { width: Fill, height: Fill }
-                                            chat_tile_date_9 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 12.0 } } }
+                                            chat_tile_date_9 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
                                         }
 
                                         chat_tile_10 = <RoundedView> {
-                                            width: 200, height: 144
+                                            width: Fill, height: 144
                                             show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
                                             flow: Down
                                             padding: {top: 16, left: 16, right: 16, bottom: 16}
@@ -845,7 +862,7 @@ live_design! {
                                                 align: {y: 0.0}
                                                 chat_tile_title_10 = <Label> {
                                                     width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 14.0 }, wrap: Ellipsis }
+                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
                                                 }
                                                 delete_btn_10 = <View> {
                                                     width: 28, height: 28
@@ -855,11 +872,11 @@ live_design! {
                                                 }
                                             }
                                             <View> { width: Fill, height: Fill }
-                                            chat_tile_date_10 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 12.0 } } }
+                                            chat_tile_date_10 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
                                         }
 
                                         chat_tile_11 = <RoundedView> {
-                                            width: 200, height: 144
+                                            width: Fill, height: 144
                                             show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
                                             flow: Down
                                             padding: {top: 16, left: 16, right: 16, bottom: 16}
@@ -871,7 +888,7 @@ live_design! {
                                                 align: {y: 0.0}
                                                 chat_tile_title_11 = <Label> {
                                                     width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 14.0 }, wrap: Ellipsis }
+                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
                                                 }
                                                 delete_btn_11 = <View> {
                                                     width: 28, height: 28
@@ -881,16 +898,131 @@ live_design! {
                                                 }
                                             }
                                             <View> { width: Fill, height: Fill }
-                                            chat_tile_date_11 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 12.0 } } }
+                                            chat_tile_date_11 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
                                         }
                                     }
                                 }
                             }
                         }
 
-                        // Chat app (shown when in active chat)
-                        chat_app = <ChatApp> {
+                        // Chat with canvas panel (horizontal layout)
+                        chat_with_canvas = <View> {
+                            width: Fill, height: Fill
+                            flow: Right
                             visible: true
+
+                            // Left: Chat app (fills remaining space)
+                            chat_app = <ChatApp> {
+                                width: Fill, height: Fill
+                            }
+
+                            // Middle: Splitter (resizable divider)
+                            canvas_splitter = <View> {
+                                width: 16, height: Fill  // 0 when collapsed, 16 when expanded
+                                cursor: ColResize
+                                show_bg: true
+                                draw_bg: {
+                                    fn pixel(self) -> vec4 {
+                                        let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                        // Draw thin line in center
+                                        sdf.rect(7.0, 16.0, 2.0, self.rect_size.y - 32.0);
+                                        sdf.fill(#d1d5db);
+                                        return sdf.result;
+                                    }
+                                }
+                            }
+
+                            // Right: Canvas panel (visible by default for A2UI)
+                            canvas_section = <View> {
+                                width: 500, height: Fill
+                                flow: Right
+                                visible: true
+
+                                // Toggle column (hidden - canvas visibility controlled by A2UI toggle)
+                                canvas_toggle_column = <View> {
+                                    visible: false
+                                    width: Fit, height: Fill
+                                    show_bg: true
+                                    draw_bg: { color: #f8fafc }
+                                    align: {x: 0.5, y: 0.0}
+                                    padding: {left: 4, right: 4, top: 8}
+
+                                    toggle_canvas_btn = <Button> {
+                                        width: Fit, height: Fit
+                                        padding: {left: 8, right: 8, top: 6, bottom: 6}
+                                        text: "<"
+
+                                        animator: {
+                                            hover = {
+                                                default: off,
+                                                off = {
+                                                    from: {all: Forward {duration: 0.15}}
+                                                    apply: { draw_bg: {hover: 0.0} }
+                                                }
+                                                on = {
+                                                    from: {all: Forward {duration: 0.15}}
+                                                    apply: { draw_bg: {hover: 1.0} }
+                                                }
+                                            }
+                                        }
+
+                                        draw_text: {
+                                            text_style: <FONT_BOLD>{ font_size: 11.0 }
+                                            color: #64748b
+                                        }
+                                        draw_bg: {
+                                            instance hover: 0.0
+                                            fn pixel(self) -> vec4 {
+                                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                                sdf.box(0., 0., self.rect_size.x, self.rect_size.y, 4.0);
+                                                let base = #e2e8f0;
+                                                let hover_color = #cbd5e1;
+                                                let color = mix(base, hover_color, self.hover);
+                                                sdf.fill(color);
+                                                return sdf.result;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Content column
+                                canvas_content = <RoundedView> {
+                                    width: Fill, height: Fill
+                                    visible: true
+                                    draw_bg: {
+                                        color: #ffffff
+                                        border_radius: 8.0
+                                    }
+                                    flow: Down
+
+                                    // Header
+                                    canvas_header = <View> {
+                                        width: Fill, height: Fit
+                                        padding: {left: 16, right: 16, top: 12, bottom: 12}
+                                        show_bg: true
+                                        draw_bg: { color: #f8fafc }
+
+                                        canvas_title = <Label> {
+                                            text: "Canvas"
+                                            draw_text: {
+                                                color: #1f2937
+                                                text_style: <FONT_SEMIBOLD>{ font_size: 14.0 }
+                                            }
+                                        }
+                                    }
+
+                                    // Canvas area with A2UI Surface
+                                    canvas_area = <ScrollYView> {
+                                        width: Fill, height: Fill
+                                        padding: 12
+
+                                        a2ui_surface = <A2uiSurface> {
+                                            width: Fill
+                                            height: Fit
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         // Models app
@@ -949,6 +1081,30 @@ pub struct App {
     /// Chat IDs displayed in the tiles (max 12)
     #[rust]
     displayed_chat_ids: Vec<ChatId>,
+    /// Current search query for filtering chat history
+    #[rust]
+    search_query: String,
+    /// Whether the canvas panel is collapsed
+    #[rust]
+    canvas_panel_collapsed: bool,
+    /// Width of the canvas panel when expanded
+    #[rust]
+    canvas_panel_width: f64,
+    /// Whether the splitter is being dragged
+    #[rust]
+    splitter_dragging: bool,
+    /// Whether A2UI is enabled for the current chat
+    #[rust]
+    a2ui_enabled: bool,
+    /// Starting X position when drag started
+    #[rust]
+    splitter_drag_start_x: f64,
+    /// Starting width when drag started
+    #[rust]
+    splitter_drag_start_width: f64,
+    /// Current A2UI tool calls received from the model
+    #[rust]
+    a2ui_tool_calls: Vec<ToolCall>,
 }
 
 impl LiveHook for App {
@@ -1005,6 +1161,8 @@ impl MatchEvent for App {
         self.update_sidebar(cx);
         // Force apply view state on startup (bypass same-view check)
         self.apply_view_state(cx, self.current_view);
+        // Initialize canvas panel width
+        self.canvas_panel_width = 500.0;
         ::log::info!("App initialized with Store and MolyAppData");
     }
 
@@ -1034,7 +1192,7 @@ impl MatchEvent for App {
             ::log::info!(">>> New Chat button clicked! <<<");
 
             // Request new chat directly on ChatApp (bypasses action dispatch timing issues)
-            if let Some(mut chat_app) = self.ui.widget(ids!(body.content.main_content.chat_app))
+            if let Some(mut chat_app) = self.ui.widget(ids!(body.content.main_content.chat_with_canvas.chat_app))
                 .borrow_mut::<moly_chat::screen::ChatApp>()
             {
                 chat_app.request_new_chat();
@@ -1070,6 +1228,109 @@ impl MatchEvent for App {
 
         // Handle chat tile clicks
         self.handle_chat_tile_clicks(cx, actions);
+
+        // Handle search input changes
+        let search_input = self.ui.text_input(ids!(body.content.main_content.chat_history_page.search_container.search_input));
+        if search_input.changed(&actions).is_some() {
+            self.search_query = search_input.text();
+            self.update_chat_tiles(cx);
+        }
+
+        // Handle canvas panel toggle button
+        if self.ui.button(ids!(body.content.main_content.chat_with_canvas.canvas_section.canvas_toggle_column.toggle_canvas_btn)).clicked(&actions) {
+            ::log::info!(">>> Canvas toggle button clicked! <<<");
+            self.toggle_canvas_panel(cx);
+        }
+
+        // Handle canvas splitter drag start
+        let splitter = self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_splitter));
+        if let Some(fd) = splitter.finger_down(&actions) {
+            if !self.canvas_panel_collapsed {
+                self.splitter_dragging = true;
+                self.splitter_drag_start_x = fd.abs.x;
+                self.splitter_drag_start_width = self.canvas_panel_width;
+                ::log::info!("Splitter drag started at x={}", fd.abs.x);
+            }
+        }
+
+        // Handle A2UI toggle from PromptInput and A2UI tool calls from Chat
+        for action in actions {
+            if let PromptInputAction::A2uiToggled(enabled) = action.cast() {
+                ::log::info!("A2UI toggled: {}", enabled);
+                self.a2ui_enabled = enabled;
+                if enabled {
+                    // Auto-expand canvas panel when A2UI is enabled
+                    if self.canvas_panel_collapsed {
+                        self.toggle_canvas_panel(cx);
+                    }
+                } else {
+                    // Auto-collapse canvas panel when A2UI is disabled
+                    if !self.canvas_panel_collapsed {
+                        self.toggle_canvas_panel(cx);
+                    }
+                    // Clear A2UI tool calls when disabled
+                    self.a2ui_tool_calls.clear();
+                }
+            }
+
+            // Handle A2UI tool calls from Chat widget
+            match action.cast() {
+                ChatAction::A2uiToolCalls(tool_calls) => {
+                    ::log::info!(
+                        "Received {} A2UI tool calls",
+                        tool_calls.len()
+                    );
+                    self.a2ui_tool_calls = tool_calls;
+                    self.render_a2ui_canvas(cx);
+                }
+                ChatAction::A2uiToggled(enabled) => {
+                    ::log::info!(
+                        "ChatAction::A2uiToggled({})",
+                        enabled
+                    );
+                }
+                ChatAction::None => {}
+            }
+
+            // Handle A2UI surface data model changes (two-way binding)
+            if let A2uiSurfaceAction::DataModelChanged {
+                surface_id, path, value
+            } = action.cast() {
+                ::log::info!(
+                    "A2UI DataModelChanged: surface={}, path={}, value={}",
+                    surface_id, path, value
+                );
+                let surface_ref = self.ui.widget(ids!(
+                    body.content.main_content.chat_with_canvas
+                        .canvas_section.canvas_content
+                        .canvas_area.a2ui_surface
+                ));
+                if let Some(mut surface) =
+                    surface_ref.borrow_mut::<A2uiSurface>()
+                {
+                    if let Some(processor) = surface.processor_mut() {
+                        if let Some(data_model) =
+                            processor.get_data_model_mut(&surface_id)
+                        {
+                            data_model.set(&path, value);
+                        }
+                    }
+                }
+                self.ui.redraw(cx);
+            }
+        }
+
+        // Poll global state for pending A2UI tool calls
+        // (action propagation from nested Chat widget doesn't reach here)
+        let pending = take_pending_a2ui_tool_calls();
+        if !pending.is_empty() {
+            ::log::info!(
+                "Picked up {} pending A2UI tool calls from global state",
+                pending.len()
+            );
+            self.a2ui_tool_calls = pending;
+            self.render_a2ui_canvas(cx);
+        }
     }
 }
 
@@ -1079,6 +1340,28 @@ impl AppMain for App {
         if let Event::NextFrame(_) = event {
             if self.app_data.theme.animate_step(cx) {
                 self.apply_theme_animation(cx);
+            }
+        }
+
+        // Handle splitter dragging with global mouse events
+        if self.splitter_dragging {
+            match event {
+                Event::MouseMove(mm) => {
+                    // Dragging left (negative delta) should increase canvas width
+                    // Dragging right (positive delta) should decrease canvas width
+                    let delta = mm.abs.x - self.splitter_drag_start_x;
+                    let new_width = (self.splitter_drag_start_width - delta).max(200.0).min(1200.0);
+                    self.canvas_panel_width = new_width;
+
+                    self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_section))
+                        .apply_over(cx, live!{ width: (new_width) });
+                    self.ui.redraw(cx);
+                }
+                Event::MouseUp(_) => {
+                    self.splitter_dragging = false;
+                    ::log::info!("Splitter drag ended, width={}", self.canvas_panel_width);
+                }
+                _ => {}
             }
         }
 
@@ -1127,14 +1410,14 @@ impl App {
         let show_active_chat = target == NavigationTarget::ActiveChat;
 
         self.ui.widget(ids!(body.content.main_content.chat_history_page)).set_visible(cx, show_chat_history);
-        self.ui.widget(ids!(body.content.main_content.chat_app)).set_visible(cx, show_active_chat);
+        self.ui.widget(ids!(body.content.main_content.chat_with_canvas)).set_visible(cx, show_active_chat);
         self.ui.widget(ids!(body.content.main_content.models_app)).set_visible(cx, target == NavigationTarget::Models);
         self.ui.widget(ids!(body.content.main_content.local_models_app)).set_visible(cx, target == NavigationTarget::LocalModels);
         self.ui.widget(ids!(body.content.main_content.settings_app)).set_visible(cx, target == NavigationTarget::Settings);
 
         // Notify ChatApp when it becomes visible (to refresh model list)
         if show_active_chat {
-            if let Some(mut chat_app) = self.ui.widget(ids!(body.content.main_content.chat_app)).borrow_mut::<moly_chat::screen::ChatApp>() {
+            if let Some(mut chat_app) = self.ui.widget(ids!(body.content.main_content.chat_with_canvas.chat_app)).borrow_mut::<moly_chat::screen::ChatApp>() {
                 chat_app.on_become_visible();
             }
         }
@@ -1198,6 +1481,89 @@ impl App {
         self.ui.redraw(cx);
     }
 
+    /// Toggle the canvas panel visibility (slide in/out)
+    fn toggle_canvas_panel(&mut self, cx: &mut Cx) {
+        self.canvas_panel_collapsed = !self.canvas_panel_collapsed;
+
+        // Initialize width if not set (default to 500px)
+        if self.canvas_panel_width == 0.0 {
+            self.canvas_panel_width = 500.0;
+        }
+
+        if self.canvas_panel_collapsed {
+            // Collapse: hide entire canvas section
+            self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_section))
+                .set_visible(cx, false);
+            self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_splitter))
+                .apply_over(cx, live!{ width: 0 });
+        } else {
+            // Expand: show canvas section at saved width
+            let width = self.canvas_panel_width;
+            self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_section))
+                .set_visible(cx, true);
+            self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_section))
+                .apply_over(cx, live!{ width: (width) });
+            self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_section.canvas_content))
+                .set_visible(cx, true);
+            self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_splitter))
+                .apply_over(cx, live!{ width: 16 });
+        }
+
+        self.ui.redraw(cx);
+    }
+
+    /// Render A2UI components in the canvas area based on received tool calls.
+    ///
+    /// Converts tool calls to A2UI JSON protocol and feeds to A2uiSurface.
+    fn render_a2ui_canvas(&mut self, cx: &mut Cx) {
+        if self.a2ui_tool_calls.is_empty() {
+            return;
+        }
+
+        // Convert tool calls to A2UI JSON using the builder
+        let mut builder = A2uiBuilder::new();
+        for tool_call in &self.a2ui_tool_calls {
+            let args = serde_json::Value::Object(
+                tool_call.arguments.clone(),
+            );
+            builder.process_tool_call(&tool_call.name, &args);
+        }
+        let a2ui_json = builder.build_a2ui_json();
+        let json_str = serde_json::to_string(&a2ui_json)
+            .unwrap_or_default();
+
+        ::log::info!(
+            "A2UI JSON ({} tool calls): {}",
+            self.a2ui_tool_calls.len(),
+            &json_str[..json_str.len().min(500)]
+        );
+
+        // Feed JSON to A2uiSurface for rendering
+        let surface_ref = self.ui.widget(ids!(
+            body.content.main_content.chat_with_canvas
+                .canvas_section.canvas_content
+                .canvas_area.a2ui_surface
+        ));
+        if let Some(mut surface) = surface_ref.borrow_mut::<A2uiSurface>() {
+            surface.clear();
+            match surface.process_json(&json_str) {
+                Ok(events) => {
+                    ::log::info!(
+                        "A2uiSurface processed {} events",
+                        events.len()
+                    );
+                }
+                Err(e) => {
+                    ::log::error!("A2uiSurface JSON parse error: {}", e);
+                }
+            }
+        } else {
+            ::log::error!("Could not borrow A2uiSurface");
+        }
+
+        self.ui.redraw(cx);
+    }
+
     /// Apply animated theme value to all UI elements
     /// Called each frame during theme transition
     /// Note: Currently using static light mode colors. Dark mode can be implemented
@@ -1213,9 +1579,22 @@ impl App {
     /// Update the chat history tiles with data from Store
     fn update_chat_tiles(&mut self, cx: &mut Cx) {
         // Only show chats that have messages (filter out empty chats)
+        // Also filter by search query if present
+        let search_lower = self.search_query.to_lowercase();
         let chats: Vec<_> = self.store.chats.get_sorted_chats()
             .into_iter()
             .filter(|c| !c.messages.is_empty())
+            .filter(|c| {
+                if search_lower.is_empty() {
+                    return true;
+                }
+                // Check title
+                if c.title.to_lowercase().contains(&search_lower) {
+                    return true;
+                }
+                // Check message content
+                c.messages.iter().any(|m| m.content.text.to_lowercase().contains(&search_lower))
+            })
             .collect();
         let chat_count = chats.len().min(12); // Max 12 tiles
 
@@ -1333,7 +1712,7 @@ impl App {
             self.store.chats.set_current_chat(Some(chat_id));
 
             // Load chat in ChatApp
-            if let Some(mut chat_app) = self.ui.widget(ids!(body.content.main_content.chat_app))
+            if let Some(mut chat_app) = self.ui.widget(ids!(body.content.main_content.chat_with_canvas.chat_app))
                 .borrow_mut::<moly_chat::screen::ChatApp>()
             {
                 chat_app.load_chat(chat_id);
