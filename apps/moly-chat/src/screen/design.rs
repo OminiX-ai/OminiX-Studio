@@ -12,6 +12,7 @@ live_design! {
     use link::widgets::*;
     use moly_widgets::theme::*;
     use moly_kit::widgets::chat::Chat;
+    use moly_kit::widgets::prompt_input::PromptInput;
 
     // Provider icons - registered so they can be loaded at runtime
     ICON_OPENAI = dep("crate://self/resources/providers/openai.png")
@@ -154,7 +155,7 @@ live_design! {
                         return mix(#9ca3af, #6b7280, self.dark_mode);
                     }
                 }
-                icon_walk: { width: 14, height: 14 }
+                icon_walk: { width: 18, height: 18 }
             }
         }
     }
@@ -267,7 +268,7 @@ live_design! {
                     fn get_color(self) -> vec4 {
                         return mix(#1f2937, #f1f5f9, self.dark_mode);
                     }
-                    text_style: <THEME_FONT_BOLD>{ font_size: 20.0 }
+                    text_style: <FONT_SEMIBOLD>{ font_size: 20.0 }
                 }
             }
 
@@ -278,34 +279,46 @@ live_design! {
                     fn get_color(self) -> vec4 {
                         return mix(#f59e0b, #fbbf24, self.dark_mode);
                     }
-                    text_style: <THEME_FONT_REGULAR>{ font_size: 11.0 }
+                    text_style: <FONT_REGULAR>{ font_size: 11.0 }
                 }
             }
         }
 
-        // Main content area with history panel and chat
+        // Main content area - full width chat (history moved to shell sidebar)
         main_content = <View> {
             width: Fill, height: Fill
-            flow: Right
+            flow: Overlay
 
-            // Chat history panel (separate widget)
-            history_panel = <ChatHistoryPanel> {}
-
-            // Separator line
-            separator = <View> {
-                width: 1, height: Fill
-                show_bg: true
-                draw_bg: {
-                    instance dark_mode: 0.0
-                    fn pixel(self) -> vec4 {
-                        return mix(#e5e7eb, #374151, self.dark_mode);
-                    }
-                }
-            }
-
-            // Chat widget from moly-kit
+            // Chat widget from moly-kit (always present)
             chat = <Chat> {
                 width: Fill, height: Fill
+            }
+
+            // Empty chat welcome overlay (shows greeting when no messages)
+            welcome_overlay = <View> {
+                width: Fill, height: Fill
+                flow: Down
+                align: {x: 0.5, y: 0.35}
+                spacing: 32
+                visible: true
+
+                // Greeting text
+                greeting_label = <Label> {
+                    width: Fit, height: Fit
+                    text: "What can I help you with?"
+                    draw_text: {
+                        instance dark_mode: 0.0
+                        fn get_color(self) -> vec4 {
+                            return mix(#1f2937, #f1f5f9, self.dark_mode);
+                        }
+                        text_style: <FONT_SEMIBOLD>{ font_size: 28.0 }
+                    }
+                }
+
+                // Centered PromptInput with model selector
+                welcome_prompt = <PromptInput> {
+                    width: 700, height: Fit
+                }
             }
         }
     }

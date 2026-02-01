@@ -6,7 +6,7 @@ use makepad_widgets::*;
 use moly_kit::prelude::*;
 use moly_kit::aitk::controllers::chat::{ChatStateMutation, ChatTask};
 use moly_kit::aitk::protocol::{Bot, BotId, EntityAvatar};
-use moly_kit::widgets::model_selector::{BotGroup, create_lookup_grouping};
+use moly_kit::widgets::model_selector::BotGroup;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -319,6 +319,10 @@ pub struct ChatApp {
     #[rust]
     needs_controller_reset: bool,
 
+    /// Whether we need to create a new chat (set by request_new_chat, handled in handle_event)
+    #[rust]
+    needs_new_chat: bool,
+
     /// Current chat ID being edited
     #[rust]
     current_chat_id: Option<ChatId>,
@@ -338,6 +342,15 @@ pub struct ChatApp {
     /// Whether we've initialized the chat from persistence
     #[rust]
     chat_initialized: bool,
+
+    /// Whether we're in welcome mode (centered input) - only changes on explicit send
+    /// Defaults to true so new chats start in welcome mode
+    #[rust(true)]
+    in_welcome_mode: bool,
+
+    /// Whether we've set the controller on the welcome prompt
+    #[rust]
+    welcome_prompt_controller_set: bool,
 }
 
 impl LiveHook for ChatApp {
@@ -353,7 +366,7 @@ impl ChatApp {
     fn get_provider_icon(&self, provider_id: &str) -> Option<&LiveDependency> {
         // Icons are stored in order: openai, anthropic, gemini, ollama, deepseek, openrouter, siliconflow, nvidia, groq
         let index = match provider_id {
-            "openai" => Some(0),
+            "openai" | "openai-realtime" => Some(0),
             "anthropic" => Some(1),
             "gemini" => Some(2),
             "ollama" => Some(3),
@@ -362,6 +375,7 @@ impl ChatApp {
             "siliconflow" => Some(6),
             "nvidia" => Some(7),
             "groq" => Some(8),
+            "ominix-image" => Some(3), // Use Ollama icon for local image provider
             _ => None,
         };
         index.and_then(|i| self.provider_icons.get(i))
@@ -376,6 +390,7 @@ impl ChatApp {
     fn get_provider_display_name(provider_id: &str) -> &'static str {
         match provider_id {
             "openai" => "OpenAI",
+            "openai-realtime" => "OpenAI Realtime",
             "anthropic" => "Anthropic",
             "gemini" => "Google Gemini",
             "ollama" => "Ollama",
@@ -384,6 +399,7 @@ impl ChatApp {
             "nvidia" => "NVIDIA",
             "openrouter" => "OpenRouter",
             "siliconflow" => "SiliconFlow",
+            "ominix-image" => "OminiX Image",
             _ => "Unknown",
         }
     }
@@ -396,9 +412,12 @@ impl ChatApp {
         let mut bot_groups: HashMap<BotId, BotGroup> = HashMap::new();
 
         for bot in store.providers_manager.get_all_bots() {
-            // Get provider ID from ProvidersManager (not from bot.id.provider() which returns URL)
+            // Get provider ID from ProvidersManager
+            let (_, fallback_provider) = Self::parse_bot_id_string(bot.id.as_str());
             let provider_id = store.providers_manager.get_provider_for_bot(&bot.id)
-                .unwrap_or_else(|| bot.id.provider()); // fallback to URL if not found
+                .map(|s| s.to_string())
+                .unwrap_or(fallback_provider); // fallback to parsed provider if not found
+            let provider_id = provider_id.as_str();
 
             let icon = self.get_provider_icon_path(provider_id)
                 .map(|path| EntityAvatar::Image(path));
@@ -414,18 +433,22 @@ impl ChatApp {
             );
         }
 
-        // Create grouping function
-        let grouping_fn = create_lookup_grouping(move |bot_id: &BotId| {
-            bot_groups.get(bot_id).cloned()
-        });
+        // Create grouping function that looks up bot groups by bot ID
+        let grouping_fn = move |bot: &Bot| -> BotGroup {
+            bot_groups.get(&bot.id).cloned().unwrap_or_else(|| BotGroup {
+                id: "unknown".to_string(),
+                label: "Unknown".to_string(),
+                icon: None,
+            })
+        };
 
         // Set grouping on the ModelSelector inside PromptInput
-        let chat = self.view.chat(ids!(chat));
+        let chat = self.view.chat(ids!(main_content.chat));
         chat.read()
             .prompt_input_ref()
             .widget(ids!(model_selector))
             .as_model_selector()
-            .set_grouping(Some(grouping_fn));
+            .set_grouping(grouping_fn);
     }
 
     /// Set our controller on the Chat widget if not already done
@@ -434,7 +457,7 @@ impl ChatApp {
             return;
         }
 
-        let mut chat_ref = self.view.chat(ids!(chat));
+        let mut chat_ref = self.view.chat(ids!(main_content.chat));
         chat_ref.write().set_chat_controller(cx, Some(self.chat_controller.clone()));
         self.controller_set_on_widget = true;
     }
@@ -442,7 +465,7 @@ impl ChatApp {
     /// Force re-set the controller on the Chat widget
     /// This handles visibility changes and ensures bots are properly propagated
     fn force_reset_controller_on_widget(&mut self, cx: &mut Cx) {
-        let mut chat_ref = self.view.chat(ids!(chat));
+        let mut chat_ref = self.view.chat(ids!(main_content.chat));
         // Set to None first to bypass the same-pointer check
         chat_ref.write().set_chat_controller(cx, None);
         chat_ref.write().set_chat_controller(cx, Some(self.chat_controller.clone()));
@@ -454,11 +477,29 @@ impl ChatApp {
         self.needs_controller_reset = true;
     }
 
+    /// Request creation of a new chat. Called directly from parent App.
+    /// This sets a flag that will be processed in handle_event.
+    pub fn request_new_chat(&mut self) {
+        self.needs_new_chat = true;
+    }
+
+    /// Load a chat by ID. Called from App when selecting a chat from history.
+    pub fn load_chat(&mut self, chat_id: ChatId) {
+        // Store the chat_id to be loaded - we'll handle it in handle_event
+        // when we have access to Cx and Scope
+        self.current_chat_id = Some(chat_id);
+        self.chat_initialized = false; // Force re-initialization
+        self.last_synced_message_count = 0;
+        self.had_writing_message = false;
+        self.last_synced_content_len = 0;
+    }
+
     /// Initialize the chat from persistence (load or create the current chat)
     fn maybe_initialize_chat(&mut self, cx: &mut Cx, scope: &mut Scope) {
         if self.chat_initialized {
             return;
         }
+        ::log::info!("maybe_initialize_chat: RUNNING (chat_initialized was false)");
 
         let Some(store) = scope.data.get_mut::<Store>() else { return };
 
@@ -486,6 +527,11 @@ impl ChatApp {
                 ::log::info!("Loading {} messages from chat {}", message_count, chat_id);
                 let mut ctrl = self.chat_controller.lock().unwrap();
                 ctrl.dispatch_mutation(VecMutation::Set(messages));
+                // Has messages, not in welcome mode
+                self.in_welcome_mode = false;
+            } else {
+                // No messages, show welcome mode
+                self.in_welcome_mode = true;
             }
 
             self.last_synced_message_count = message_count;
@@ -495,6 +541,9 @@ impl ChatApp {
                 ::log::info!("Chat {} has saved bot_id: {}", chat_id, bot_id.as_str());
                 // We'll let restore_saved_model handle the bot selection
             }
+        } else {
+            // No chat found, show welcome mode
+            self.in_welcome_mode = true;
         }
 
         self.chat_initialized = true;
@@ -582,38 +631,43 @@ impl ChatApp {
             (ctrl.state().bot_id.clone(), ctrl.state().bots.clone())
         };
 
-        // Create new chat
+        // Create new chat in store
         let chat_id = store.chats.create_chat(current_bot_id.clone());
         self.current_chat_id = Some(chat_id);
 
-        // Force reset the controller on the Chat widget to ensure clean state
-        // This is needed because the Messages widget caches state internally
-        {
-            let mut chat_ref = self.view.chat(ids!(chat));
-            chat_ref.write().set_chat_controller(cx, None);
-            chat_ref.write().set_chat_controller(cx, Some(self.chat_controller.clone()));
-        }
+        ::log::info!("=== NEW CHAT CREATED: {} ===", chat_id);
 
-        // Clear messages in controller and re-set bots (since set_chat_controller may clear them)
+        // Clear messages in controller - this triggers the Chat widget's plugin to redraw
         {
             let mut ctrl = self.chat_controller.lock().unwrap();
+            let old_count = ctrl.state().messages.len();
+            ::log::info!("Clearing {} messages from controller", old_count);
             ctrl.dispatch_mutation(VecMutation::<Message>::Set(vec![]));
             ctrl.dispatch_mutation(VecMutation::Set(all_bots));
-            // Re-set the bot_id
             if let Some(bot_id) = current_bot_id {
                 ctrl.dispatch_mutation(ChatStateMutation::SetBotId(Some(bot_id)));
             }
         }
 
-        // Reset all sync tracking state for the new empty chat
+        // Reset sync tracking state
         self.last_synced_message_count = 0;
         self.had_writing_message = false;
         self.last_synced_content_len = 0;
 
-        // Reset scroll position
-        self.view.chat(ids!(chat)).write().messages_ref().write().instant_scroll_to_bottom(cx);
+        // Mark as initialized to prevent maybe_initialize_chat from overwriting our state
+        self.chat_initialized = true;
 
-        ::log::info!("Created new chat {}", chat_id);
+        // Enter welcome mode for new chat (centered input)
+        self.in_welcome_mode = true;
+
+        // Verify state after clearing
+        let msg_count = {
+            let ctrl = self.chat_controller.lock().unwrap();
+            ctrl.state().messages.len()
+        };
+        ::log::info!("New chat {} ready - controller has {} messages", chat_id, msg_count);
+
+        // Force redraw the entire view
         self.view.redraw(cx);
     }
 
@@ -658,10 +712,15 @@ impl ChatApp {
             self.had_writing_message = false;
             self.last_synced_content_len = last_content_len;
 
+            // Set welcome mode based on message count
+            let new_welcome_mode = message_count == 0;
+            ::log::info!("switch_to_chat: setting in_welcome_mode={} (message_count={})", new_welcome_mode, message_count);
+            self.in_welcome_mode = new_welcome_mode;
+
             // Reset the scroll position to bottom to avoid PortalList first_id > range_end errors
             // This is needed because switching from a chat with many messages to one with fewer
             // can leave the scroll position pointing to a non-existent message index
-            self.view.chat(ids!(chat)).write().messages_ref().write().instant_scroll_to_bottom(cx);
+            self.view.chat(ids!(main_content.chat)).write().messages_ref().write().instant_scroll_to_bottom(cx);
         }
 
         self.view.redraw(cx);
@@ -716,7 +775,7 @@ impl ChatApp {
             }
 
             // Reset scroll position
-            self.view.chat(ids!(chat)).write().messages_ref().write().instant_scroll_to_bottom(cx);
+            self.view.chat(ids!(main_content.chat)).write().messages_ref().write().instant_scroll_to_bottom(cx);
         }
 
         self.view.redraw(cx);
@@ -725,8 +784,22 @@ impl ChatApp {
 
 impl Widget for ChatApp {
     fn handle_event(&mut self, cx: &mut Cx, event: &Event, scope: &mut Scope) {
+        // Log state at start of handle_event for debugging
+        if matches!(event, Event::KeyDown(_) | Event::TextInput(_)) {
+            ::log::info!("handle_event START: in_welcome_mode={}, chat_initialized={}",
+                self.in_welcome_mode, self.chat_initialized);
+        }
+
         // Set controller on Chat widget early (required for Messages widget)
         self.maybe_set_controller_on_widget(cx);
+
+        // Set controller on welcome prompt for centered input (only once)
+        if !self.welcome_prompt_controller_set {
+            self.view.prompt_input(ids!(main_content.welcome_overlay.welcome_prompt))
+                .write()
+                .set_chat_controller(Some(self.chat_controller.clone()));
+            self.welcome_prompt_controller_set = true;
+        }
 
         // Handle pending controller reset (e.g., after models load or view becomes visible)
         // This ensures the model list is properly populated after visibility changes
@@ -744,10 +817,16 @@ impl Widget for ChatApp {
                     // Re-dispatch filtered bots mutation so the new plugin sees them
                     self.chat_controller.lock().unwrap().dispatch_mutation(VecMutation::Set(enabled_bots));
                     self.view.redraw(cx);
-                    self.view.chat(ids!(chat)).redraw(cx);
+                    self.view.chat(ids!(main_content.chat)).redraw(cx);
                 }
             }
             self.needs_controller_reset = false;
+        }
+
+        // Handle pending new chat request (set by request_new_chat from parent App)
+        if self.needs_new_chat {
+            self.needs_new_chat = false;
+            self.create_new_chat(cx, scope);
         }
 
         // Check and configure providers from Store
@@ -768,12 +847,33 @@ impl Widget for ChatApp {
         // Sync bot selection to current chat
         self.sync_bot_to_chat(scope);
 
-        // Delegate events directly to view (like moly-ai does)
-        // Don't use capture_actions as it can interfere with nested widget event handling
-        self.view.handle_event(cx, event, scope);
+        // Handle events selectively based on welcome mode
+        // When in welcome mode, only pass events to welcome overlay (not Chat widget)
+        // This prevents keyboard input from going to Chat's hidden PromptInput
+        let pre_event_welcome_mode = self.in_welcome_mode;
+        if self.in_welcome_mode {
+            // Only handle events for the welcome overlay and its children
+            self.view.view(ids!(main_content.welcome_overlay)).handle_event(cx, event, scope);
+            // Also handle header and other non-chat parts
+            self.view.view(ids!(header)).handle_event(cx, event, scope);
+        } else {
+            // Normal mode - pass events to Chat widget
+            self.view.chat(ids!(main_content.chat)).handle_event(cx, event, scope);
+            self.view.view(ids!(header)).handle_event(cx, event, scope);
+        }
+
+        if matches!(event, Event::KeyDown(_) | Event::TextInput(_)) && pre_event_welcome_mode != self.in_welcome_mode {
+            ::log::info!("handle_event AFTER selective handling: in_welcome_mode changed from {} to {}",
+                pre_event_welcome_mode, self.in_welcome_mode);
+        }
 
         // Use WidgetMatchEvent pattern for handling actions
         self.widget_match_event(cx, event, scope);
+
+        if matches!(event, Event::KeyDown(_) | Event::TextInput(_)) && pre_event_welcome_mode != self.in_welcome_mode {
+            ::log::info!("handle_event END: in_welcome_mode changed from {} to {}",
+                pre_event_welcome_mode, self.in_welcome_mode);
+        }
     }
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
@@ -789,6 +889,19 @@ impl Widget for ChatApp {
             draw_bg: { dark_mode: (dark_mode_value) }
         });
 
+        // Update chat title from current chat (empty if no saved chats)
+        if let Some(store) = scope.data.get::<Store>() {
+            // Only show title if there are saved chats with messages
+            if store.chats.saved_chats.is_empty() {
+                // No saved chats - set empty title
+                self.view.label(ids!(title_label)).set_text(cx, "");
+            } else if let Some(chat) = store.chats.get_current_chat() {
+                self.view.label(ids!(title_label)).set_text(cx, &chat.title);
+            } else {
+                self.view.label(ids!(title_label)).set_text(cx, "");
+            }
+        }
+
         // Apply dark mode to header labels
         self.view.label(ids!(title_label)).apply_over(cx, live! {
             draw_text: { dark_mode: (dark_mode_value) }
@@ -801,6 +914,21 @@ impl Widget for ChatApp {
         self.view.view(ids!(separator)).apply_over(cx, live! {
             draw_bg: { dark_mode: (dark_mode_value) }
         });
+
+        // Apply dark mode to welcome greeting
+        self.view.label(ids!(main_content.welcome_overlay.greeting_label)).apply_over(cx, live! {
+            draw_text: { dark_mode: (dark_mode_value) }
+        });
+
+        // Show/hide welcome overlay based on welcome mode flag
+        // When in welcome mode: show welcome overlay with centered input, hide Chat widget
+        // When not in welcome mode: hide welcome overlay, show Chat widget
+        // Note: in_welcome_mode is set to true for new chats and false only when:
+        //   1. User sends from welcome prompt (handle_actions)
+        //   2. Loading a chat with messages (maybe_initialize_chat)
+        //   3. Switching to a chat with messages (switch_to_chat)
+        self.view.view(ids!(main_content.welcome_overlay)).set_visible(cx, self.in_welcome_mode);
+        self.view.chat(ids!(main_content.chat)).set_visible(cx, !self.in_welcome_mode);
 
         // Update status label based on provider configuration
         if self.providers_configured {
@@ -815,9 +943,6 @@ impl Widget for ChatApp {
             }
         }
 
-        // Update history panel's current chat
-        self.view.chat_history_panel(ids!(history_panel)).set_current_chat(self.current_chat_id);
-
         // Simply delegate to view's draw_walk - no step() pattern needed
         // ChatHistoryPanel handles its own PortalList, Chat handles its own
         self.view.draw_walk(cx, scope, walk)
@@ -826,17 +951,65 @@ impl Widget for ChatApp {
 
 impl WidgetMatchEvent for ChatApp {
     fn handle_actions(&mut self, cx: &mut Cx, actions: &Actions, scope: &mut Scope) {
+        let was_welcome = self.in_welcome_mode;
+
         // Handle ChatHistoryPanel actions
         for action in actions.iter() {
             if let ChatHistoryAction::NewChat = action.cast() {
+                ::log::info!("ACTION: NewChat triggered");
                 self.create_new_chat(cx, scope);
             }
             if let ChatHistoryAction::SelectChat(chat_id) = action.cast() {
+                ::log::info!("ACTION: SelectChat({}) triggered, in_welcome_mode={}", chat_id, self.in_welcome_mode);
                 self.switch_to_chat(cx, scope, chat_id);
             }
             if let ChatHistoryAction::DeleteChat(chat_id) = action.cast() {
+                ::log::info!("ACTION: DeleteChat({}) triggered", chat_id);
                 self.delete_chat(cx, scope, chat_id);
             }
+        }
+
+        // Handle welcome prompt send action - use submitted() to detect actual user send action
+        // (has_send_task() just checks if the button is in "send" state, not if user clicked)
+        let mut welcome_prompt = self.view.prompt_input(ids!(main_content.welcome_overlay.welcome_prompt));
+        if welcome_prompt.read().submitted(actions) {
+            ::log::info!("WELCOME PROMPT SUBMITTED: user pressed Enter or clicked Send");
+            // Get text from welcome prompt (attachments not typically used in initial prompt)
+            let text = welcome_prompt.text();
+
+            if !text.is_empty() {
+                use moly_kit::aitk::protocol::{EntityId, Message, MessageContent};
+
+                // Push user message to controller
+                {
+                    let mut ctrl = self.chat_controller.lock().unwrap();
+                    ctrl.dispatch_mutation(VecMutation::Push(Message {
+                        from: EntityId::User,
+                        content: MessageContent {
+                            text,
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }));
+                    // Trigger send
+                    ctrl.dispatch_task(ChatTask::Send);
+                }
+
+                // Reset the welcome prompt
+                welcome_prompt.write().reset(cx);
+
+                // Exit welcome mode - switch to normal Chat view
+                ::log::info!("handle_actions: user sent from welcome prompt, setting in_welcome_mode=false");
+                self.in_welcome_mode = false;
+
+                // Redraw to switch to Chat widget view
+                self.view.redraw(cx);
+            }
+        }
+
+        // Log if welcome mode changed during handle_actions
+        if was_welcome != self.in_welcome_mode {
+            ::log::info!("handle_actions: in_welcome_mode changed from {} to {}", was_welcome, self.in_welcome_mode);
         }
     }
 }
@@ -950,8 +1123,8 @@ impl ChatApp {
 
         let Some(store) = scope.data.get::<Store>() else { return };
 
-        // Get client for this provider from ProvidersManager
-        let Some(client) = store.providers_manager.clone_client(provider_id) else {
+        // Get client for this provider from ProvidersManager (supports all client types)
+        let Some(client) = store.providers_manager.get_bot_client(provider_id) else {
             ::log::warn!("No client for provider {}, skipping", provider_id);
             // Skip to next provider
             self.start_fetch_for_provider(cx, scope, index + 1);
@@ -966,7 +1139,7 @@ impl ChatApp {
         // Set up the ChatController with this provider's client
         {
             let mut ctrl = self.chat_controller.lock().unwrap();
-            ctrl.set_client(Some(Box::new(client)));
+            ctrl.set_client(Some(client));
 
             // Don't set a default bot_id here - we'll restore the saved model
             // or select first available after models are loaded
@@ -1063,7 +1236,7 @@ impl ChatApp {
             // is the same, so we need to set it to None first to force re-propagation
             // IMPORTANT: Do this BEFORE dispatching mutations so the new plugin receives them
             {
-                let mut chat_ref = self.view.chat(ids!(chat));
+                let mut chat_ref = self.view.chat(ids!(main_content.chat));
                 // First set to None to clear the existing controller
                 chat_ref.write().set_chat_controller(cx, None);
                 // Then set to our controller again to force propagation to child widgets
@@ -1082,7 +1255,7 @@ impl ChatApp {
 
             // Redraw both the view and explicitly the chat widget
             self.view.redraw(cx);
-            self.view.chat(ids!(chat)).redraw(cx);
+            self.view.chat(ids!(main_content.chat)).redraw(cx);
         }
     }
 
@@ -1150,14 +1323,15 @@ impl ChatApp {
         if let Some(provider_id) = store.providers_manager.get_provider_for_bot(bot_id) {
             // Only switch if it's a different provider
             if self.current_provider_id.as_deref() != Some(provider_id) {
-                if let Some(client) = store.providers_manager.clone_client(provider_id) {
+                // Use get_bot_client to support all client types (text, realtime, image)
+                if let Some(client) = store.providers_manager.get_bot_client(provider_id) {
                     // Get filtered bots before switching (set_client clears them)
                     let all_bots = store.providers_manager.get_all_bots();
                     let enabled_bots = Self::filter_enabled_bots(all_bots, store);
 
                     {
                         let mut ctrl = self.chat_controller.lock().unwrap();
-                        ctrl.set_client(Some(Box::new(client)));
+                        ctrl.set_client(Some(client));
                     }
 
                     self.current_provider_id = Some(provider_id.to_string());
@@ -1265,8 +1439,7 @@ impl ChatApp {
         // If no exact match, try matching by model name (handling models/ prefix)
         if matching_bot.is_none() {
             matching_bot = all_bots.iter().find(|bot| {
-                let bot_model_name = bot.id.id();
-                let bot_provider = bot.id.provider();
+                let (bot_model_name, bot_provider) = Self::parse_bot_id_string(bot.id.as_str());
                 // Match if providers are the same and either:
                 // 1. Model names match exactly
                 // 2. Bot model is "models/<saved_model>"
