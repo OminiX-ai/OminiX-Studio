@@ -24,11 +24,11 @@ makepad-widgets = { git = "https://github.com/makepad/makepad", branch = "dev" }
 # Makepad component library (switch, spinner, modal, tooltip, etc.)
 makepad-component = { git = "https://github.com/ZhangHanDong/makepad-component", package = "makepad-component" }
 
-# Moly-kit for chat widgets (local path from moly-ai)
-moly-kit = { path = "../moly-ai/moly-kit", features = ["full"] }
+# Moly-kit for chat widgets (from ymote/moly fork)
+moly-kit = { git = "https://github.com/ymote/moly", rev = "ad02d12", package = "moly-kit", features = ["full"] }
 
-# AI toolkit for chat controller and clients (from aitk git repo)
-aitk = { git = "https://github.com/moly-ai/aitk", rev = "7c20045b", features = ["async-rt", "http", "mcp"] }
+# AI toolkit for chat controller and clients (from ymote/aitk fork)
+aitk = { git = "https://github.com/ymote/aitk", branch = "fix/openai-compat-and-crash-guard", features = ["async-rt", "http", "mcp"] }
 
 # Moly protocol for message types
 moly-protocol = { git = "https://github.com/moly-ai/moly-local", package = "moly-protocol", rev = "788cac14d" }
@@ -52,4 +52,4 @@ dirs = "5.0"
 tokio = { version = "1.43", features = ["rt", "time"] }
 
 [patch.'https://github.com/moly-ai/aitk']
-aitk = { path = "../aitk" }
+aitk = { git = "https://github.com/ymote/aitk", branch = "fix/openai-compat-and-crash-guard" }

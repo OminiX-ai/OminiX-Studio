@@ -50,6 +50,7 @@ dependencies = [
 [[package]]
 name = "aitk"
 version = "0.1.0"
+source = "git+https://github.com/ymote/aitk?branch=fix%2Fopenai-compat-and-crash-guard#de819e7cb84c2bcc1f0a736d452ea3d0df90d884"
 dependencies = [
  "async-stream",
  "base64 0.22.1",
@@ -3368,6 +3369,7 @@ dependencies = [
 [[package]]
 name = "mlx-internal-macros"
 version = "0.25.2"
+source = "git+https://github.com/OminiX-ai/OminiX-MLX?rev=cba46212#cba46212d7c8d9c40385d2d8b251b736f59c524d"
 dependencies = [
  "darling 0.21.3",
  "itertools 0.14.0",
@@ -3379,6 +3381,7 @@ dependencies = [
 [[package]]
 name = "mlx-macros"
 version = "0.25.2"
+source = "git+https://github.com/OminiX-ai/OminiX-MLX?rev=cba46212#cba46212d7c8d9c40385d2d8b251b736f59c524d"
 dependencies = [
  "darling 0.21.3",
  "proc-macro2",
@@ -3389,6 +3392,7 @@ dependencies = [
 [[package]]
 name = "mlx-rs"
 version = "0.25.2"
+source = "git+https://github.com/OminiX-ai/OminiX-MLX?rev=cba46212#cba46212d7c8d9c40385d2d8b251b736f59c524d"
 dependencies = [
  "dyn-clone",
  "half",
@@ -3411,6 +3415,7 @@ dependencies = [
 [[package]]
 name = "mlx-rs-core"
 version = "0.1.0"
+source = "git+https://github.com/OminiX-ai/OminiX-MLX?rev=cba46212#cba46212d7c8d9c40385d2d8b251b736f59c524d"
 dependencies = [
  "candle-core",
  "mlx-rs",
@@ -3426,6 +3431,7 @@ dependencies = [
 [[package]]
 name = "mlx-sys"
 version = "0.2.0"
+source = "git+https://github.com/OminiX-ai/OminiX-MLX?rev=cba46212#cba46212d7c8d9c40385d2d8b251b736f59c524d"
 dependencies = [
  "bindgen",
  "cc",
@@ -3464,6 +3470,7 @@ dependencies = [
 [[package]]
 name = "moly-kit"
 version = "0.2.3"
+source = "git+https://github.com/ymote/moly?rev=ad02d12#ad02d1238b729b38e8a9893cff51829e9280a33c"
 dependencies = [
  "aitk",
  "async-stream",
