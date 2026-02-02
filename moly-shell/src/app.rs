@@ -1195,6 +1195,10 @@ impl MatchEvent for App {
                 chat_app.request_new_chat();
             }
 
+            // Clear A2UI canvas for the new chat
+            self.pending_a2ui_json = None;
+            self.clear_a2ui_canvas(cx);
+
             // Always show active chat view when creating new chat
             self.current_view = NavigationTarget::ActiveChat;
             self.store.set_current_view("ActiveChat");
@@ -1580,6 +1584,21 @@ impl App {
             eprintln!("[A2UI render] Could not borrow A2uiSurface");
         }
 
+        self.ui.redraw(cx);
+    }
+
+    /// Clear the A2UI canvas surface.
+    fn clear_a2ui_canvas(&mut self, cx: &mut Cx) {
+        let surface_ref = self.ui.widget(ids!(
+            body.content.main_content.chat_with_canvas
+                .canvas_section.canvas_content
+                .canvas_area.a2ui_surface
+        ));
+        if let Some(mut surface) =
+            surface_ref.borrow_mut::<A2uiSurface>()
+        {
+            surface.clear();
+        }
         self.ui.redraw(cx);
     }
 
