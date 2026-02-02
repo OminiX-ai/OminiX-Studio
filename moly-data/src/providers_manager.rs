@@ -1,13 +1,19 @@
 use std::collections::HashMap;
 use moly_kit::aitk::clients::openai::OpenAiClient;
-use moly_kit::aitk::protocol::{Bot, BotId};
+use moly_kit::aitk::clients::openai_realtime::OpenAiRealtimeClient;
+use moly_kit::aitk::protocol::{Bot, BotClient, BotId};
 
-use crate::providers::ProviderPreferences;
+use crate::ominix_image_client::{OminiXImageClient, ImageGenerationConfig};
+use crate::providers::{ProviderPreferences, ProviderType};
 
 /// Manages multiple AI provider clients and their models
 pub struct ProvidersManager {
-    /// Map of provider_id -> OpenAiClient
+    /// Map of provider_id -> OpenAiClient (for text chat)
     clients: HashMap<String, OpenAiClient>,
+    /// Map of provider_id -> OpenAiRealtimeClient (for voice chat)
+    realtime_clients: HashMap<String, OpenAiRealtimeClient>,
+    /// Map of provider_id -> OminiXImageClient (for image generation)
+    image_clients: HashMap<String, OminiXImageClient>,
     /// Map of provider_id -> list of bots from that provider
     provider_bots: HashMap<String, Vec<Bot>>,
     /// Combined list of all bots from all providers
@@ -26,6 +32,8 @@ impl ProvidersManager {
     pub fn new() -> Self {
         Self {
             clients: HashMap::new(),
+            realtime_clients: HashMap::new(),
+            image_clients: HashMap::new(),
             provider_bots: HashMap::new(),
             all_bots: Vec::new(),
             active_provider_id: None,
@@ -35,24 +43,59 @@ impl ProvidersManager {
     /// Configure clients for all enabled providers
     pub fn configure_providers(&mut self, providers: &[&ProviderPreferences]) {
         self.clients.clear();
+        self.realtime_clients.clear();
+        self.image_clients.clear();
         self.provider_bots.clear();
         self.all_bots.clear();
 
         for provider in providers {
-            if let Some(api_key) = &provider.api_key {
-                let api_key = api_key.trim();
-                if api_key.is_empty() {
-                    continue;
+            // OminiX Image doesn't require API key for local server
+            let api_key = provider.api_key.as_ref().map(|k| k.trim()).unwrap_or("");
+
+            match provider.provider_type {
+                ProviderType::OpenAiRealtime => {
+                    if api_key.is_empty() {
+                        continue;
+                    }
+                    // Create realtime client for voice chat
+                    let mut client = OpenAiRealtimeClient::new(provider.url.clone());
+                    if client.set_key(api_key).is_ok() {
+                        // Set system prompt if configured
+                        if let Some(prompt) = &provider.system_prompt {
+                            let _ = client.set_system_prompt(prompt);
+                        }
+                        client.set_tools_enabled(provider.tools_enabled);
+                        log::info!("Configured realtime client for provider: {} ({})", provider.id, provider.url);
+                        self.realtime_clients.insert(provider.id.clone(), client);
+                    }
                 }
+                ProviderType::OminiXImage => {
+                    // Create OminiX image client (no API key required for local)
+                    let mut client = OminiXImageClient::new(provider.url.clone())
+                        .with_config(ImageGenerationConfig::new().with_size("512x512"));
 
-                let mut client = OpenAiClient::new(provider.url.clone());
-                if client.set_key(api_key).is_ok() {
-                    log::info!("Configured client for provider: {} ({})", provider.id, provider.url);
-                    self.clients.insert(provider.id.clone(), client);
+                    // Set API key if provided (for remote servers)
+                    if !api_key.is_empty() {
+                        let _ = client.set_key(api_key);
+                    }
 
-                    // Set first provider as active if none set
-                    if self.active_provider_id.is_none() {
-                        self.active_provider_id = Some(provider.id.clone());
+                    log::info!("Configured OminiX image client for provider: {} ({})", provider.id, provider.url);
+                    self.image_clients.insert(provider.id.clone(), client);
+                }
+                _ => {
+                    if api_key.is_empty() {
+                        continue;
+                    }
+                    // Create standard OpenAI-compatible client for text chat
+                    let mut client = OpenAiClient::new(provider.url.clone());
+                    if client.set_key(api_key).is_ok() {
+                        log::info!("Configured client for provider: {} ({})", provider.id, provider.url);
+                        self.clients.insert(provider.id.clone(), client);
+
+                        // Set first provider as active if none set
+                        if self.active_provider_id.is_none() {
+                            self.active_provider_id = Some(provider.id.clone());
+                        }
                     }
                 }
             }
@@ -81,6 +124,44 @@ impl ProvidersManager {
     /// Clone client for a specific provider (needed for ChatController)
     pub fn clone_client(&self, provider_id: &str) -> Option<OpenAiClient> {
         self.clients.get(provider_id).cloned()
+    }
+
+    /// Get realtime client for a specific provider
+    pub fn get_realtime_client(&self, provider_id: &str) -> Option<&OpenAiRealtimeClient> {
+        self.realtime_clients.get(provider_id)
+    }
+
+    /// Clone realtime client for a specific provider
+    pub fn clone_realtime_client(&self, provider_id: &str) -> Option<OpenAiRealtimeClient> {
+        self.realtime_clients.get(provider_id).cloned()
+    }
+
+    /// Get image client for a specific provider
+    pub fn get_image_client(&self, provider_id: &str) -> Option<&OminiXImageClient> {
+        self.image_clients.get(provider_id)
+    }
+
+    /// Get mutable image client for a specific provider
+    pub fn get_image_client_mut(&mut self, provider_id: &str) -> Option<&mut OminiXImageClient> {
+        self.image_clients.get_mut(provider_id)
+    }
+
+    /// Clone image client for a specific provider
+    pub fn clone_image_client(&self, provider_id: &str) -> Option<OminiXImageClient> {
+        self.image_clients.get(provider_id).cloned()
+    }
+
+    /// Get a boxed BotClient for any provider type
+    pub fn get_bot_client(&self, provider_id: &str) -> Option<Box<dyn BotClient>> {
+        if let Some(client) = self.clients.get(provider_id) {
+            Some(Box::new(client.clone()))
+        } else if let Some(client) = self.realtime_clients.get(provider_id) {
+            Some(Box::new(client.clone()))
+        } else if let Some(client) = self.image_clients.get(provider_id) {
+            Some(Box::new(client.clone()))
+        } else {
+            None
+        }
     }
 
     /// Set the active provider by ID
@@ -143,10 +224,20 @@ impl ProvidersManager {
             }
         }
         // Check by provider string in the bot_id
-        let bot_provider = bot_id.provider();
+        // BotId is typically in format "provider_url/model_name"
+        let bot_id_str = bot_id.as_str();
         for (provider_id, _) in &self.clients {
-            // Match by checking if the bot's provider contains a known provider URL pattern
-            if bot_provider.contains(provider_id) {
+            if bot_id_str.contains(provider_id) {
+                return Some(provider_id);
+            }
+        }
+        for (provider_id, _) in &self.realtime_clients {
+            if bot_id_str.contains(provider_id) {
+                return Some(provider_id);
+            }
+        }
+        for (provider_id, _) in &self.image_clients {
+            if bot_id_str.contains(provider_id) {
                 return Some(provider_id);
             }
         }
@@ -155,11 +246,49 @@ impl ProvidersManager {
 
     /// Check if any providers are configured
     pub fn has_providers(&self) -> bool {
-        !self.clients.is_empty()
+        !self.clients.is_empty() || !self.realtime_clients.is_empty() || !self.image_clients.is_empty()
     }
 
     /// Get list of configured provider IDs
     pub fn configured_provider_ids(&self) -> Vec<&str> {
-        self.clients.keys().map(|s| s.as_str()).collect()
+        self.clients.keys()
+            .chain(self.realtime_clients.keys())
+            .chain(self.image_clients.keys())
+            .map(|s| s.as_str())
+            .collect()
+    }
+
+    /// Check if a provider is a realtime provider
+    pub fn is_realtime_provider(&self, provider_id: &str) -> bool {
+        self.realtime_clients.contains_key(provider_id)
+    }
+
+    /// Check if a provider is an image generation provider
+    pub fn is_image_provider(&self, provider_id: &str) -> bool {
+        self.image_clients.contains_key(provider_id)
+    }
+
+    /// Configure image generation settings for a provider
+    pub fn configure_image_settings(
+        &mut self,
+        provider_id: &str,
+        size: Option<&str>,
+        strength: Option<f32>,
+    ) {
+        if let Some(client) = self.image_clients.get_mut(provider_id) {
+            if let Some(size) = size {
+                client.set_size(size);
+            }
+            if let Some(strength) = strength {
+                client.set_strength(strength);
+            }
+        }
+    }
+
+    /// Set reference image for img2img on a provider
+    pub fn set_image_reference(&mut self, provider_id: &str, image_base64: Option<String>) {
+        if let Some(client) = self.image_clients.get_mut(provider_id) {
+            client.set_reference_image(image_base64);
+        }
     }
 }

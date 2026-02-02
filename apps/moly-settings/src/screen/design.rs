@@ -9,6 +9,7 @@ live_design! {
     use link::shaders::*;
     use link::widgets::*;
     use moly_widgets::theme::*;
+    use makepad_component::widgets::switch::*;
 
     // Provider icons - registered for dynamic loading
     ICON_OPENAI = dep("crate://self/resources/providers/openai.png")
@@ -18,6 +19,8 @@ live_design! {
     ICON_DEEPSEEK = dep("crate://self/resources/providers/deepseek.png")
     ICON_NVIDIA = dep("crate://self/resources/providers/nvidia.png")
     ICON_GROQ = dep("crate://self/resources/providers/groq.png")
+    ICON_KIMI = dep("crate://self/resources/providers/kimi.png")
+    ICON_ZHIPU = dep("crate://self/resources/providers/zhipu.png")
 
     // Settings label style
     SettingsLabel = <Label> {
@@ -73,83 +76,8 @@ live_design! {
         }
     }
 
-    // Custom toggle switch - rounded rectangle, 20% smaller
-    EnableToggle = <CheckBoxFlat> {
-        width: 40, height: 21
-        margin: 0
-        padding: 0
-
-        draw_bg: {
-            uniform size: 22.0
-            uniform border_size: 0.0
-            uniform border_radius: 6.0
-
-            // Off state colors (gray)
-            uniform color: #9ca3af
-            uniform color_hover: #9ca3af
-            uniform color_down: #9ca3af
-            // On state colors (green)
-            uniform color_active: #22c55e
-            uniform color_focus: #22c55e
-            uniform color_disabled: #d1d5db
-
-            // No border
-            uniform border_color: #00000000
-            uniform border_color_hover: #00000000
-            uniform border_color_down: #00000000
-            uniform border_color_active: #00000000
-            uniform border_color_focus: #00000000
-            uniform border_color_disabled: #00000000
-
-            // Checkmark color (white circle/thumb)
-            uniform mark_color: #ffffff
-            uniform mark_color_hover: #ffffff
-            uniform mark_color_down: #ffffff
-            uniform mark_color_active: #ffffff
-            uniform mark_color_active_hover: #ffffff
-            uniform mark_color_focus: #ffffff
-            uniform mark_color_disabled: #f3f4f6
-
-            fn pixel(self) -> vec4 {
-                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-
-                // Track dimensions - rectangle with small corner radius
-                let track_width = 40.0;
-                let track_height = 21.0;
-                let corner_radius = 3.0;
-
-                // Draw rectangle track
-                sdf.box(0.0, 0.0, track_width, track_height, corner_radius);
-
-                // Use active state for on/off color
-                let off_color = self.color;
-                let on_color = self.color_active;
-                let track_color = mix(off_color, on_color, self.active);
-                sdf.fill(track_color);
-
-                // Thumb (rectangle) - moves based on active state
-                let thumb_width = 15.0;
-                let thumb_height = 15.0;
-                let thumb_margin = 3.0;
-                let thumb_radius = 2.0;
-                let thumb_travel = track_width - thumb_width - (thumb_margin * 2.0);
-                let thumb_x = thumb_margin + (thumb_travel * self.active);
-                let thumb_y = (track_height - thumb_height) / 2.0;
-
-                sdf.box(thumb_x, thumb_y, thumb_width, thumb_height, thumb_radius);
-                sdf.fill(self.mark_color);
-
-                return sdf.result;
-            }
-        }
-
-        draw_text: {
-            text_style: <FONT_REGULAR>{ font_size: 0.0 }
-            fn get_color(self) -> vec4 {
-                return vec4(0.0, 0.0, 0.0, 0.0);
-            }
-        }
-    }
+    // Toggle switch using MpSwitch from makepad-component
+    EnableToggle = <MpSwitch> {}
 
     // Status indicator dot
     StatusDot = <View> {
@@ -316,7 +244,7 @@ live_design! {
             }
         }
 
-        // Provider icons for dynamic loading (order: openai, anthropic, gemini, ollama, deepseek, nvidia, groq)
+        // Provider icons for dynamic loading (order: openai, anthropic, gemini, ollama, deepseek, nvidia, groq, kimi)
         provider_icons: [
             (ICON_OPENAI),
             (ICON_ANTHROPIC),
@@ -325,6 +253,8 @@ live_design! {
             (ICON_DEEPSEEK),
             (ICON_NVIDIA),
             (ICON_GROQ),
+            (ICON_KIMI),
+            (ICON_ZHIPU),
         ]
 
         // Left panel - provider list
@@ -485,6 +415,31 @@ live_design! {
                     empty_text: "sk-..."
                 }
                 <SettingsHint> { text: "Your API key (stored locally)" }
+            }
+
+            // A2UI section (only visible for OpenAI-compatible providers)
+            a2ui_section = <View> {
+                width: Fill, height: Fit
+                flow: Down
+                spacing: 6
+                visible: true
+
+                a2ui_header = <View> {
+                    width: Fill, height: Fit
+                    flow: Right
+                    align: {y: 0.5}
+                    spacing: 12
+
+                    <SettingsLabel> { text: "A2UI (AI-to-UI)" }
+
+                    <View> { width: Fill } // Spacer
+
+                    a2ui_toggle = <EnableToggle> {}
+                }
+
+                a2ui_hint = <SettingsHint> {
+                    text: "Enable AI-generated UI rendering in the Canvas panel"
+                }
             }
 
             // Actions

@@ -24,6 +24,7 @@ live_design! {
     ICON_SILICONFLOW = dep("crate://self/resources/providers/siliconflow.png")
     ICON_NVIDIA = dep("crate://self/resources/providers/nvidia.png")
     ICON_GROQ = dep("crate://self/resources/providers/groq.png")
+    ICON_ZHIPU = dep("crate://self/resources/providers/zhipu.png")
 
     // Delete icon for chat history
     ICON_TRASH = dep("crate://self/resources/icons/trash.svg")
@@ -241,7 +242,7 @@ live_design! {
         }
 
         // Provider icons for model selector and chat messages
-        // Order: openai, anthropic, gemini, ollama, deepseek, openrouter, siliconflow, nvidia, groq
+        // Order: openai, anthropic, gemini, ollama, deepseek, openrouter, siliconflow, nvidia, groq, zhipu
         provider_icons: [
             (ICON_OPENAI),
             (ICON_ANTHROPIC),
@@ -252,6 +253,7 @@ live_design! {
             (ICON_SILICONFLOW),
             (ICON_NVIDIA),
             (ICON_GROQ),
+            (ICON_ZHIPU),
         ]
 
         // Header with provider status

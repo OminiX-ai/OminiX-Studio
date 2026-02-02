@@ -4,7 +4,7 @@
 
 pub mod screen;
 
-use makepad_widgets::Cx;
+use makepad_widgets::{Cx, live_id, LiveId};
 use moly_widgets::{MolyApp, AppInfo};
 
 pub use screen::{McpApp, McpAppRef};
@@ -18,6 +18,8 @@ impl MolyApp for MolyMcpApp {
             name: "MCP",
             id: "moly-mcp",
             description: "Model Context Protocol (Desktop Only)",
+            icon: live_id!(IconMcp),
+            page_id: live_id!(mcp_app),
         }
     }
 

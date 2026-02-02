@@ -50,7 +50,6 @@ dependencies = [
 [[package]]
 name = "aitk"
 version = "0.1.0"
-source = "git+https://github.com/moly-ai/aitk?rev=6cd8a74d#6cd8a74d8268aa2cd8d20fb2c6a8c70ca416d81d"
 dependencies = [
  "async-stream",
  "base64 0.22.1",
@@ -68,31 +67,6 @@ dependencies = [
  "smol_str",
  "tokio",
  "tokio-tungstenite",
- "unicode-segmentation",
- "url",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
-name = "aitk"
-version = "0.1.0"
-source = "git+https://github.com/moly-ai/aitk?rev=7c20045b#7c20045b777311e7ad774e90d819ecca0b885644"
-dependencies = [
- "async-stream",
- "base64 0.22.1",
- "cfg-if",
- "chrono",
- "futures",
- "js-sys",
- "log",
- "mime_guess",
- "reqwest",
- "rfd",
- "rmcp",
- "serde",
- "serde_json",
- "tokio",
  "unicode-segmentation",
  "url",
  "wasm-bindgen-futures",
@@ -3473,7 +3447,7 @@ dependencies = [
 name = "moly-data"
 version = "0.1.0"
 dependencies = [
- "aitk 0.1.0 (git+https://github.com/moly-ai/aitk?rev=7c20045b)",
+ "aitk",
  "async-stream",
  "chrono",
  "dirs",
@@ -3491,7 +3465,7 @@ dependencies = [
 name = "moly-kit"
 version = "0.2.3"
 dependencies = [
- "aitk 0.1.0 (git+https://github.com/moly-ai/aitk?rev=6cd8a74d)",
+ "aitk",
  "async-stream",
  "cfg-if",
  "futures",
@@ -3578,7 +3552,7 @@ dependencies = [
 name = "moly-shell"
 version = "0.1.0"
 dependencies = [
- "aitk 0.1.0 (git+https://github.com/moly-ai/aitk?rev=7c20045b)",
+ "aitk",
  "anyhow",
  "cfg-if",
  "chrono",

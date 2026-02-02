@@ -1,16 +1,32 @@
+pub mod a2ui_builder;
+pub mod a2ui_tools;
 pub mod chats;
+pub mod local_models;
 pub mod moly_client;
+pub mod ominix_image_client;
 pub mod preferences;
 pub mod providers;
 pub mod providers_manager;
 pub mod store;
 
 pub use chats::{ChatData, ChatId, Chats};
+pub use local_models::{
+    // V1 (legacy)
+    LocalModel, LocalModelsConfig, ModelCategory, ModelStatus,
+    // V2 (new JSON-based system)
+    LocalModelV2, LocalModelsConfigV2, ModelState, ModelSource, ModelStorage,
+    ModelFileInfo, ModelRuntime, ModelStatusInfo, DownloadProgress, SourceType,
+};
 pub use moly_client::{MolyClient, ServerConnectionStatus};
+pub use ominix_image_client::{OminiXImageClient, ImageGenerationConfig};
 pub use preferences::Preferences;
 pub use providers::{ProviderPreferences, ProviderId, ProviderType, ProviderConnectionStatus, get_supported_providers};
 pub use providers_manager::ProvidersManager;
 pub use store::{Store, StoreAction};
+
+// A2UI (AI-to-UI) exports
+pub use a2ui_builder::A2uiBuilder;
+pub use a2ui_tools::{get_a2ui_tools_json, is_a2ui_tool, a2ui_tool_names, A2UI_SYSTEM_PROMPT};
 
 // Re-export moly_protocol types used by the models UI
 pub use moly_protocol::data::{Model, File as ModelFile, FileId, DownloadedFile, PendingDownload, PendingDownloadsStatus, Author};

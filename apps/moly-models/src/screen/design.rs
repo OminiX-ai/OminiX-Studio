@@ -39,7 +39,7 @@ live_design! {
             fn get_color(self) -> vec4 {
                 return mix(#1f2937, #f1f5f9, self.dark_mode);
             }
-            text_style: <THEME_FONT_REGULAR>{ font_size: 13.0 }
+            text_style: <FONT_REGULAR>{ font_size: 13.0 }
         }
     }
 
@@ -86,7 +86,7 @@ live_design! {
                     fn get_color(self) -> vec4 {
                         return mix(#1f2937, #f1f5f9, self.dark_mode);
                     }
-                    text_style: <THEME_FONT_BOLD>{ font_size: 15.0 }
+                    text_style: <FONT_SEMIBOLD>{ font_size: 15.0 }
                 }
             }
 
@@ -98,7 +98,7 @@ live_design! {
                     fn get_color(self) -> vec4 {
                         return mix(#6b7280, #94a3b8, self.dark_mode);
                     }
-                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                    text_style: <FONT_REGULAR>{ font_size: 12.0 }
                 }
             }
 
@@ -111,7 +111,7 @@ live_design! {
                     fn get_color(self) -> vec4 {
                         return mix(#6b7280, #94a3b8, self.dark_mode);
                     }
-                    text_style: <THEME_FONT_REGULAR>{ font_size: 11.0 }
+                    text_style: <FONT_REGULAR>{ font_size: 11.0 }
                 }
             }
 
@@ -123,7 +123,7 @@ live_design! {
                     fn get_color(self) -> vec4 {
                         return mix(#6b7280, #94a3b8, self.dark_mode);
                     }
-                    text_style: <THEME_FONT_REGULAR>{ font_size: 11.0 }
+                    text_style: <FONT_REGULAR>{ font_size: 11.0 }
                 }
             }
         }
@@ -136,7 +136,7 @@ live_design! {
                 fn get_color(self) -> vec4 {
                     return mix(#4b5563, #cbd5e1, self.dark_mode);
                 }
-                text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                text_style: <FONT_REGULAR>{ font_size: 12.0 }
                 wrap: Word
             }
         }
@@ -154,7 +154,7 @@ live_design! {
                     fn get_color(self) -> vec4 {
                         return mix(#6b7280, #94a3b8, self.dark_mode);
                     }
-                    text_style: <THEME_FONT_REGULAR>{ font_size: 11.0 }
+                    text_style: <FONT_REGULAR>{ font_size: 11.0 }
                 }
             }
 
@@ -165,7 +165,7 @@ live_design! {
                     fn get_color(self) -> vec4 {
                         return mix(#3b82f6, #60a5fa, self.dark_mode);
                     }
-                    text_style: <THEME_FONT_REGULAR>{ font_size: 11.0 }
+                    text_style: <FONT_REGULAR>{ font_size: 11.0 }
                 }
             }
         }
@@ -187,7 +187,7 @@ live_design! {
                     fn get_color(self) -> vec4 {
                         return mix(#6b7280, #94a3b8, self.dark_mode);
                     }
-                    text_style: <THEME_FONT_REGULAR>{ font_size: 11.0 }
+                    text_style: <FONT_REGULAR>{ font_size: 11.0 }
                 }
             }
 
@@ -220,7 +220,7 @@ live_design! {
 
                 draw_text: {
                     color: #ffffff
-                    text_style: <THEME_FONT_REGULAR>{ font_size: 11.0 }
+                    text_style: <FONT_REGULAR>{ font_size: 11.0 }
                 }
 
                 text: "Download"
@@ -258,7 +258,7 @@ live_design! {
                 fn get_color(self) -> vec4 {
                     return mix(#1f2937, #f1f5f9, self.dark_mode);
                 }
-                text_style: <THEME_FONT_REGULAR>{ font_size: 11.0 }
+                text_style: <FONT_REGULAR>{ font_size: 11.0 }
             }
         }
 
@@ -269,7 +269,7 @@ live_design! {
                 fn get_color(self) -> vec4 {
                     return mix(#6b7280, #94a3b8, self.dark_mode);
                 }
-                text_style: <THEME_FONT_REGULAR>{ font_size: 10.0 }
+                text_style: <FONT_REGULAR>{ font_size: 10.0 }
             }
         }
 
@@ -280,7 +280,7 @@ live_design! {
                 fn get_color(self) -> vec4 {
                     return mix(#8b5cf6, #a78bfa, self.dark_mode);
                 }
-                text_style: <THEME_FONT_REGULAR>{ font_size: 10.0 }
+                text_style: <FONT_REGULAR>{ font_size: 10.0 }
             }
         }
 
@@ -307,7 +307,7 @@ live_design! {
 
             draw_text: {
                 color: #ffffff
-                text_style: <THEME_FONT_REGULAR>{ font_size: 10.0 }
+                text_style: <FONT_REGULAR>{ font_size: 10.0 }
             }
 
             text: "Download"
@@ -354,7 +354,7 @@ live_design! {
                         let dark = vec4(0.525, 0.937, 0.675, 1.0);
                         return mix(light, dark, self.dark_mode);
                     }
-                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                    text_style: <FONT_REGULAR>{ font_size: 12.0 }
                 }
             }
 
@@ -368,7 +368,7 @@ live_design! {
                         let dark = vec4(0.290, 0.871, 0.502, 1.0);
                         return mix(light, dark, self.dark_mode);
                     }
-                    text_style: <THEME_FONT_REGULAR>{ font_size: 11.0 }
+                    text_style: <FONT_REGULAR>{ font_size: 11.0 }
                 }
             }
         }
@@ -449,7 +449,7 @@ live_design! {
         status_text = <Label> {
             draw_text: {
                 color: #ffffff
-                text_style: <THEME_FONT_REGULAR>{ font_size: 10.0 }
+                text_style: <FONT_REGULAR>{ font_size: 10.0 }
             }
         }
     }
@@ -486,7 +486,7 @@ live_design! {
                         fn get_color(self) -> vec4 {
                             return mix(#1f2937, #f1f5f9, self.dark_mode);
                         }
-                        text_style: <THEME_FONT_BOLD>{ font_size: 24.0 }
+                        text_style: <FONT_SEMIBOLD>{ font_size: 24.0 }
                     }
                 }
 
@@ -537,7 +537,7 @@ live_design! {
                         fn get_color(self) -> vec4 {
                             return mix(#374151, #e2e8f0, self.dark_mode);
                         }
-                        text_style: <THEME_FONT_BOLD>{ font_size: 16.0 }
+                        text_style: <FONT_SEMIBOLD>{ font_size: 16.0 }
                     }
 
                     text: "R"
@@ -560,7 +560,7 @@ live_design! {
                     fn get_color(self) -> vec4 {
                         return mix(#1f2937, #f1f5f9, self.dark_mode);
                     }
-                    text_style: <THEME_FONT_BOLD>{ font_size: 14.0 }
+                    text_style: <FONT_SEMIBOLD>{ font_size: 14.0 }
                 }
             }
 
@@ -583,7 +583,7 @@ live_design! {
                     fn get_color(self) -> vec4 {
                         return mix(#6b7280, #94a3b8, self.dark_mode);
                     }
-                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                    text_style: <FONT_REGULAR>{ font_size: 12.0 }
                 }
             }
         }
@@ -614,7 +614,7 @@ live_design! {
                     fn get_color(self) -> vec4 {
                         return mix(#6b7280, #94a3b8, self.dark_mode);
                     }
-                    text_style: <THEME_FONT_REGULAR>{ font_size: 14.0 }
+                    text_style: <FONT_REGULAR>{ font_size: 14.0 }
                 }
             }
         }

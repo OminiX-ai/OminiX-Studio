@@ -28,7 +28,7 @@ live_design! {
                 fn get_color(self) -> vec4 {
                     return mix(#1f2937, #f1f5f9, self.dark_mode);
                 }
-                text_style: <THEME_FONT_BOLD>{ font_size: 32.0 }
+                text_style: <FONT_SEMIBOLD>{ font_size: 32.0 }
             }
         }
         subtitle_label = <Label> {
@@ -39,7 +39,7 @@ live_design! {
                 fn get_color(self) -> vec4 {
                     return mix(#6b7280, #94a3b8, self.dark_mode);
                 }
-                text_style: <THEME_FONT_REGULAR>{ font_size: 14.0 }
+                text_style: <FONT_REGULAR>{ font_size: 14.0 }
             }
         }
     }

@@ -3,6 +3,7 @@
 pub mod design;
 
 use makepad_widgets::*;
+use makepad_component::widgets::{MpSwitchWidgetExt, MpSwitchWidgetRefExt};
 use moly_data::{Store, ProviderId, ProviderConnectionStatus};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -143,6 +144,9 @@ impl Widget for SettingsApp {
 
         // Handle Select All toggle
         self.handle_select_all_toggle(cx, scope, &actions);
+
+        // Handle A2UI toggle
+        self.handle_a2ui_toggle(cx, scope, &actions);
     }
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
@@ -166,7 +170,7 @@ impl Widget for SettingsApp {
         // Update select_all_toggle state: ON if all models enabled, OFF otherwise
         if has_models {
             let all_enabled = self.fetched_models.iter().all(|(_, enabled)| *enabled);
-            self.view.check_box(ids!(select_all_toggle)).set_active(cx, all_enabled);
+            self.view.mp_switch(ids!(select_all_toggle)).set_on(cx, all_enabled);
         }
 
         // Show/hide add provider modal
@@ -208,8 +212,8 @@ impl Widget for SettingsApp {
                                 draw_text: { dark_mode: (dark_mode_value) }
                             });
 
-                            // Set checkbox state
-                            item_widget.check_box(ids!(model_enabled)).set_active(cx, *enabled);
+                            // Set switch state
+                            item_widget.mp_switch(ids!(model_enabled)).set_on(cx, *enabled);
 
                             item_widget.draw_all(cx, scope);
                         }
@@ -225,7 +229,7 @@ impl Widget for SettingsApp {
 impl SettingsApp {
     /// Get provider icon from the loaded LiveDependency list
     fn get_provider_icon(&self, provider_id: &str) -> Option<&LiveDependency> {
-        // Icons are stored in order: openai, anthropic, gemini, ollama, deepseek, nvidia, groq
+        // Icons are stored in order: openai, anthropic, gemini, ollama, deepseek, nvidia, groq, kimi, zhipu
         let index = match provider_id {
             "openai" => Some(0),
             "anthropic" => Some(1),
@@ -234,6 +238,8 @@ impl SettingsApp {
             "deepseek" => Some(4),
             "nvidia" => Some(5),
             "groq" => Some(6),
+            "kimi" => Some(7),
+            "zhipu" => Some(8),
             _ => None,
         };
         index.and_then(|i| self.provider_icons.get(i))
@@ -277,6 +283,15 @@ impl SettingsApp {
 
                 // Show/hide delete button based on whether provider was custom added
                 self.view.button(ids!(delete_provider_button)).set_visible(cx, provider.was_customly_added);
+
+                // Show/hide A2UI section based on provider type (only for OpenAI-compatible)
+                let supports_a2ui = provider.supports_a2ui();
+                self.view.view(ids!(a2ui_section)).set_visible(cx, supports_a2ui);
+
+                // Set A2UI toggle state
+                if supports_a2ui {
+                    self.view.mp_switch(ids!(a2ui_toggle)).set_on(cx, provider.a2ui_enabled);
+                }
 
                 // Clear status message
                 self.view.label(ids!(status_message)).set_text(cx, "");
@@ -397,8 +412,8 @@ impl SettingsApp {
                 ::log::debug!("No icon configured for provider: {}", provider_id);
             }
 
-            // Set enabled checkbox state
-            item_widget.check_box(ids!(provider_enabled)).set_active(cx, enabled);
+            // Set enabled switch state
+            item_widget.mp_switch(ids!(provider_enabled)).set_on(cx, enabled);
 
             item_widget.draw_all(cx, scope);
         }
@@ -409,9 +424,9 @@ impl SettingsApp {
         let providers_list = self.view.portal_list(ids!(providers_list));
 
         for (item_id, item) in providers_list.items_with_actions(actions) {
-            // Handle enabled checkbox toggle
-            let checkbox = item.check_box(ids!(provider_enabled));
-            if let Some(new_state) = checkbox.changed(actions) {
+            // Handle enabled switch toggle
+            let switch = item.mp_switch(ids!(provider_enabled));
+            if let Some(new_state) = switch.changed(&actions) {
                 if item_id < self.provider_ids.len() {
                     let provider_id = self.provider_ids[item_id].clone();
                     // Save enabled state to preferences
@@ -439,8 +454,8 @@ impl SettingsApp {
         let models_list = self.view.portal_list(ids!(models_list));
 
         for (item_id, item) in models_list.items_with_actions(actions) {
-            let checkbox = item.check_box(ids!(model_enabled));
-            if let Some(new_state) = checkbox.changed(actions) {
+            let switch = item.mp_switch(ids!(model_enabled));
+            if let Some(new_state) = switch.changed(&actions) {
                 if item_id < self.fetched_models.len() {
                     let model_name = self.fetched_models[item_id].0.clone();
 
@@ -457,10 +472,27 @@ impl SettingsApp {
         }
     }
 
+    /// Handle the A2UI toggle for the current provider
+    fn handle_a2ui_toggle(&mut self, cx: &mut Cx, scope: &mut Scope, actions: &Actions) {
+        let a2ui_toggle = self.view.mp_switch(ids!(a2ui_toggle));
+        if let Some(new_state) = a2ui_toggle.changed(&actions) {
+            let Some(provider_id) = &self.selected_provider_id else { return };
+
+            if let Some(store) = scope.data.get_mut::<Store>() {
+                if let Some(provider) = store.preferences.get_provider_mut(provider_id) {
+                    provider.a2ui_enabled = new_state;
+                    store.preferences.save();
+                    ::log::info!("Provider '{}' A2UI enabled: {}", provider_id, new_state);
+                }
+            }
+            self.view.redraw(cx);
+        }
+    }
+
     /// Handle the Select All toggle for models
     fn handle_select_all_toggle(&mut self, cx: &mut Cx, scope: &mut Scope, actions: &Actions) {
-        let select_all_toggle = self.view.check_box(ids!(select_all_toggle));
-        if let Some(new_state) = select_all_toggle.changed(actions) {
+        let select_all_toggle = self.view.mp_switch(ids!(select_all_toggle));
+        if let Some(new_state) = select_all_toggle.changed(&actions) {
             // Set all models to the new state
             for (_, enabled) in &mut self.fetched_models {
                 *enabled = new_state;
@@ -595,8 +627,16 @@ impl SettingsApp {
         let Some(provider_id) = self.selected_provider_id.clone() else { return };
 
         // Get provider URL and API key from the current input values
-        let url = self.view.text_input(ids!(api_host_input)).text();
-        let api_key = self.view.text_input(ids!(api_key_input)).text();
+        let url = self.view.text_input(ids!(api_host_input)).text().trim().to_string();
+        let api_key = self.view.text_input(ids!(api_key_input)).text().trim().to_string();
+
+        eprintln!(
+            "[Settings] test_connection: provider={}, url='{}', api_key len={}, first_8='{}'",
+            provider_id,
+            url,
+            api_key.len(),
+            api_key.chars().take(8).collect::<String>()
+        );
 
         if api_key.is_empty() {
             self.connection_status = ProviderConnectionStatus::Error("No API key provided".to_string());
@@ -827,7 +867,11 @@ fn test_provider_connection(base_url: &str, api_key: &str) -> Result<(usize, Vec
     let mut last_error = String::new();
 
     for models_url in &endpoints_to_try {
-        ::log::info!("Testing connection to: {}", models_url);
+        eprintln!(
+            "[Settings] Testing connection to: {} (key len={})",
+            models_url,
+            api_key.len()
+        );
 
         // Make request to models endpoint
         let response = match client
@@ -845,11 +889,13 @@ fn test_provider_connection(base_url: &str, api_key: &str) -> Result<(usize, Vec
                 } else {
                     format!("Request failed: {}", e)
                 };
+                eprintln!("[Settings] Connection error: {}", last_error);
                 continue;
             }
         };
 
         let status = response.status();
+        eprintln!("[Settings] Response status: {}", status);
 
         // If 404, try next endpoint
         if status.as_u16() == 404 {
@@ -860,6 +906,7 @@ fn test_provider_connection(base_url: &str, api_key: &str) -> Result<(usize, Vec
         // Check response status
         if !status.is_success() {
             let error_text = response.text().unwrap_or_default();
+            eprintln!("[Settings] Error response: {}", &error_text[..error_text.len().min(500)]);
             return Err(match status.as_u16() {
                 401 => "Invalid API key".to_string(),
                 403 => "Access denied".to_string(),
@@ -878,15 +925,17 @@ fn test_provider_connection(base_url: &str, api_key: &str) -> Result<(usize, Vec
         };
 
         // Try to parse as OpenAI-compatible models response
+        eprintln!("[Settings] Response body ({} bytes): {}",
+            body.len(), &body[..body.len().min(300)]);
         match serde_json::from_str::<ModelsResponse>(&body) {
             Ok(models) => {
                 let model_names: Vec<String> = models.data.into_iter().map(|m| m.id).collect();
-                ::log::info!("Found {} models at {}", model_names.len(), models_url);
+                eprintln!("[Settings] Found {} models", model_names.len());
                 return Ok((model_names.len(), model_names));
             }
-            Err(_) => {
+            Err(e) => {
                 // If we got a 200 but can't parse models, still consider it connected
-                ::log::warn!("Connected to {} but could not parse models response", models_url);
+                eprintln!("[Settings] Could not parse models response: {}", e);
                 return Ok((0, vec![]));
             }
         }

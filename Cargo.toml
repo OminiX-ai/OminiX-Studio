@@ -18,8 +18,11 @@ edition = "2021"
 license = "Apache-2.0"
 
 [workspace.dependencies]
-# Makepad UI framework (using moly-ai's revision for compatibility)
-makepad-widgets = { git = "https://github.com/wyeworks/makepad", rev = "53b2e5c84" }
+# Makepad UI framework (official dev branch)
+makepad-widgets = { git = "https://github.com/makepad/makepad", branch = "dev" }
+
+# Makepad component library (switch, spinner, modal, tooltip, etc.)
+makepad-component = { git = "https://github.com/ZhangHanDong/makepad-component", package = "makepad-component" }
 
 # Moly-kit for chat widgets (local path from moly-ai)
 moly-kit = { path = "../moly-ai/moly-kit", features = ["full"] }
@@ -47,3 +50,6 @@ reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls", "block
 uuid = { version = "1.18.0", features = ["js", "v7"] }
 dirs = "5.0"
 tokio = { version = "1.43", features = ["rt", "time"] }
+
+[patch.'https://github.com/moly-ai/aitk']
+aitk = { path = "../aitk" }

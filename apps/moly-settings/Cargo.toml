@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 makepad-widgets.workspace = true
+makepad-component.workspace = true
 moly-data.workspace = true
 moly-widgets.workspace = true
 log.workspace = true

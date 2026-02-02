@@ -4,7 +4,7 @@
 
 pub mod screen;
 
-use makepad_widgets::Cx;
+use makepad_widgets::{Cx, live_id, LiveId};
 use moly_widgets::{MolyApp, AppInfo};
 
 pub use screen::{ChatApp, ChatAppRef, ChatHistoryAction};
@@ -18,6 +18,8 @@ impl MolyApp for MolyChatApp {
             name: "Chat",
             id: "moly-chat",
             description: "AI chat interface with multi-provider support",
+            icon: live_id!(IconChat),
+            page_id: live_id!(chat_app),
         }
     }
 

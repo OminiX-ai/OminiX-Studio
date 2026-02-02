@@ -55,8 +55,10 @@ impl Preferences {
             match serde_json::from_str::<Preferences>(&contents) {
                 Ok(mut prefs) => {
                     log::debug!("Parsed preferences successfully");
-                    // Ensure all supported providers exist
+                    // Ensure all supported providers exist and names are up-to-date
                     prefs.merge_with_supported_providers();
+                    // Save to persist any name updates
+                    prefs.save();
                     return prefs;
                 }
                 Err(e) => {
@@ -181,26 +183,30 @@ impl Preferences {
         self.current_chat_model.as_deref()
     }
 
-    /// Get all enabled providers with API keys
+    /// Get all enabled providers that are ready to use
     pub fn get_enabled_providers(&self) -> Vec<&ProviderPreferences> {
         self.providers_preferences
             .iter()
-            .filter(|p| p.enabled && p.has_api_key())
+            .filter(|p| p.is_ready())
             .collect()
     }
 
-    /// Get the first enabled provider with an API key (for backwards compatibility)
+    /// Get the first enabled provider that is ready to use
     pub fn get_active_provider(&self) -> Option<&ProviderPreferences> {
         self.providers_preferences
             .iter()
-            .find(|p| p.enabled && p.has_api_key())
+            .find(|p| p.is_ready())
     }
 
-    /// Merge loaded preferences with supported providers (add any missing)
+    /// Merge loaded preferences with supported providers (add any missing, update names)
     pub fn merge_with_supported_providers(&mut self) {
         let supported = get_supported_providers();
         for sp in supported {
-            if !self.providers_preferences.iter().any(|p| p.id == sp.id) {
+            if let Some(existing) = self.providers_preferences.iter_mut().find(|p| p.id == sp.id) {
+                // Update name to match the canonical name from supported providers
+                existing.name = sp.name;
+            } else {
+                // Add missing provider
                 self.providers_preferences.push(sp);
             }
         }

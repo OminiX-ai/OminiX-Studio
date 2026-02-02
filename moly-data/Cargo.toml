@@ -20,6 +20,9 @@ serde_json.workspace = true
 reqwest.workspace = true
 futures.workspace = true
 
+# Async streams
+async-stream = "0.3"
+
 # Utilities
 log.workspace = true
 chrono.workspace = true

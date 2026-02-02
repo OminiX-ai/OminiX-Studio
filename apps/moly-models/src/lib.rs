@@ -4,7 +4,7 @@
 
 pub mod screen;
 
-use makepad_widgets::Cx;
+use makepad_widgets::{Cx, live_id, LiveId};
 use moly_widgets::{MolyApp, AppInfo};
 
 pub use screen::{ModelsApp, ModelsAppRef};
@@ -18,6 +18,8 @@ impl MolyApp for MolyModelsApp {
             name: "Models",
             id: "moly-models",
             description: "Model discovery and downloads",
+            icon: live_id!(IconModels),
+            page_id: live_id!(models_app),
         }
     }
 

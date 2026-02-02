@@ -6,7 +6,9 @@ use makepad_widgets::*;
 use moly_kit::prelude::*;
 use moly_kit::aitk::controllers::chat::{ChatStateMutation, ChatTask};
 use moly_kit::aitk::protocol::{Bot, BotId, EntityAvatar};
+use moly_kit::widgets::a2ui_client::A2uiClient;
 use moly_kit::widgets::model_selector::BotGroup;
+use moly_kit::widgets::prompt_input::PromptInputAction;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -331,6 +333,10 @@ pub struct ChatApp {
     #[rust]
     last_synced_message_count: usize,
 
+    /// A2UI client wrapper - wraps the actual client to inject A2UI tools when enabled
+    #[rust]
+    a2ui_client: Option<A2uiClient>,
+
     /// Whether there was a message being written in the last sync check
     #[rust]
     had_writing_message: bool,
@@ -364,7 +370,6 @@ impl LiveHook for ChatApp {
 impl ChatApp {
     /// Get provider icon LiveDependency from the loaded list
     fn get_provider_icon(&self, provider_id: &str) -> Option<&LiveDependency> {
-        // Icons are stored in order: openai, anthropic, gemini, ollama, deepseek, openrouter, siliconflow, nvidia, groq
         let index = match provider_id {
             "openai" | "openai-realtime" => Some(0),
             "anthropic" => Some(1),
@@ -375,7 +380,8 @@ impl ChatApp {
             "siliconflow" => Some(6),
             "nvidia" => Some(7),
             "groq" => Some(8),
-            "ominix-image" => Some(3), // Use Ollama icon for local image provider
+            "zhipu" => Some(9),
+            "ominix-image" => Some(3),
             _ => None,
         };
         index.and_then(|i| self.provider_icons.get(i))
@@ -399,6 +405,7 @@ impl ChatApp {
             "nvidia" => "NVIDIA",
             "openrouter" => "OpenRouter",
             "siliconflow" => "SiliconFlow",
+            "zhipu" => "Zhipu AI",
             "ominix-image" => "OminiX Image",
             _ => "Unknown",
         }
@@ -967,6 +974,40 @@ impl WidgetMatchEvent for ChatApp {
                 ::log::info!("ACTION: DeleteChat({}) triggered", chat_id);
                 self.delete_chat(cx, scope, chat_id);
             }
+
+            // Handle A2UI toggle from PromptInput (direct action for welcome prompt)
+            if let PromptInputAction::A2uiToggled(enabled) = action.cast() {
+                eprintln!("[ChatApp] A2UI toggled (from PromptInput): {}", enabled);
+                if let Some(ref a2ui_client) = self.a2ui_client {
+                    a2ui_client.set_a2ui_enabled(enabled);
+                    eprintln!("[ChatApp] A2uiClient enabled state set to: {}", enabled);
+                } else {
+                    eprintln!("[ChatApp] Warning: No A2uiClient available");
+                }
+            }
+
+            // Handle A2UI toggle from Chat widget (forwarded from its internal PromptInput)
+            if let ChatAction::A2uiToggled(enabled) = action.cast() {
+                eprintln!("[ChatApp] A2UI toggled (from Chat): {}", enabled);
+                if let Some(ref a2ui_client) = self.a2ui_client {
+                    a2ui_client.set_a2ui_enabled(enabled);
+                    eprintln!("[ChatApp] A2uiClient enabled state set to: {}", enabled);
+                } else {
+                    eprintln!("[ChatApp] Warning: No A2uiClient available");
+                }
+            }
+        }
+
+        // Also directly check the Chat widget's PromptInput for A2UI toggle
+        let chat = self.view.chat(ids!(main_content.chat));
+        if let Some(a2ui_enabled) = chat.read().prompt_input_ref().a2ui_toggled(actions) {
+            eprintln!("[ChatApp] A2UI toggled (direct check): {}", a2ui_enabled);
+            if let Some(ref a2ui_client) = self.a2ui_client {
+                a2ui_client.set_a2ui_enabled(a2ui_enabled);
+                eprintln!("[ChatApp] A2uiClient enabled state set to: {}", a2ui_enabled);
+            } else {
+                eprintln!("[ChatApp] Warning: No A2uiClient available");
+            }
         }
 
         // Handle welcome prompt send action - use submitted() to detect actual user send action
@@ -993,6 +1034,14 @@ impl WidgetMatchEvent for ChatApp {
                     }));
                     // Trigger send
                     ctrl.dispatch_task(ChatTask::Send);
+                }
+
+                // Transfer A2UI toggle state to Chat's PromptInput before reset
+                let a2ui_state = welcome_prompt.read().is_a2ui_enabled();
+                if a2ui_state {
+                    let mut chat = self.view.chat(ids!(main_content.chat));
+                    chat.write().prompt_input_ref().write()
+                        .set_a2ui_enabled(cx, true);
                 }
 
                 // Reset the welcome prompt
@@ -1131,15 +1180,14 @@ impl ChatApp {
             return;
         };
 
-        // Get provider URL for BotId
-        let _provider_url = store.preferences.get_provider(provider_id)
-            .map(|p| p.url.clone())
-            .unwrap_or_default();
-
-        // Set up the ChatController with this provider's client
+        // Set up the ChatController with this provider's client wrapped in A2uiClient
         {
+            // Create A2UI wrapper around the client
+            let a2ui_client = A2uiClient::new(client);
+            self.a2ui_client = Some(a2ui_client.clone());
+
             let mut ctrl = self.chat_controller.lock().unwrap();
-            ctrl.set_client(Some(client));
+            ctrl.set_client(Some(Box::new(a2ui_client)));
 
             // Don't set a default bot_id here - we'll restore the saved model
             // or select first available after models are loaded
@@ -1253,6 +1301,9 @@ impl ChatApp {
             // Set up grouping with provider icons for the model selector
             self.setup_model_selector_grouping(scope);
 
+            // Update A2UI toggle visibility based on current provider
+            self.update_a2ui_toggle_visibility(cx, scope);
+
             // Redraw both the view and explicitly the chat widget
             self.view.redraw(cx);
             self.view.chat(ids!(main_content.chat)).redraw(cx);
@@ -1330,8 +1381,12 @@ impl ChatApp {
                     let enabled_bots = Self::filter_enabled_bots(all_bots, store);
 
                     {
+                        // Create A2UI wrapper around the client
+                        let a2ui_client = A2uiClient::new(client);
+                        self.a2ui_client = Some(a2ui_client.clone());
+
                         let mut ctrl = self.chat_controller.lock().unwrap();
-                        ctrl.set_client(Some(client));
+                        ctrl.set_client(Some(Box::new(a2ui_client)));
                     }
 
                     self.current_provider_id = Some(provider_id.to_string());
@@ -1347,6 +1402,13 @@ impl ChatApp {
         } else {
             ::log::warn!("Could not find provider for bot: {}", bot_id.as_str());
         }
+    }
+
+    /// Wrapper for switch_to_provider_for_bot that also updates A2UI toggle visibility
+    /// Called when model selection changes (needs Cx for UI updates)
+    fn switch_to_provider_for_bot_with_ui(&mut self, cx: &mut Cx, bot_id: &BotId, scope: &mut Scope) {
+        self.switch_to_provider_for_bot(bot_id, scope);
+        self.update_a2ui_toggle_visibility(cx, scope);
     }
 
     /// Filter bots based on enabled status in provider preferences
@@ -1492,5 +1554,30 @@ impl ChatApp {
         }
 
         self.restored_saved_model = true;
+    }
+
+    /// Update the A2UI toggle visibility in PromptInput based on current provider support
+    fn update_a2ui_toggle_visibility(&mut self, cx: &mut Cx, scope: &mut Scope) {
+        let Some(store) = scope.data.get::<Store>() else { return };
+
+        // Check if current provider supports and has A2UI enabled
+        let a2ui_available = if let Some(ref provider_id) = self.current_provider_id {
+            store.preferences.get_provider(provider_id)
+                .map(|p| p.is_a2ui_ready())
+                .unwrap_or(false)
+        } else {
+            false
+        };
+
+        // Update the PromptInput in the Chat widget
+        let mut chat = self.view.chat(ids!(main_content.chat));
+        chat.write().prompt_input_ref().write().set_a2ui_available(cx, a2ui_available);
+
+        // Also update the welcome prompt
+        self.view.prompt_input(ids!(main_content.welcome_overlay.welcome_prompt))
+            .write()
+            .set_a2ui_available(cx, a2ui_available);
+
+        ::log::info!("A2UI toggle visibility updated: available={}", a2ui_available);
     }
 }

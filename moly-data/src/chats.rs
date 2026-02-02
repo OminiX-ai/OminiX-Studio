@@ -20,10 +20,14 @@ pub struct ChatData {
 
 impl ChatData {
     pub fn new() -> Self {
+        Self::with_title("New Chat".to_string())
+    }
+
+    pub fn with_title(title: String) -> Self {
         let now = Utc::now();
         Self {
             id: now.timestamp_millis() as u128,
-            title: "New Chat".to_string(),
+            title,
             bot_id: None,
             messages: Vec::new(),
             created_at: now,
@@ -91,24 +95,65 @@ impl ChatData {
         self.accessed_at = Utc::now();
     }
 
-    /// Generate a title from the first message if title is default
+    /// Generate a title from the first user question and first assistant answer
     pub fn maybe_update_title_from_messages(&mut self) {
         use moly_kit::aitk::protocol::EntityId;
 
-        if self.title == "New Chat" && !self.messages.is_empty() {
-            // Find the first user message
-            if let Some(msg) = self.messages.iter().find(|m| matches!(m.from, EntityId::User)) {
-                let text = msg.content.text.trim();
-                if !text.is_empty() {
-                    // Truncate to first 50 chars
-                    let title = if text.len() > 50 {
-                        format!("{}...", &text[..50])
-                    } else {
-                        text.to_string()
-                    };
-                    self.title = title;
-                }
+        // Only update if title starts with "New Chat"
+        if !self.title.starts_with("New Chat") || self.messages.is_empty() {
+            return;
+        }
+
+        // Find the first user message (question)
+        let question = self.messages.iter()
+            .find(|m| matches!(m.from, EntityId::User))
+            .map(|m| Self::extract_first_sentence(&m.content.text, 40));
+
+        // Find the first assistant message (answer)
+        let answer = self.messages.iter()
+            .find(|m| matches!(m.from, EntityId::Bot(_)))
+            .map(|m| Self::extract_first_sentence(&m.content.text, 40));
+
+        // Build title from question and answer
+        let title = match (question, answer) {
+            (Some(q), Some(a)) if !q.is_empty() && !a.is_empty() => {
+                format!("{} - {}", q, a)
             }
+            (Some(q), _) if !q.is_empty() => q,
+            (_, Some(a)) if !a.is_empty() => a,
+            _ => return, // No valid content yet
+        };
+
+        // Final length limit of 80 characters (UTF-8 safe)
+        let char_count = title.chars().count();
+        self.title = if char_count > 80 {
+            let truncated: String = title.chars().take(77).collect();
+            format!("{}...", truncated)
+        } else {
+            title
+        };
+    }
+
+    /// Extract first sentence from text, with max character length (UTF-8 safe)
+    fn extract_first_sentence(text: &str, max_chars: usize) -> String {
+        let text = text.trim();
+
+        // Find first sentence ending (. ! ? or Chinese equivalents)
+        let sentence_end = text.char_indices()
+            .find(|(_, c)| *c == '.' || *c == '!' || *c == '?' || *c == '。' || *c == '！' || *c == '？')
+            .map(|(i, c)| i + c.len_utf8())
+            .unwrap_or(text.len());
+
+        let sentence = &text[..sentence_end];
+        let sentence = sentence.trim();
+
+        // Count characters (not bytes) for proper UTF-8 handling
+        let char_count = sentence.chars().count();
+        if char_count > max_chars {
+            let truncated: String = sentence.chars().take(max_chars.saturating_sub(3)).collect();
+            format!("{}...", truncated)
+        } else {
+            sentence.to_string()
         }
     }
 }
@@ -124,6 +169,7 @@ pub struct Chats {
     pub saved_chats: Vec<ChatData>,
     pub current_chat_id: Option<ChatId>,
     chats_dir: PathBuf,
+    new_chat_counter: usize,
 }
 
 impl Chats {
@@ -133,6 +179,7 @@ impl Chats {
             saved_chats: Vec::new(),
             current_chat_id: None,
             chats_dir: Self::get_chats_dir(),
+            new_chat_counter: 0,
         }
     }
 
@@ -145,6 +192,22 @@ impl Chats {
         }
     }
 
+    /// Calculate the highest "New Chat X" number from existing chat titles
+    fn calculate_max_new_chat_number(&self) -> usize {
+        let mut max_number = 0;
+        for chat in &self.saved_chats {
+            // Check for "New Chat" (without number) and "New Chat X" patterns
+            if chat.title == "New Chat" {
+                max_number = max_number.max(1);
+            } else if let Some(num_str) = chat.title.strip_prefix("New Chat ") {
+                if let Ok(num) = num_str.parse::<usize>() {
+                    max_number = max_number.max(num);
+                }
+            }
+        }
+        max_number
+    }
+
     /// Load all chats from disk
     pub fn load() -> Self {
         let chats_dir = Self::get_chats_dir();
@@ -154,6 +217,7 @@ impl Chats {
             saved_chats: Vec::new(),
             current_chat_id: None,
             chats_dir: chats_dir.clone(),
+            new_chat_counter: 0,
         };
 
         // Ensure directory exists
@@ -182,6 +246,11 @@ impl Chats {
                 if let Some(first) = chats.saved_chats.first() {
                     chats.current_chat_id = Some(first.id);
                 }
+
+                // Calculate the highest "New Chat X" number from existing chats
+                chats.new_chat_counter = chats.calculate_max_new_chat_number();
+                log::info!("Calculated new_chat_counter: {} (next chat will be 'New Chat {}')",
+                    chats.new_chat_counter, chats.new_chat_counter + 1);
             }
             Err(e) => {
                 log::warn!("Could not read chats directory: {:?}", e);
@@ -213,7 +282,10 @@ impl Chats {
 
     /// Create a new chat and save it to disk
     pub fn create_chat(&mut self, bot_id: Option<BotId>) -> ChatId {
-        let mut chat = ChatData::new();
+        // Increment counter and generate incremental title
+        self.new_chat_counter += 1;
+        let title = format!("New Chat {}", self.new_chat_counter);
+        let mut chat = ChatData::with_title(title);
 
         // Use provided bot_id or inherit from last chat
         if let Some(bid) = bot_id {
@@ -226,7 +298,7 @@ impl Chats {
         chat.save(&self.chats_dir);
         self.saved_chats.insert(0, chat); // Insert at front (most recent)
         self.current_chat_id = Some(id);
-        log::info!("Created new chat {}", id);
+        log::info!("Created new chat {} with title 'New Chat {}'", id, self.new_chat_counter);
         id
     }
 
