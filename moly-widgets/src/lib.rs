@@ -1,4 +1,5 @@
 pub mod theme;
+pub mod components;
 pub mod app_trait;
 pub mod moly_theme;
 pub mod app_data;
@@ -19,4 +20,6 @@ use makepad_widgets::Cx;
 pub fn live_design(cx: &mut Cx) {
     // Theme provides fonts and base styles - must be first
     theme::live_design(cx);
+    // Shared components depend on theme
+    components::live_design(cx);
 }

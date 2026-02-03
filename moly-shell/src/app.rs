@@ -12,6 +12,7 @@ live_design! {
     use link::shaders::*;
     use link::widgets::*;
     use moly_widgets::theme::*;
+    use moly_widgets::components::*;
     use moly_kit::a2ui::surface::*;
 
     // Import app widgets from external app crates
@@ -43,6 +44,45 @@ live_design! {
     ICON_PROVIDER_DEEPSEEK = dep("crate://self/resources/providers/deepseek.png")
     ICON_PROVIDER_OPENROUTER = dep("crate://self/resources/providers/openrouter.png")
     ICON_PROVIDER_SILICONFLOW = dep("crate://self/resources/providers/siliconflow.png")
+
+    // Reusable chat tile for chat history grid
+    ChatTile = <RoundedView> {
+        width: Fill, height: 144
+        show_bg: true, draw_bg: { color: (PANEL_BG), border_radius: 12.0 }
+        flow: Down
+        padding: {top: 16, left: 16, right: 16, bottom: 16}
+        cursor: Hand
+        visible: false
+        header = <View> {
+            width: Fill, height: Fit
+            flow: Right
+            align: {y: 0.0}
+            title = <Label> {
+                width: Fill
+                draw_text: { color: (TEXT_PRIMARY), text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
+            }
+            delete_btn = <View> {
+                width: 28, height: 28
+                align: {x: 0.5, y: 0.5}
+                cursor: Hand
+                <Icon> { draw_icon: { svg_file: (ICON_TRASH), color: (TEXT_MUTED) }, icon_walk: {width: 18, height: 18} }
+            }
+        }
+        <View> { width: Fill, height: Fill }
+        date_label = <Label> { draw_text: { color: (TEXT_MUTED), text_style: { font_size: 10.0 } } }
+    }
+
+    // Row of 4 chat tiles for grid layout
+    TileRow = <View> {
+        width: Fill, height: Fit
+        flow: Right
+        spacing: 20
+        visible: false
+        tile_0 = <ChatTile> {}
+        tile_1 = <ChatTile> {}
+        tile_2 = <ChatTile> {}
+        tile_3 = <ChatTile> {}
+    }
 
     // Sidebar button using Button directly (like mofa-studio SidebarMenuButton)
     // Button natively supports icon + text with draw_icon and draw_text
@@ -87,10 +127,9 @@ live_design! {
 
             fn pixel(self) -> vec4 {
                 let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                // Light mode colors (theme switching handled separately)
-                let normal = #ffffff;
-                let hover_color = #f1f5f9;
-                let selected_color = #e0e7ff;
+                let normal = (PANEL_BG);
+                let hover_color = (HOVER_BG);
+                let selected_color = (INDIGO_50);
                 let color = mix(
                     mix(normal, hover_color, self.hover),
                     selected_color,
@@ -104,12 +143,12 @@ live_design! {
 
         draw_text: {
             text_style: <FONT_MEDIUM>{ font_size: 13.0 }
-            color: #1f2937
+            color: (TEXT_PRIMARY)
         }
 
         draw_icon: {
             fn get_color(self) -> vec4 {
-                return #4b5563;
+                return (GRAY_600);
             }
         }
     }
@@ -231,84 +270,12 @@ live_design! {
                                 padding: {left: 32}
 
                                 // Chat history items - visible with placeholder text
-                                chat_item_0 = <View> {
-                                    width: Fill, height: 32
-                                    padding: {left: 8, right: 8}
-                                    align: {y: 0.5}
-                                    cursor: Hand
-                                    show_bg: true
-                                    draw_bg: {
-                                        instance hover: 0.0
-                                        instance selected: 1.0
-                                        fn pixel(self) -> vec4 {
-                                            let base = #ffffff;
-                                            let hover_color = #f1f5f9;
-                                            let selected_color = #dbeafe;
-                                            return mix(mix(base, hover_color, self.hover), selected_color, self.selected);
-                                        }
-                                    }
-                                    chat_title_0 = <Label> {
-                                        width: Fill
-                                        text: "Current Chat"
-                                        draw_text: {
-                                            color: #374151
-                                            text_style: { font_size: 11.0 }
-                                            wrap: Ellipsis
-                                        }
-                                    }
+                                chat_item_0 = <ChatListItem> {
+                                    draw_bg: { selected: 1.0 }
+                                    title = { text: "Current Chat" }
                                 }
-                                chat_item_1 = <View> {
-                                    width: Fill, height: 32
-                                    padding: {left: 8, right: 8}
-                                    align: {y: 0.5}
-                                    cursor: Hand
-                                    show_bg: true
-                                    draw_bg: {
-                                        instance hover: 0.0
-                                        instance selected: 0.0
-                                        fn pixel(self) -> vec4 {
-                                            let base = #ffffff;
-                                            let hover_color = #f1f5f9;
-                                            let selected_color = #dbeafe;
-                                            return mix(mix(base, hover_color, self.hover), selected_color, self.selected);
-                                        }
-                                    }
-                                    chat_title_1 = <Label> {
-                                        width: Fill
-                                        text: "Previous Chat 1"
-                                        draw_text: {
-                                            color: #374151
-                                            text_style: { font_size: 11.0 }
-                                            wrap: Ellipsis
-                                        }
-                                    }
-                                }
-                                chat_item_2 = <View> {
-                                    width: Fill, height: 32
-                                    padding: {left: 8, right: 8}
-                                    align: {y: 0.5}
-                                    cursor: Hand
-                                    show_bg: true
-                                    draw_bg: {
-                                        instance hover: 0.0
-                                        instance selected: 0.0
-                                        fn pixel(self) -> vec4 {
-                                            let base = #ffffff;
-                                            let hover_color = #f1f5f9;
-                                            let selected_color = #dbeafe;
-                                            return mix(mix(base, hover_color, self.hover), selected_color, self.selected);
-                                        }
-                                    }
-                                    chat_title_2 = <Label> {
-                                        width: Fill
-                                        text: "Previous Chat 2"
-                                        draw_text: {
-                                            color: #374151
-                                            text_style: { font_size: 11.0 }
-                                            wrap: Ellipsis
-                                        }
-                                    }
-                                }
+                                chat_item_1 = <ChatListItem> { title = { text: "Previous Chat 1" } }
+                                chat_item_2 = <ChatListItem> { title = { text: "Previous Chat 2" } }
 
                                 // Show More button
                                 show_more_btn = <View> {
@@ -321,8 +288,8 @@ live_design! {
                                     draw_bg: {
                                         instance hover: 0.0
                                         fn pixel(self) -> vec4 {
-                                            let base = #ffffff;
-                                            let hover_color = #f1f5f9;
+                                            let base = (PANEL_BG);
+                                            let hover_color = (HOVER_BG);
                                             return mix(base, hover_color, self.hover);
                                         }
                                     }
@@ -330,14 +297,14 @@ live_design! {
                                         width: Fill
                                         text: "Show More"
                                         draw_text: {
-                                            color: #6b7280
+                                            color: (TEXT_SECONDARY)
                                             text_style: { font_size: 11.0 }
                                         }
                                     }
                                     show_more_arrow = <Label> {
                                         text: ">"
                                         draw_text: {
-                                            color: #6b7280
+                                            color: (TEXT_SECONDARY)
                                             text_style: { font_size: 11.0 }
                                         }
                                     }
@@ -351,84 +318,9 @@ live_design! {
                                 padding: {left: 32}
                                 visible: false
 
-                                chat_item_3 = <View> {
-                                    width: Fill, height: 32
-                                    padding: {left: 8, right: 8}
-                                    align: {y: 0.5}
-                                    cursor: Hand
-                                    visible: false
-                                    show_bg: true
-                                    draw_bg: {
-                                        instance hover: 0.0
-                                        instance selected: 0.0
-                                        fn pixel(self) -> vec4 {
-                                            let base = #ffffff;
-                                            let hover_color = #f1f5f9;
-                                            let selected_color = #dbeafe;
-                                            return mix(mix(base, hover_color, self.hover), selected_color, self.selected);
-                                        }
-                                    }
-                                    chat_title_3 = <Label> {
-                                        width: Fill
-                                        draw_text: {
-                                            color: #374151
-                                            text_style: { font_size: 11.0 }
-                                            wrap: Ellipsis
-                                        }
-                                    }
-                                }
-                                chat_item_4 = <View> {
-                                    width: Fill, height: 32
-                                    padding: {left: 8, right: 8}
-                                    align: {y: 0.5}
-                                    cursor: Hand
-                                    visible: false
-                                    show_bg: true
-                                    draw_bg: {
-                                        instance hover: 0.0
-                                        instance selected: 0.0
-                                        fn pixel(self) -> vec4 {
-                                            let base = #ffffff;
-                                            let hover_color = #f1f5f9;
-                                            let selected_color = #dbeafe;
-                                            return mix(mix(base, hover_color, self.hover), selected_color, self.selected);
-                                        }
-                                    }
-                                    chat_title_4 = <Label> {
-                                        width: Fill
-                                        draw_text: {
-                                            color: #374151
-                                            text_style: { font_size: 11.0 }
-                                            wrap: Ellipsis
-                                        }
-                                    }
-                                }
-                                chat_item_5 = <View> {
-                                    width: Fill, height: 32
-                                    padding: {left: 8, right: 8}
-                                    align: {y: 0.5}
-                                    cursor: Hand
-                                    visible: false
-                                    show_bg: true
-                                    draw_bg: {
-                                        instance hover: 0.0
-                                        instance selected: 0.0
-                                        fn pixel(self) -> vec4 {
-                                            let base = #ffffff;
-                                            let hover_color = #f1f5f9;
-                                            let selected_color = #dbeafe;
-                                            return mix(mix(base, hover_color, self.hover), selected_color, self.selected);
-                                        }
-                                    }
-                                    chat_title_5 = <Label> {
-                                        width: Fill
-                                        draw_text: {
-                                            color: #374151
-                                            text_style: { font_size: 11.0 }
-                                            wrap: Ellipsis
-                                        }
-                                    }
-                                }
+                                chat_item_3 = <ChatListItem> { visible: false }
+                                chat_item_4 = <ChatListItem> { visible: false }
+                                chat_item_5 = <ChatListItem> { visible: false }
                             }
                         }
                         models_btn = <SidebarButton> {
@@ -561,343 +453,9 @@ live_design! {
                                     flow: Down
                                     spacing: 20
 
-                                    // Row 0: tiles 0-3
-                                    tile_row_0 = <View> {
-                                        width: Fill, height: Fit
-                                        flow: Right
-                                        spacing: 20
-                                        visible: false
-
-                                        chat_tile_0 = <RoundedView> {
-                                            width: Fill, height: 144
-                                            show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
-                                            flow: Down
-                                            padding: {top: 16, left: 16, right: 16, bottom: 16}
-                                            cursor: Hand
-                                            visible: false
-                                            <View> {
-                                                width: Fill, height: Fit
-                                                flow: Right
-                                                align: {y: 0.0}
-                                                chat_tile_title_0 = <Label> {
-                                                    width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
-                                                }
-                                                delete_btn_0 = <View> {
-                                                    width: 28, height: 28
-                                                    align: {x: 0.5, y: 0.5}
-                                                    cursor: Hand
-                                                    <Icon> { draw_icon: { svg_file: (ICON_TRASH), color: #9ca3af }, icon_walk: {width: 18, height: 18} }
-                                                }
-                                            }
-                                            <View> { width: Fill, height: Fill }
-                                            chat_tile_date_0 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
-                                        }
-
-                                        chat_tile_1 = <RoundedView> {
-                                            width: Fill, height: 144
-                                            show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
-                                            flow: Down
-                                            padding: {top: 16, left: 16, right: 16, bottom: 16}
-                                            cursor: Hand
-                                            visible: false
-                                            <View> {
-                                                width: Fill, height: Fit
-                                                flow: Right
-                                                align: {y: 0.0}
-                                                chat_tile_title_1 = <Label> {
-                                                    width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
-                                                }
-                                                delete_btn_1 = <View> {
-                                                    width: 28, height: 28
-                                                    align: {x: 0.5, y: 0.5}
-                                                    cursor: Hand
-                                                    <Icon> { draw_icon: { svg_file: (ICON_TRASH), color: #9ca3af }, icon_walk: {width: 18, height: 18} }
-                                                }
-                                            }
-                                            <View> { width: Fill, height: Fill }
-                                            chat_tile_date_1 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
-                                        }
-
-                                        chat_tile_2 = <RoundedView> {
-                                            width: Fill, height: 144
-                                            show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
-                                            flow: Down
-                                            padding: {top: 16, left: 16, right: 16, bottom: 16}
-                                            cursor: Hand
-                                            visible: false
-                                            <View> {
-                                                width: Fill, height: Fit
-                                                flow: Right
-                                                align: {y: 0.0}
-                                                chat_tile_title_2 = <Label> {
-                                                    width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
-                                                }
-                                                delete_btn_2 = <View> {
-                                                    width: 28, height: 28
-                                                    align: {x: 0.5, y: 0.5}
-                                                    cursor: Hand
-                                                    <Icon> { draw_icon: { svg_file: (ICON_TRASH), color: #9ca3af }, icon_walk: {width: 18, height: 18} }
-                                                }
-                                            }
-                                            <View> { width: Fill, height: Fill }
-                                            chat_tile_date_2 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
-                                        }
-
-                                        chat_tile_3 = <RoundedView> {
-                                            width: Fill, height: 144
-                                            show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
-                                            flow: Down
-                                            padding: {top: 16, left: 16, right: 16, bottom: 16}
-                                            cursor: Hand
-                                            visible: false
-                                            <View> {
-                                                width: Fill, height: Fit
-                                                flow: Right
-                                                align: {y: 0.0}
-                                                chat_tile_title_3 = <Label> {
-                                                    width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
-                                                }
-                                                delete_btn_3 = <View> {
-                                                    width: 28, height: 28
-                                                    align: {x: 0.5, y: 0.5}
-                                                    cursor: Hand
-                                                    <Icon> { draw_icon: { svg_file: (ICON_TRASH), color: #9ca3af }, icon_walk: {width: 18, height: 18} }
-                                                }
-                                            }
-                                            <View> { width: Fill, height: Fill }
-                                            chat_tile_date_3 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
-                                        }
-                                    }
-
-                                    // Row 1: tiles 4-7
-                                    // Row 1: tiles 4-7
-                                    tile_row_1 = <View> {
-                                        width: Fill, height: Fit
-                                        flow: Right
-                                        spacing: 20
-                                        visible: false
-
-                                        chat_tile_4 = <RoundedView> {
-                                            width: Fill, height: 144
-                                            show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
-                                            flow: Down
-                                            padding: {top: 16, left: 16, right: 16, bottom: 16}
-                                            cursor: Hand
-                                            visible: false
-                                            <View> {
-                                                width: Fill, height: Fit
-                                                flow: Right
-                                                align: {y: 0.0}
-                                                chat_tile_title_4 = <Label> {
-                                                    width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
-                                                }
-                                                delete_btn_4 = <View> {
-                                                    width: 28, height: 28
-                                                    align: {x: 0.5, y: 0.5}
-                                                    cursor: Hand
-                                                    <Icon> { draw_icon: { svg_file: (ICON_TRASH), color: #9ca3af }, icon_walk: {width: 18, height: 18} }
-                                                }
-                                            }
-                                            <View> { width: Fill, height: Fill }
-                                            chat_tile_date_4 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
-                                        }
-
-                                        chat_tile_5 = <RoundedView> {
-                                            width: Fill, height: 144
-                                            show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
-                                            flow: Down
-                                            padding: {top: 16, left: 16, right: 16, bottom: 16}
-                                            cursor: Hand
-                                            visible: false
-                                            <View> {
-                                                width: Fill, height: Fit
-                                                flow: Right
-                                                align: {y: 0.0}
-                                                chat_tile_title_5 = <Label> {
-                                                    width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
-                                                }
-                                                delete_btn_5 = <View> {
-                                                    width: 28, height: 28
-                                                    align: {x: 0.5, y: 0.5}
-                                                    cursor: Hand
-                                                    <Icon> { draw_icon: { svg_file: (ICON_TRASH), color: #9ca3af }, icon_walk: {width: 18, height: 18} }
-                                                }
-                                            }
-                                            <View> { width: Fill, height: Fill }
-                                            chat_tile_date_5 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
-                                        }
-
-                                        chat_tile_6 = <RoundedView> {
-                                            width: Fill, height: 144
-                                            show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
-                                            flow: Down
-                                            padding: {top: 16, left: 16, right: 16, bottom: 16}
-                                            cursor: Hand
-                                            visible: false
-                                            <View> {
-                                                width: Fill, height: Fit
-                                                flow: Right
-                                                align: {y: 0.0}
-                                                chat_tile_title_6 = <Label> {
-                                                    width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
-                                                }
-                                                delete_btn_6 = <View> {
-                                                    width: 28, height: 28
-                                                    align: {x: 0.5, y: 0.5}
-                                                    cursor: Hand
-                                                    <Icon> { draw_icon: { svg_file: (ICON_TRASH), color: #9ca3af }, icon_walk: {width: 18, height: 18} }
-                                                }
-                                            }
-                                            <View> { width: Fill, height: Fill }
-                                            chat_tile_date_6 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
-                                        }
-
-                                        chat_tile_7 = <RoundedView> {
-                                            width: Fill, height: 144
-                                            show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
-                                            flow: Down
-                                            padding: {top: 16, left: 16, right: 16, bottom: 16}
-                                            cursor: Hand
-                                            visible: false
-                                            <View> {
-                                                width: Fill, height: Fit
-                                                flow: Right
-                                                align: {y: 0.0}
-                                                chat_tile_title_7 = <Label> {
-                                                    width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
-                                                }
-                                                delete_btn_7 = <View> {
-                                                    width: 28, height: 28
-                                                    align: {x: 0.5, y: 0.5}
-                                                    cursor: Hand
-                                                    <Icon> { draw_icon: { svg_file: (ICON_TRASH), color: #9ca3af }, icon_walk: {width: 18, height: 18} }
-                                                }
-                                            }
-                                            <View> { width: Fill, height: Fill }
-                                            chat_tile_date_7 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
-                                        }
-                                    }
-
-                                    // Row 2: tiles 8-11
-                                    // Row 2: tiles 8-11
-                                    tile_row_2 = <View> {
-                                        width: Fill, height: Fit
-                                        flow: Right
-                                        spacing: 20
-                                        visible: false
-
-                                        chat_tile_8 = <RoundedView> {
-                                            width: Fill, height: 144
-                                            show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
-                                            flow: Down
-                                            padding: {top: 16, left: 16, right: 16, bottom: 16}
-                                            cursor: Hand
-                                            visible: false
-                                            <View> {
-                                                width: Fill, height: Fit
-                                                flow: Right
-                                                align: {y: 0.0}
-                                                chat_tile_title_8 = <Label> {
-                                                    width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
-                                                }
-                                                delete_btn_8 = <View> {
-                                                    width: 28, height: 28
-                                                    align: {x: 0.5, y: 0.5}
-                                                    cursor: Hand
-                                                    <Icon> { draw_icon: { svg_file: (ICON_TRASH), color: #9ca3af }, icon_walk: {width: 18, height: 18} }
-                                                }
-                                            }
-                                            <View> { width: Fill, height: Fill }
-                                            chat_tile_date_8 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
-                                        }
-
-                                        chat_tile_9 = <RoundedView> {
-                                            width: Fill, height: 144
-                                            show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
-                                            flow: Down
-                                            padding: {top: 16, left: 16, right: 16, bottom: 16}
-                                            cursor: Hand
-                                            visible: false
-                                            <View> {
-                                                width: Fill, height: Fit
-                                                flow: Right
-                                                align: {y: 0.0}
-                                                chat_tile_title_9 = <Label> {
-                                                    width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
-                                                }
-                                                delete_btn_9 = <View> {
-                                                    width: 28, height: 28
-                                                    align: {x: 0.5, y: 0.5}
-                                                    cursor: Hand
-                                                    <Icon> { draw_icon: { svg_file: (ICON_TRASH), color: #9ca3af }, icon_walk: {width: 18, height: 18} }
-                                                }
-                                            }
-                                            <View> { width: Fill, height: Fill }
-                                            chat_tile_date_9 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
-                                        }
-
-                                        chat_tile_10 = <RoundedView> {
-                                            width: Fill, height: 144
-                                            show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
-                                            flow: Down
-                                            padding: {top: 16, left: 16, right: 16, bottom: 16}
-                                            cursor: Hand
-                                            visible: false
-                                            <View> {
-                                                width: Fill, height: Fit
-                                                flow: Right
-                                                align: {y: 0.0}
-                                                chat_tile_title_10 = <Label> {
-                                                    width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
-                                                }
-                                                delete_btn_10 = <View> {
-                                                    width: 28, height: 28
-                                                    align: {x: 0.5, y: 0.5}
-                                                    cursor: Hand
-                                                    <Icon> { draw_icon: { svg_file: (ICON_TRASH), color: #9ca3af }, icon_walk: {width: 18, height: 18} }
-                                                }
-                                            }
-                                            <View> { width: Fill, height: Fill }
-                                            chat_tile_date_10 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
-                                        }
-
-                                        chat_tile_11 = <RoundedView> {
-                                            width: Fill, height: 144
-                                            show_bg: true, draw_bg: { color: #ffffff, border_radius: 12.0 }
-                                            flow: Down
-                                            padding: {top: 16, left: 16, right: 16, bottom: 16}
-                                            cursor: Hand
-                                            visible: false
-                                            <View> {
-                                                width: Fill, height: Fit
-                                                flow: Right
-                                                align: {y: 0.0}
-                                                chat_tile_title_11 = <Label> {
-                                                    width: Fill
-                                                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }, wrap: Ellipsis }
-                                                }
-                                                delete_btn_11 = <View> {
-                                                    width: 28, height: 28
-                                                    align: {x: 0.5, y: 0.5}
-                                                    cursor: Hand
-                                                    <Icon> { draw_icon: { svg_file: (ICON_TRASH), color: #9ca3af }, icon_walk: {width: 18, height: 18} }
-                                                }
-                                            }
-                                            <View> { width: Fill, height: Fill }
-                                            chat_tile_date_11 = <Label> { draw_text: { color: #9ca3af, text_style: { font_size: 10.0 } } }
-                                        }
-                                    }
+                                    tile_row_0 = <TileRow> {}
+                                    tile_row_1 = <TileRow> {}
+                                    tile_row_2 = <TileRow> {}
                                 }
                             }
                         }
@@ -1655,39 +1213,34 @@ impl App {
         self.ui.view(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.tile_row_2))
             .set_visible(cx, chat_count > 8);
 
-        // Helper macro to update a single tile (tiles are now nested in rows)
         macro_rules! update_tile {
-            ($index:expr, $row:ident, $tile:ident, $title:ident, $date:ident) => {
+            ($index:expr, $row:ident, $tile:ident) => {
                 let visible = $index < chat_count;
                 self.ui.view(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile))
                     .set_visible(cx, visible);
                 if visible {
                     let chat = chats[$index];
-                    self.ui.label(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.$title))
+                    self.ui.label(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.header.title))
                         .set_text(cx, &chat.title);
                     let date_str = chat.accessed_at.format("%b %d, %Y").to_string();
-                    self.ui.label(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.$date))
+                    self.ui.label(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.date_label))
                         .set_text(cx, &date_str);
                 }
             };
         }
 
-        // Update all 12 tiles (4 tiles per row, 3 rows)
-        // Row 0: tiles 0-3
-        update_tile!(0, tile_row_0, chat_tile_0, chat_tile_title_0, chat_tile_date_0);
-        update_tile!(1, tile_row_0, chat_tile_1, chat_tile_title_1, chat_tile_date_1);
-        update_tile!(2, tile_row_0, chat_tile_2, chat_tile_title_2, chat_tile_date_2);
-        update_tile!(3, tile_row_0, chat_tile_3, chat_tile_title_3, chat_tile_date_3);
-        // Row 1: tiles 4-7
-        update_tile!(4, tile_row_1, chat_tile_4, chat_tile_title_4, chat_tile_date_4);
-        update_tile!(5, tile_row_1, chat_tile_5, chat_tile_title_5, chat_tile_date_5);
-        update_tile!(6, tile_row_1, chat_tile_6, chat_tile_title_6, chat_tile_date_6);
-        update_tile!(7, tile_row_1, chat_tile_7, chat_tile_title_7, chat_tile_date_7);
-        // Row 2: tiles 8-11
-        update_tile!(8, tile_row_2, chat_tile_8, chat_tile_title_8, chat_tile_date_8);
-        update_tile!(9, tile_row_2, chat_tile_9, chat_tile_title_9, chat_tile_date_9);
-        update_tile!(10, tile_row_2, chat_tile_10, chat_tile_title_10, chat_tile_date_10);
-        update_tile!(11, tile_row_2, chat_tile_11, chat_tile_title_11, chat_tile_date_11);
+        update_tile!(0, tile_row_0, tile_0);
+        update_tile!(1, tile_row_0, tile_1);
+        update_tile!(2, tile_row_0, tile_2);
+        update_tile!(3, tile_row_0, tile_3);
+        update_tile!(4, tile_row_1, tile_0);
+        update_tile!(5, tile_row_1, tile_1);
+        update_tile!(6, tile_row_1, tile_2);
+        update_tile!(7, tile_row_1, tile_3);
+        update_tile!(8, tile_row_2, tile_0);
+        update_tile!(9, tile_row_2, tile_1);
+        update_tile!(10, tile_row_2, tile_2);
+        update_tile!(11, tile_row_2, tile_3);
 
         self.ui.redraw(cx);
     }
@@ -1697,16 +1250,13 @@ impl App {
         let mut tile_clicked: Option<usize> = None;
         let mut delete_clicked: Option<usize> = None;
 
-        // Helper macro to check a single tile (tiles are now nested in rows)
         macro_rules! check_tile {
-            ($index:expr, $row:ident, $tile:ident, $delete_btn:ident) => {
+            ($index:expr, $row:ident, $tile:ident) => {
                 if $index < self.displayed_chat_ids.len() && delete_clicked.is_none() && tile_clicked.is_none() {
-                    // Check delete button first
-                    if self.ui.view(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.$delete_btn))
+                    if self.ui.view(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.header.delete_btn))
                         .finger_down(actions).is_some() {
                         delete_clicked = Some($index);
                     }
-                    // Check tile click
                     else if self.ui.view(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile))
                         .finger_down(actions).is_some() {
                         tile_clicked = Some($index);
@@ -1715,22 +1265,18 @@ impl App {
             };
         }
 
-        // Check all 12 tiles (4 tiles per row, 3 rows)
-        // Row 0: tiles 0-3
-        check_tile!(0, tile_row_0, chat_tile_0, delete_btn_0);
-        check_tile!(1, tile_row_0, chat_tile_1, delete_btn_1);
-        check_tile!(2, tile_row_0, chat_tile_2, delete_btn_2);
-        check_tile!(3, tile_row_0, chat_tile_3, delete_btn_3);
-        // Row 1: tiles 4-7
-        check_tile!(4, tile_row_1, chat_tile_4, delete_btn_4);
-        check_tile!(5, tile_row_1, chat_tile_5, delete_btn_5);
-        check_tile!(6, tile_row_1, chat_tile_6, delete_btn_6);
-        check_tile!(7, tile_row_1, chat_tile_7, delete_btn_7);
-        // Row 2: tiles 8-11
-        check_tile!(8, tile_row_2, chat_tile_8, delete_btn_8);
-        check_tile!(9, tile_row_2, chat_tile_9, delete_btn_9);
-        check_tile!(10, tile_row_2, chat_tile_10, delete_btn_10);
-        check_tile!(11, tile_row_2, chat_tile_11, delete_btn_11);
+        check_tile!(0, tile_row_0, tile_0);
+        check_tile!(1, tile_row_0, tile_1);
+        check_tile!(2, tile_row_0, tile_2);
+        check_tile!(3, tile_row_0, tile_3);
+        check_tile!(4, tile_row_1, tile_0);
+        check_tile!(5, tile_row_1, tile_1);
+        check_tile!(6, tile_row_1, tile_2);
+        check_tile!(7, tile_row_1, tile_3);
+        check_tile!(8, tile_row_2, tile_0);
+        check_tile!(9, tile_row_2, tile_1);
+        check_tile!(10, tile_row_2, tile_2);
+        check_tile!(11, tile_row_2, tile_3);
 
         // Handle delete action
         if let Some(idx) = delete_clicked {
