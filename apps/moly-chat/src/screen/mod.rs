@@ -1434,8 +1434,9 @@ impl ChatApp {
                         {
                             return *enabled;
                         }
-                        // Model not in list - default to enabled
-                        return true;
+                        // Model not in list - default to disabled
+                        // (user must explicitly enable models via Settings)
+                        return provider.models.is_empty();
                     }
                 }
                 // Provider not found - default to showing the bot
