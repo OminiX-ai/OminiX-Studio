@@ -11,7 +11,7 @@ live_design! {
     // Reusable label templates with consistent typography
     // ========================================================================
 
-    /// Section title: semibold, 16px, primary color
+    // Section title: semibold, 16px, primary color
     pub SectionTitle = <Label> {
         draw_text: {
             color: (TEXT_PRIMARY)
@@ -19,7 +19,7 @@ live_design! {
         }
     }
 
-    /// Body text: regular, 11px, secondary gray
+    // Body text: regular, 11px, secondary gray
     pub BodyText = <Label> {
         draw_text: {
             color: (GRAY_700)
@@ -27,7 +27,7 @@ live_design! {
         }
     }
 
-    /// Hint/muted text: regular, 10px, muted gray
+    // Hint/muted text: regular, 10px, muted gray
     pub HintText = <Label> {
         draw_text: {
             color: (TEXT_MUTED)

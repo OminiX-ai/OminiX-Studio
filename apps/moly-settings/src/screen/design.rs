@@ -74,6 +74,18 @@ live_design! {
             }
             text_style: <FONT_REGULAR>{ font_size: 12.0 }
         }
+
+        draw_cursor: {
+            instance dark_mode: 0.0
+            uniform border_radius: 0.5
+            fn pixel(self) -> vec4 {
+                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, self.border_radius);
+                let color = mix(#1f2937, #f1f5f9, self.dark_mode);
+                sdf.fill(mix(#00000000, color, (1.0 - self.blink) * self.focus));
+                return sdf.result;
+            }
+        }
     }
 
     // Toggle switch using MpSwitch from makepad-component

@@ -564,10 +564,12 @@ impl SettingsApp {
         self.view.text_input(ids!(api_host_input)).apply_over(cx, live!{
             draw_bg: { dark_mode: (dark_mode) }
             draw_text: { dark_mode: (dark_mode) }
+            draw_cursor: { dark_mode: (dark_mode) }
         });
         self.view.text_input(ids!(api_key_input)).apply_over(cx, live!{
             draw_bg: { dark_mode: (dark_mode) }
             draw_text: { dark_mode: (dark_mode) }
+            draw_cursor: { dark_mode: (dark_mode) }
         });
 
         // Apply to test button
@@ -611,14 +613,17 @@ impl SettingsApp {
         self.view.text_input(ids!(new_provider_name)).apply_over(cx, live!{
             draw_bg: { dark_mode: (dark_mode) }
             draw_text: { dark_mode: (dark_mode) }
+            draw_cursor: { dark_mode: (dark_mode) }
         });
         self.view.text_input(ids!(new_provider_url)).apply_over(cx, live!{
             draw_bg: { dark_mode: (dark_mode) }
             draw_text: { dark_mode: (dark_mode) }
+            draw_cursor: { dark_mode: (dark_mode) }
         });
         self.view.text_input(ids!(new_provider_key)).apply_over(cx, live!{
             draw_bg: { dark_mode: (dark_mode) }
             draw_text: { dark_mode: (dark_mode) }
+            draw_cursor: { dark_mode: (dark_mode) }
         });
     }
 
