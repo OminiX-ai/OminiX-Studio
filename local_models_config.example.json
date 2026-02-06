@@ -1,0 +1,184 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2025-01-31T12:00:00Z",
+  "models": [
+    {
+      "id": "flux-klein-4b",
+      "name": "FLUX.2-klein-4B",
+      "description": "4B parameter FLUX image generation model. Fast inference with 4-step generation, optimized for Apple Silicon.",
+      "category": "Image",
+      "tags": ["image-generation", "flux", "apple-silicon", "mlx"],
+      "source": {
+        "primary_url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4B",
+        "backup_urls": [
+          "https://hf-mirror.com/black-forest-labs/FLUX.2-klein-4B"
+        ],
+        "source_type": "huggingface",
+        "repo_id": "black-forest-labs/FLUX.2-klein-4B",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--black-forest-labs--FLUX.2-klein-4B",
+        "total_size_bytes": 13958643712,
+        "total_size_display": "~13 GB"
+      },
+      "files": [],
+      "runtime": {
+        "memory_required_mb": 16384,
+        "memory_peak_mb": 18432,
+        "recommended_vram_mb": 16384,
+        "supported_platforms": ["macos-arm64"],
+        "quantization": "bf16",
+        "inference_engine": "mlx"
+      },
+      "status": {
+        "state": "not_available",
+        "downloaded_bytes": 0,
+        "downloaded_files": 0,
+        "total_files": 0,
+        "last_checked": null,
+        "last_downloaded": null,
+        "error_message": null
+      },
+      "download_progress": {
+        "is_active": false,
+        "current_file": null,
+        "current_file_index": 0,
+        "current_file_bytes": 0,
+        "current_file_total": 0,
+        "overall_bytes": 0,
+        "overall_total": 0,
+        "speed_bytes_per_sec": 0,
+        "eta_seconds": null,
+        "started_at": null
+      }
+    },
+    {
+      "id": "zimage-turbo",
+      "name": "Z-Image Turbo",
+      "description": "6B parameter S3-DiT image generation. 9-step turbo inference (~3s/image), 4-bit quantized for efficient memory usage.",
+      "category": "Image",
+      "tags": ["image-generation", "s3-dit", "quantized", "fast"],
+      "source": {
+        "primary_url": "https://huggingface.co/uqer1244/MLX-z-image",
+        "backup_urls": [],
+        "source_type": "huggingface",
+        "repo_id": "uqer1244/MLX-z-image",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--uqer1244--MLX-z-image",
+        "total_size_bytes": 12884901888,
+        "total_size_display": "~12 GB"
+      },
+      "files": [],
+      "runtime": {
+        "memory_required_mb": 14336,
+        "supported_platforms": ["macos-arm64"],
+        "quantization": "4bit",
+        "inference_engine": "mlx"
+      },
+      "status": {
+        "state": "not_available"
+      },
+      "download_progress": {
+        "is_active": false
+      }
+    },
+    {
+      "id": "qwen3-8b",
+      "name": "Qwen3 8B",
+      "description": "Powerful 8B parameter language model. Excellent for chat, coding assistance, and general text generation.",
+      "category": "Llm",
+      "tags": ["llm", "chat", "coding", "qwen"],
+      "source": {
+        "primary_url": "https://huggingface.co/mlx-community/Qwen3-8B-8bit",
+        "backup_urls": [],
+        "source_type": "huggingface",
+        "repo_id": "mlx-community/Qwen3-8B-8bit",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--mlx-community--Qwen3-8B-8bit",
+        "total_size_bytes": 8589934592,
+        "total_size_display": "~8 GB"
+      },
+      "files": [],
+      "runtime": {
+        "memory_required_mb": 10240,
+        "supported_platforms": ["macos-arm64"],
+        "quantization": "8bit",
+        "inference_engine": "mlx"
+      },
+      "status": {
+        "state": "not_available"
+      },
+      "download_progress": {
+        "is_active": false
+      }
+    },
+    {
+      "id": "funasr-paraformer",
+      "name": "FunASR Paraformer",
+      "description": "High-accuracy Chinese ASR. Downloads PyTorch model and auto-converts to MLX format.",
+      "category": "Asr",
+      "tags": ["asr", "chinese", "speech-recognition", "funasr"],
+      "source": {
+        "primary_url": "https://modelscope.cn/models/damo/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+        "backup_urls": [],
+        "source_type": "modelscope",
+        "repo_id": "damo/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+        "revision": "master"
+      },
+      "storage": {
+        "local_path": "~/.dora/models/paraformer",
+        "total_size_bytes": 1073741824,
+        "total_size_display": "~1.0 GB"
+      },
+      "files": [],
+      "runtime": {
+        "memory_required_mb": 2048,
+        "supported_platforms": ["macos-arm64"],
+        "inference_engine": "mlx"
+      },
+      "status": {
+        "state": "not_available"
+      },
+      "download_progress": {
+        "is_active": false
+      }
+    },
+    {
+      "id": "funasr-nano",
+      "name": "FunASR Nano",
+      "description": "800M LLM-based ASR supporting 31 languages. Combines Whisper encoder with Qwen LLM for high accuracy.",
+      "category": "Asr",
+      "tags": ["asr", "multilingual", "speech-recognition", "whisper", "qwen"],
+      "source": {
+        "primary_url": "https://huggingface.co/mlx-community/Fun-ASR-Nano-2512-fp16",
+        "backup_urls": [],
+        "source_type": "huggingface",
+        "repo_id": "mlx-community/Fun-ASR-Nano-2512-fp16",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.dora/models/funasr-nano",
+        "total_size_bytes": 2040109465,
+        "total_size_display": "~1.9 GB"
+      },
+      "files": [],
+      "runtime": {
+        "memory_required_mb": 3072,
+        "supported_platforms": ["macos-arm64"],
+        "quantization": "fp16",
+        "inference_engine": "mlx"
+      },
+      "status": {
+        "state": "not_available"
+      },
+      "download_progress": {
+        "is_active": false
+      }
+    }
+  ]
+}
