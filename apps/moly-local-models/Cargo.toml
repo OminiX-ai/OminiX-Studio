@@ -17,4 +17,4 @@ futures.workspace = true
 chrono.workspace = true
 
 # Model conversion
-mlx-rs-core = { git = "https://github.com/OminiX-ai/OminiX-MLX", rev = "cba46212", package = "mlx-rs-core", features = ["convert"] }
+mlx-rs-core = { git = "https://github.com/OminiX-ai/OminiX-MLX", rev = "7540f68a", package = "mlx-rs-core", features = ["convert"] }
