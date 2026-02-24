@@ -1,0 +1,606 @@
+{
+  "version": "1.0.0",
+  "models": [
+    {
+      "id": "qwen2-0.5b",
+      "name": "Qwen2 0.5B",
+      "description": "Ultra-compact 0.5B chat model. Runs on any Apple Silicon Mac with minimal memory.",
+      "category": "llm",
+      "tags": ["llm", "chat", "qwen", "small", "fast"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/Qwen2-0.5B-Instruct-4bit",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--mlx-community--Qwen2-0.5B-Instruct-4bit",
+        "size_bytes": 429496730,
+        "size_display": "~0.4 GB"
+      },
+      "runtime": {
+        "api_type": "chat_completions",
+        "api_model_id": "qwen2-0.5b",
+        "memory_gb": 1.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": true,
+        "quantization": "4bit"
+      },
+      "ui": {
+        "panel_type": "llm_chat",
+        "icon": "chat"
+      }
+    },
+    {
+      "id": "qwen2-7b",
+      "name": "Qwen2 7B",
+      "description": "Strong 7B multilingual chat model. Excellent balance of quality and speed.",
+      "category": "llm",
+      "tags": ["llm", "chat", "qwen", "multilingual", "coding"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/Qwen2-7B-Instruct-4bit",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--mlx-community--Qwen2-7B-Instruct-4bit",
+        "size_bytes": 4831838208,
+        "size_display": "~4.5 GB"
+      },
+      "runtime": {
+        "api_type": "chat_completions",
+        "api_model_id": "qwen2-7b",
+        "memory_gb": 5.5,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": true,
+        "quantization": "4bit"
+      },
+      "ui": {
+        "panel_type": "llm_chat",
+        "icon": "chat"
+      }
+    },
+    {
+      "id": "qwen2-72b",
+      "name": "Qwen2 72B",
+      "description": "Flagship 72B multilingual model. Near-GPT-4 quality for complex reasoning and analysis.",
+      "category": "llm",
+      "tags": ["llm", "chat", "qwen", "large", "reasoning"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/Qwen2-72B-Instruct-4bit",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--mlx-community--Qwen2-72B-Instruct-4bit",
+        "size_bytes": 43243814912,
+        "size_display": "~40 GB"
+      },
+      "runtime": {
+        "api_type": "chat_completions",
+        "api_model_id": "qwen2-72b",
+        "memory_gb": 44.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": true,
+        "quantization": "4bit"
+      },
+      "ui": {
+        "panel_type": "llm_chat",
+        "icon": "chat"
+      }
+    },
+    {
+      "id": "qwen3-0.6b",
+      "name": "Qwen3 0.6B",
+      "description": "Latest Qwen3 in smallest form — instant responses, runs on 8 GB M1.",
+      "category": "llm",
+      "tags": ["llm", "chat", "qwen3", "small", "fast"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/Qwen3-0.6B-8bit",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--mlx-community--Qwen3-0.6B-8bit",
+        "size_bytes": 644245094,
+        "size_display": "~0.6 GB"
+      },
+      "runtime": {
+        "api_type": "chat_completions",
+        "api_model_id": "qwen3-0.6b",
+        "memory_gb": 1.5,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": true,
+        "quantization": "8bit"
+      },
+      "ui": {
+        "panel_type": "llm_chat",
+        "icon": "chat"
+      }
+    },
+    {
+      "id": "qwen3-8b",
+      "name": "Qwen3 8B",
+      "description": "High-quality multilingual chat model, 8-bit quantized. Excellent for chat, coding, and general tasks.",
+      "category": "llm",
+      "tags": ["llm", "chat", "qwen3", "coding", "multilingual"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/Qwen3-8B-8bit",
+        "backup_urls": ["https://hf-mirror.com/mlx-community/Qwen3-8B-8bit"],
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--mlx-community--Qwen3-8B-8bit",
+        "size_bytes": 8589934592,
+        "size_display": "~8 GB"
+      },
+      "runtime": {
+        "api_type": "chat_completions",
+        "api_model_id": "qwen3-8b",
+        "memory_gb": 9.5,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": true,
+        "quantization": "8bit"
+      },
+      "ui": {
+        "panel_type": "llm_chat",
+        "icon": "chat"
+      }
+    },
+    {
+      "id": "qwen3-14b",
+      "name": "Qwen3 14B",
+      "description": "Strong 14B model from the Qwen3 family — best balance of quality and speed for 32+ GB Macs.",
+      "category": "llm",
+      "tags": ["llm", "chat", "qwen3", "coding", "reasoning"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/Qwen3-14B-8bit",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--mlx-community--Qwen3-14B-8bit",
+        "size_bytes": 15032385536,
+        "size_display": "~14 GB"
+      },
+      "runtime": {
+        "api_type": "chat_completions",
+        "api_model_id": "qwen3-14b",
+        "memory_gb": 16.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": true,
+        "quantization": "8bit"
+      },
+      "ui": {
+        "panel_type": "llm_chat",
+        "icon": "chat"
+      }
+    },
+    {
+      "id": "qwen3-72b",
+      "name": "Qwen3 72B",
+      "description": "Frontier 72B model from the Qwen3 family. Best-in-class reasoning for M2 Ultra / M3 Max owners.",
+      "category": "llm",
+      "tags": ["llm", "chat", "qwen3", "large", "reasoning", "frontier"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/Qwen3-72B-8bit",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--mlx-community--Qwen3-72B-8bit",
+        "size_bytes": 77309411328,
+        "size_display": "~72 GB"
+      },
+      "runtime": {
+        "api_type": "chat_completions",
+        "api_model_id": "qwen3-72b",
+        "memory_gb": 78.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": true,
+        "quantization": "8bit"
+      },
+      "ui": {
+        "panel_type": "llm_chat",
+        "icon": "chat"
+      }
+    },
+    {
+      "id": "qwen3-235b-moe",
+      "name": "Qwen3 235B MoE",
+      "description": "Massive 235B Mixture-of-Experts model. Uses ~22B active parameters per token — fast despite total size.",
+      "category": "llm",
+      "tags": ["llm", "chat", "qwen3", "moe", "large", "frontier"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/Qwen3-235B-A22B-4bit",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--mlx-community--Qwen3-235B-A22B-4bit",
+        "size_bytes": 133143986176,
+        "size_display": "~124 GB"
+      },
+      "runtime": {
+        "api_type": "chat_completions",
+        "api_model_id": "qwen3-235b-moe",
+        "memory_gb": 130.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": true,
+        "quantization": "4bit"
+      },
+      "ui": {
+        "panel_type": "llm_chat",
+        "icon": "chat"
+      }
+    },
+    {
+      "id": "glm4-9b",
+      "name": "GLM-4 9B",
+      "description": "THUDM GLM-4 9B chat model. Strong Chinese + English bilingual capabilities.",
+      "category": "llm",
+      "tags": ["llm", "chat", "glm", "chinese", "bilingual"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/glm-4-9b-chat-4bit",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--mlx-community--glm-4-9b-chat-4bit",
+        "size_bytes": 5905580032,
+        "size_display": "~5.5 GB"
+      },
+      "runtime": {
+        "api_type": "chat_completions",
+        "api_model_id": "glm4-9b",
+        "memory_gb": 7.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": true,
+        "quantization": "4bit"
+      },
+      "ui": {
+        "panel_type": "llm_chat",
+        "icon": "chat"
+      }
+    },
+    {
+      "id": "glm4-moe-9b",
+      "name": "GLM-4-MoE 9B",
+      "description": "THUDM GLM-4 with 45-expert Mixture-of-Experts architecture. High quality at moderate compute.",
+      "category": "llm",
+      "tags": ["llm", "chat", "glm", "moe", "chinese"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/GLM-4-9B-0414-4bit",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--mlx-community--GLM-4-9B-0414-4bit",
+        "size_bytes": 5905580032,
+        "size_display": "~5.5 GB"
+      },
+      "runtime": {
+        "api_type": "chat_completions",
+        "api_model_id": "glm4-moe-9b",
+        "memory_gb": 7.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": true,
+        "quantization": "4bit"
+      },
+      "ui": {
+        "panel_type": "llm_chat",
+        "icon": "chat"
+      }
+    },
+    {
+      "id": "mixtral-8x7b",
+      "name": "Mixtral 8x7B",
+      "description": "Mistral AI's 8x7B MoE model. Outperforms LLaMA-2-70B on most benchmarks with lower latency.",
+      "category": "llm",
+      "tags": ["llm", "chat", "mixtral", "moe", "mistral"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/Mixtral-8x7B-Instruct-v0.1-4bit",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--mlx-community--Mixtral-8x7B-Instruct-v0.1-4bit",
+        "size_bytes": 27917287424,
+        "size_display": "~26 GB"
+      },
+      "runtime": {
+        "api_type": "chat_completions",
+        "api_model_id": "mixtral-8x7b",
+        "memory_gb": 28.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": true,
+        "quantization": "4bit"
+      },
+      "ui": {
+        "panel_type": "llm_chat",
+        "icon": "chat"
+      }
+    },
+    {
+      "id": "mixtral-8x22b",
+      "name": "Mixtral 8x22B",
+      "description": "Mistral AI's flagship MoE model. 141B total parameters, ~39B active. Near GPT-4 quality.",
+      "category": "llm",
+      "tags": ["llm", "chat", "mixtral", "moe", "large", "frontier"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/Mixtral-8x22B-Instruct-v0.1-4bit",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--mlx-community--Mixtral-8x22B-Instruct-v0.1-4bit",
+        "size_bytes": 80530636800,
+        "size_display": "~75 GB"
+      },
+      "runtime": {
+        "api_type": "chat_completions",
+        "api_model_id": "mixtral-8x22b",
+        "memory_gb": 80.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": true,
+        "quantization": "4bit"
+      },
+      "ui": {
+        "panel_type": "llm_chat",
+        "icon": "chat"
+      }
+    },
+    {
+      "id": "mistral-7b",
+      "name": "Mistral 7B",
+      "description": "Mistral AI's efficient 7B model with sliding window attention. Excellent speed-quality tradeoff.",
+      "category": "llm",
+      "tags": ["llm", "chat", "mistral", "fast", "efficient"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/Mistral-7B-Instruct-v0.3-4bit",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--mlx-community--Mistral-7B-Instruct-v0.3-4bit",
+        "size_bytes": 4563402752,
+        "size_display": "~4.2 GB"
+      },
+      "runtime": {
+        "api_type": "chat_completions",
+        "api_model_id": "mistral-7b",
+        "memory_gb": 5.5,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": true,
+        "quantization": "4bit"
+      },
+      "ui": {
+        "panel_type": "llm_chat",
+        "icon": "chat"
+      }
+    },
+    {
+      "id": "minicpm-sala-9b",
+      "name": "MiniCPM-SALA 9B",
+      "description": "Hybrid sparse + lightning attention model with 1M token context window. OpenAI-compatible API.",
+      "category": "llm",
+      "tags": ["llm", "chat", "long-context", "1m-context", "minicpm", "sparse-attention"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/MiniCPM-SALA-9B-4bit",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--mlx-community--MiniCPM-SALA-9B-4bit",
+        "size_bytes": 5368709120,
+        "size_display": "~5 GB"
+      },
+      "runtime": {
+        "api_type": "chat_completions",
+        "api_model_id": "minicpm-sala-9b",
+        "memory_gb": 7.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": true,
+        "quantization": "4bit"
+      },
+      "ui": {
+        "panel_type": "llm_chat",
+        "icon": "chat"
+      }
+    },
+    {
+      "id": "moxin-7b-vlm",
+      "name": "Moxin-7B VLM",
+      "description": "Vision-language model: DINOv2 + SigLIP vision encoder + Mistral-7B. Chat with images at 30 tok/s.",
+      "category": "vlm",
+      "tags": ["vlm", "vision", "image-understanding", "chat", "moxin", "mistral"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "moxin-org/moxin-vlm-7b-mlx",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--moxin-org--moxin-vlm-7b-mlx",
+        "size_bytes": 8589934592,
+        "size_display": "~8 GB"
+      },
+      "runtime": {
+        "api_type": "chat_completions",
+        "api_model_id": "moxin-7b-vlm",
+        "memory_gb": 10.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": true,
+        "supports_streaming": true,
+        "quantization": "8bit"
+      },
+      "ui": {
+        "panel_type": "vlm_chat",
+        "icon": "chat"
+      }
+    },
+    {
+      "id": "funasr-paraformer",
+      "name": "Paraformer ASR",
+      "description": "High-accuracy Chinese/English speech recognition — 18x real-time speed on Apple Silicon.",
+      "category": "asr",
+      "tags": ["asr", "speech-recognition", "chinese", "english", "funasr", "paraformer"],
+      "source": {
+        "kind": "model_scope",
+        "repo_id": "damo/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+        "revision": "master"
+      },
+      "storage": {
+        "local_path": "~/.dora/models/paraformer",
+        "size_bytes": 1073741824,
+        "size_display": "~1 GB"
+      },
+      "runtime": {
+        "api_type": "audio_transcription",
+        "api_model_id": "paraformer-large",
+        "memory_gb": 2.5,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": false,
+        "quantization": null
+      },
+      "ui": {
+        "panel_type": "asr_transcription",
+        "icon": "local-models"
+      }
+    },
+    {
+      "id": "funasr-nano",
+      "name": "FunASR Nano",
+      "description": "LLM-based ASR supporting 31 languages. SenseVoice encoder + Qwen LLM for high accuracy.",
+      "category": "asr",
+      "tags": ["asr", "speech-recognition", "multilingual", "whisper", "qwen", "funasr"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/Fun-ASR-Nano-2512-fp16",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.dora/models/funasr-nano",
+        "size_bytes": 2040109465,
+        "size_display": "~1.9 GB"
+      },
+      "runtime": {
+        "api_type": "audio_transcription",
+        "api_model_id": "funasr-nano",
+        "memory_gb": 3.5,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": false,
+        "quantization": "fp16"
+      },
+      "ui": {
+        "panel_type": "asr_transcription",
+        "icon": "local-models"
+      }
+    },
+    {
+      "id": "gpt-sovits",
+      "name": "GPT-SoVITS",
+      "description": "Few-shot voice cloning TTS — 4x real-time. Clone any voice from a short audio sample.",
+      "category": "tts",
+      "tags": ["tts", "voice-cloning", "speech-synthesis", "gpt-sovits", "few-shot"],
+      "source": {
+        "kind": "manual",
+        "url": "https://huggingface.co/lj1995/GPT-SoVITS"
+      },
+      "storage": {
+        "local_path": "~/.OminiX/models/gpt-sovits-mlx",
+        "size_bytes": 3221225472,
+        "size_display": "~3 GB"
+      },
+      "runtime": {
+        "api_type": "audio_speech",
+        "api_model_id": "gpt-sovits",
+        "memory_gb": 4.5,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": false,
+        "quantization": null
+      },
+      "ui": {
+        "panel_type": "tts_synthesis",
+        "icon": "voice"
+      }
+    },
+    {
+      "id": "flux-klein",
+      "name": "FLUX.2-klein",
+      "description": "4B FLUX image generation with Qwen3 text encoder. 4-step generation, optimized for Apple Silicon.",
+      "category": "image_gen",
+      "tags": ["image-generation", "flux", "fast", "apple-silicon", "text-to-image"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "black-forest-labs/FLUX.2-klein-4B",
+        "backup_urls": ["https://hf-mirror.com/black-forest-labs/FLUX.2-klein-4B"],
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--black-forest-labs--FLUX.2-klein-4B",
+        "size_bytes": 13958643712,
+        "size_display": "~13 GB"
+      },
+      "runtime": {
+        "api_type": "image_generation",
+        "api_model_id": "flux-klein",
+        "memory_gb": 16.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": false,
+        "quantization": "bf16"
+      },
+      "ui": {
+        "panel_type": "image_generation",
+        "icon": "app"
+      }
+    },
+    {
+      "id": "zimage-turbo",
+      "name": "Z-Image Turbo",
+      "description": "6B S3-DiT image generation. 9-step turbo inference (~3s/image), 4-bit quantized.",
+      "category": "image_gen",
+      "tags": ["image-generation", "s3-dit", "fast", "quantized", "text-to-image"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "uqer1244/MLX-z-image",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--uqer1244--MLX-z-image",
+        "size_bytes": 12884901888,
+        "size_display": "~12 GB"
+      },
+      "runtime": {
+        "api_type": "image_generation",
+        "api_model_id": "zimage-turbo",
+        "memory_gb": 14.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": false,
+        "quantization": "4bit"
+      },
+      "ui": {
+        "panel_type": "image_generation",
+        "icon": "app"
+      }
+    }
+  ]
+}

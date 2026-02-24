@@ -3477,6 +3477,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "moly-hub"
+version = "0.1.0"
+dependencies = [
+ "dirs",
+ "log",
+ "makepad-widgets",
+ "moly-data",
+ "moly-widgets",
+ "reqwest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "moly-kit"
 version = "0.2.3"
 source = "git+https://github.com/ymote/moly?rev=ad02d12#ad02d1238b729b38e8a9893cff51829e9280a33c"
@@ -3579,6 +3593,7 @@ dependencies = [
  "makepad-widgets",
  "moly-chat",
  "moly-data",
+ "moly-hub",
  "moly-kit",
  "moly-local-models",
  "moly-mcp",

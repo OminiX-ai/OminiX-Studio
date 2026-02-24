@@ -1,0 +1,14 @@
+[package]
+name = "moly-hub"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+makepad-widgets.workspace = true
+moly-data.workspace = true
+moly-widgets.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+log.workspace = true
+dirs.workspace = true

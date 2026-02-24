@@ -22,6 +22,7 @@ live_design! {
     use moly_mcp::screen::design::*;
     use moly_local_models::screen::design::*;
     use moly_voice::screen::design::*;
+    use moly_hub::screen::design::*;
 
     // Icon dependencies
     ICON_HAMBURGER = dep("crate://self/resources/icons/hamburger.svg")
@@ -32,6 +33,7 @@ live_design! {
     ICON_SETTINGS = dep("crate://self/resources/icons/settings.svg")
     ICON_LOCAL_MODELS = dep("crate://self/resources/icons/local-models.svg")
     ICON_VOICE = dep("crate://self/resources/icons/voice.svg")
+    ICON_HUB = dep("crate://self/resources/icons/hub.svg")
     ICON_NEW_CHAT = dep("crate://self/resources/icons/new-chat.svg")
     ICON_TRASH = dep("crate://self/resources/icons/trash.svg")
 
@@ -460,6 +462,11 @@ live_design! {
                             draw_icon: { svg_file: (ICON_LOCAL_MODELS) }
                         }
 
+                        hub_btn = <SidebarButton> {
+                            text: "Model Hub"
+                            draw_icon: { svg_file: (ICON_HUB) }
+                        }
+
                         // TOOLS section
                         tools_section_label = <View> {
                             width: Fill, height: Fit
@@ -733,6 +740,11 @@ live_design! {
                             visible: false
                         }
 
+                        // Model Hub app
+                        hub_app = <ModelHubApp> {
+                            visible: false
+                        }
+
                         // MCP app (desktop only)
                         mcp_app = <McpApp> {
                             visible: false
@@ -755,6 +767,7 @@ enum NavigationTarget {
     LocalModels,
     Settings,
     Voice,
+    ModelHub,
 }
 
 #[derive(Live)]
@@ -817,6 +830,7 @@ impl LiveHook for App {
                 "Settings" => NavigationTarget::Settings,
                 "ActiveChat" => NavigationTarget::ActiveChat,
                 "Voice" => NavigationTarget::Voice,
+                "ModelHub" => NavigationTarget::ModelHub,
                 _ => NavigationTarget::ChatHistory,
             };
 
@@ -850,6 +864,7 @@ impl LiveRegister for App {
         <moly_mcp::MolyMcpApp as MolyApp>::live_design(cx);
         <moly_local_models::MolyLocalModelsApp as MolyApp>::live_design(cx);
         <moly_voice::MolyVoiceApp as MolyApp>::live_design(cx);
+        <moly_hub::MolyHubApp as MolyApp>::live_design(cx);
     }
 }
 
@@ -930,6 +945,10 @@ impl MatchEvent for App {
         if self.ui.button(ids!(body.content.sidebar.voice_btn)).clicked(&actions) {
             ::log::info!(">>> Voice button clicked! <<<");
             self.navigate_to(cx, NavigationTarget::Voice);
+        }
+        if self.ui.button(ids!(body.content.sidebar.hub_btn)).clicked(&actions) {
+            ::log::info!(">>> Model Hub button clicked! <<<");
+            self.navigate_to(cx, NavigationTarget::ModelHub);
         }
         if self.ui.button(ids!(body.content.sidebar.settings_btn)).clicked(&actions) {
             ::log::info!(">>> Settings button clicked! <<<");
@@ -1164,6 +1183,7 @@ impl App {
             NavigationTarget::LocalModels => "LocalModels",
             NavigationTarget::Settings => "Settings",
             NavigationTarget::Voice => "Voice",
+            NavigationTarget::ModelHub => "ModelHub",
         };
         self.store.set_current_view(view_name);
 
@@ -1182,6 +1202,7 @@ impl App {
         self.ui.widget(ids!(body.content.main_content.models_app)).set_visible(cx, target == NavigationTarget::Models);
         self.ui.widget(ids!(body.content.main_content.local_models_app)).set_visible(cx, target == NavigationTarget::LocalModels);
         self.ui.widget(ids!(body.content.main_content.voice_app)).set_visible(cx, target == NavigationTarget::Voice);
+        self.ui.widget(ids!(body.content.main_content.hub_app)).set_visible(cx, target == NavigationTarget::ModelHub);
         self.ui.widget(ids!(body.content.main_content.settings_app)).set_visible(cx, target == NavigationTarget::Settings);
 
         // Notify ChatApp when it becomes visible (to refresh model list)
@@ -1212,6 +1233,9 @@ impl App {
         });
         self.ui.button(ids!(body.content.sidebar.voice_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if target == NavigationTarget::Voice { 1.0 } else { 0.0 }) }
+        });
+        self.ui.button(ids!(body.content.sidebar.hub_btn)).apply_over(cx, live! {
+            draw_bg: { selected: (if target == NavigationTarget::ModelHub { 1.0 } else { 0.0 }) }
         });
         self.ui.button(ids!(body.content.sidebar.settings_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if target == NavigationTarget::Settings { 1.0 } else { 0.0 }) }
@@ -1449,6 +1473,7 @@ impl App {
         self.ui.button(ids!(body.content.sidebar.cloud_models_btn)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
         self.ui.button(ids!(body.content.sidebar.local_models_btn)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
         self.ui.button(ids!(body.content.sidebar.voice_btn)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
+        self.ui.button(ids!(body.content.sidebar.hub_btn)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
         self.ui.button(ids!(body.content.sidebar.settings_btn)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
 
         // Button text colors — use vec4 color (vec3 would set alpha=0 making text invisible)
@@ -1462,6 +1487,7 @@ impl App {
         self.ui.button(ids!(body.content.sidebar.cloud_models_btn)).apply_over(cx, live! { draw_text: { color: (btn_text) } });
         self.ui.button(ids!(body.content.sidebar.local_models_btn)).apply_over(cx, live! { draw_text: { color: (btn_text) } });
         self.ui.button(ids!(body.content.sidebar.voice_btn)).apply_over(cx, live! { draw_text: { color: (btn_text) } });
+        self.ui.button(ids!(body.content.sidebar.hub_btn)).apply_over(cx, live! { draw_text: { color: (btn_text) } });
         self.ui.button(ids!(body.content.sidebar.settings_btn)).apply_over(cx, live! { draw_text: { color: (btn_text) } });
 
         // Sidebar chat history item backgrounds (View draw_bg with instance dark_mode)

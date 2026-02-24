@@ -23,6 +23,7 @@ moly-settings = { path = "../apps/moly-settings" }
 moly-mcp = { path = "../apps/moly-mcp" }
 moly-local-models = { path = "../apps/moly-local-models" }
 moly-voice = { path = "../apps/moly-voice" }
+moly-hub = { path = "../apps/moly-hub" }
 
 # Moly dependencies (needed for some integrations)
 moly-kit.workspace = true

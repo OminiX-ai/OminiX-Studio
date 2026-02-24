@@ -2,6 +2,7 @@ pub mod a2ui_builder;
 pub mod a2ui_tools;
 pub mod chats;
 pub mod local_models;
+pub mod model_registry;
 pub mod moly_client;
 pub mod ominix_image_client;
 pub mod preferences;
@@ -22,6 +23,10 @@ pub use ominix_image_client::{OminiXImageClient, ImageGenerationConfig};
 pub use preferences::Preferences;
 pub use providers::{ProviderPreferences, ProviderId, ProviderType, ProviderConnectionStatus, get_supported_providers};
 pub use providers_manager::ProvidersManager;
+pub use model_registry::{
+    ModelRegistry, RegistryModel, RegistryCategory, RegistrySource, RegistryStorage,
+    RegistryRuntime, RegistryUiHints, ApiType, PanelType, SourceKind,
+};
 pub use store::{Store, StoreAction};
 
 // A2UI (AI-to-UI) exports
