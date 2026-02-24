@@ -22,6 +22,7 @@ moly-models = { path = "../apps/moly-models" }
 moly-settings = { path = "../apps/moly-settings" }
 moly-mcp = { path = "../apps/moly-mcp" }
 moly-local-models = { path = "../apps/moly-local-models" }
+moly-voice = { path = "../apps/moly-voice" }
 
 # Moly dependencies (needed for some integrations)
 moly-kit.workspace = true
@@ -42,6 +43,10 @@ dirs = "5.0"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1", features = ["rt", "rt-multi-thread"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc = "0.2"
+
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2.100"

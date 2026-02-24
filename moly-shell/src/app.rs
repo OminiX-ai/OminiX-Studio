@@ -21,6 +21,7 @@ live_design! {
     use moly_settings::screen::design::*;
     use moly_mcp::screen::design::*;
     use moly_local_models::screen::design::*;
+    use moly_voice::screen::design::*;
 
     // Icon dependencies
     ICON_HAMBURGER = dep("crate://self/resources/icons/hamburger.svg")
@@ -30,11 +31,13 @@ live_design! {
     ICON_MODELS = dep("crate://self/resources/icons/app.svg")
     ICON_SETTINGS = dep("crate://self/resources/icons/settings.svg")
     ICON_LOCAL_MODELS = dep("crate://self/resources/icons/local-models.svg")
+    ICON_VOICE = dep("crate://self/resources/icons/voice.svg")
     ICON_NEW_CHAT = dep("crate://self/resources/icons/new-chat.svg")
     ICON_TRASH = dep("crate://self/resources/icons/trash.svg")
 
-    // Logo
-    IMG_LOGO = dep("crate://self/resources/moly-logo.png")
+    // Logo (light and dark variants)
+    IMG_LOGO = dep("crate://self/resources/ominix-studio-logo.png")
+    IMG_LOGO_DARK = dep("crate://self/resources/ominix-studio-logo-dark.png")
 
     // Provider icons - registered globally so they can be loaded by moly-kit
     ICON_PROVIDER_OPENAI = dep("crate://self/resources/providers/openai.png")
@@ -48,7 +51,17 @@ live_design! {
     // Reusable chat tile for chat history grid
     ChatTile = <RoundedView> {
         width: Fill, height: 144
-        show_bg: true, draw_bg: { color: (PANEL_BG), border_radius: 12.0 }
+        show_bg: true
+        draw_bg: {
+            instance dark_mode: 0.0
+            border_radius: 12.0
+            fn pixel(self) -> vec4 {
+                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, self.border_radius);
+                sdf.fill(mix((PANEL_BG), #1e293b, self.dark_mode));
+                return sdf.result;
+            }
+        }
         flow: Down
         padding: {top: 16, left: 16, right: 16, bottom: 16}
         cursor: Hand
@@ -118,18 +131,32 @@ live_design! {
                     apply: { draw_bg: {pressed: 1.0} }
                 }
             }
+            // dark_mode_transition registers dark_mode in the live value tree
+            // so it can be set via apply_over from Rust code
+            dark_mode_transition = {
+                default: off,
+                off = {
+                    from: {all: Forward {duration: 0.25}}
+                    apply: { draw_bg: {dark_mode: 0.0} }
+                }
+                on = {
+                    from: {all: Forward {duration: 0.25}}
+                    apply: { draw_bg: {dark_mode: 1.0} }
+                }
+            }
         }
 
         draw_bg: {
             instance hover: 0.0
             instance pressed: 0.0
             instance selected: 0.0
+            instance dark_mode: 0.0
 
             fn pixel(self) -> vec4 {
                 let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                let normal = (PANEL_BG);
-                let hover_color = (HOVER_BG);
-                let selected_color = (INDIGO_50);
+                let normal = mix((PANEL_BG), #0f172a, self.dark_mode);
+                let hover_color = mix((HOVER_BG), #1a2332, self.dark_mode);
+                let selected_color = mix((INDIGO_50), #1a2845, self.dark_mode);
                 let color = mix(
                     mix(normal, hover_color, self.hover),
                     selected_color,
@@ -153,6 +180,80 @@ live_design! {
         }
     }
 
+    // Accent CTA button for "New Chat" — blue background, white text/icon
+    NewChatButton = <Button> {
+        width: Fill, height: Fit
+        padding: {top: 11, bottom: 11, left: 16, right: 16}
+        margin: {bottom: 16}
+        align: {x: 0.5, y: 0.5}
+        icon_walk: {width: 18, height: 18, margin: {right: 8}}
+
+        animator: {
+            hover = {
+                default: off,
+                off = {
+                    from: {all: Forward {duration: 0.15}}
+                    apply: { draw_bg: {hover: 0.0} }
+                }
+                on = {
+                    from: {all: Forward {duration: 0.15}}
+                    apply: { draw_bg: {hover: 1.0} }
+                }
+            }
+            pressed = {
+                default: off,
+                off = {
+                    from: {all: Forward {duration: 0.1}}
+                    apply: { draw_bg: {pressed: 0.0} }
+                }
+                on = {
+                    from: {all: Forward {duration: 0.1}}
+                    apply: { draw_bg: {pressed: 1.0} }
+                }
+            }
+        }
+
+        draw_bg: {
+            instance hover: 0.0
+            instance pressed: 0.0
+            fn pixel(self) -> vec4 {
+                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                let base = #16a39c;
+                let hover_color = #128c86;
+                let pressed_color = #0f7a75;
+                let color = mix(
+                    mix(base, hover_color, self.hover),
+                    pressed_color,
+                    self.pressed
+                );
+                sdf.box(2.0, 2.0, self.rect_size.x - 4.0, self.rect_size.y - 4.0, 8.0);
+                sdf.fill(color);
+                return sdf.result;
+            }
+        }
+
+        draw_text: {
+            text_style: <FONT_SEMIBOLD>{ font_size: 13.0 }
+            color: #ffffff
+        }
+
+        draw_icon: {
+            fn get_color(self) -> vec4 {
+                return #ffffff;
+            }
+        }
+    }
+
+    // Small uppercase section header label for sidebar groups
+    SidebarSectionLabel = <Label> {
+        width: Fill, height: Fit
+        margin: {top: 8, bottom: 2, left: 12, right: 8}
+        draw_text: {
+            color: (TEXT_MUTED)
+            text_style: <FONT_MEDIUM>{ font_size: 10.0 }
+        }
+    }
+
     App = {{App}} {
         ui: <Window> {
             window: { title: "OminiX Studio", inner_size: vec2(1400, 900) }
@@ -165,7 +266,10 @@ live_design! {
                 flow: Down
                 show_bg: true
                 draw_bg: {
-                    color: #f5f7fa
+                    instance dark_mode: 0.0
+                    fn pixel(self) -> vec4 {
+                        return mix(#f5f7fa, #0d1117, self.dark_mode);
+                    }
                 }
 
                 // Header
@@ -176,7 +280,10 @@ live_design! {
                     padding: {left: 20, right: 20, top: 16}
                     show_bg: true
                     draw_bg: {
-                        color: #ffffff
+                        instance dark_mode: 0.0
+                        fn pixel(self) -> vec4 {
+                            return mix(#ffffff, #111827, self.dark_mode);
+                        }
                     }
 
                     // Hamburger menu button
@@ -197,19 +304,20 @@ live_design! {
                         }
                     }
 
-                    // Logo
-                    logo = <Image> {
+                    // Logo — light/dark variants toggled by apply_theme_animation
+                    logo_light = <Image> {
                         source: (IMG_LOGO)
-                        width: 32, height: 32
-                        margin: {right: 8}
+                        width: 280, height: 44
+                    }
+                    logo_dark = <Image> {
+                        source: (IMG_LOGO_DARK)
+                        width: 280, height: 44
+                        visible: false
                     }
 
                     title_label = <Label> {
-                        text: "OminiX Studio"
-                        draw_text: {
-                            color: #1f2937
-                            text_style: <FONT_SEMIBOLD>{ font_size: 24.0 }
-                        }
+                        text: ""
+                        width: 0
                     }
 
                     <View> { width: Fill } // Spacer
@@ -242,40 +350,48 @@ live_design! {
                         width: 250, height: Fill
                         show_bg: true
                         draw_bg: {
-                            color: #ffffff
+                            instance dark_mode: 0.0
+                            fn pixel(self) -> vec4 {
+                                return mix(#ffffff, #0f172a, self.dark_mode);
+                            }
                         }
                         flow: Down, padding: {top: 16, bottom: 16, left: 8, right: 8}
 
-                        // New Chat - first item in sidebar
-                        new_chat_btn = <SidebarButton> {
+                        // New Chat - primary CTA button (accent blue)
+                        new_chat_btn = <NewChatButton> {
                             text: "New Chat"
                             draw_icon: { svg_file: (ICON_NEW_CHAT) }
                         }
 
-                        // Chat section - click to expand/collapse history
+                        // CHAT section
+                        chat_section_label = <View> {
+                            width: Fill, height: Fit
+                            padding: {top: 8, bottom: 2, left: 12, right: 8}
+                            <Label> {
+                                text: "CHAT"
+                                draw_text: { color: (TEXT_MUTED), text_style: <FONT_MEDIUM>{ font_size: 10.0 } }
+                            }
+                        }
+
                         chat_section = <View> {
                             width: Fill, height: Fit
                             flow: Down
                             margin: {bottom: 8}
 
-                            chat_btn = <SidebarButton> {
-                                text: "Chat"
+                            chat_history_btn = <SidebarButton> {
+                                text: "Chat History"
                                 draw_icon: { svg_file: (ICON_CHAT) }
                             }
 
-                            // Chat history list (visible items)
+                            // Chat history sublist (collapsible, visible when sidebar expanded)
                             chat_history_visible = <View> {
                                 width: Fill, height: Fit
                                 flow: Down
                                 padding: {left: 32}
 
-                                // Chat history items - visible with placeholder text
-                                chat_item_0 = <ChatListItem> {
-                                    draw_bg: { selected: 1.0 }
-                                    title = { text: "Current Chat" }
-                                }
-                                chat_item_1 = <ChatListItem> { title = { text: "Previous Chat 1" } }
-                                chat_item_2 = <ChatListItem> { title = { text: "Previous Chat 2" } }
+                                chat_item_0 = <ChatListItem> {}
+                                chat_item_1 = <ChatListItem> {}
+                                chat_item_2 = <ChatListItem> {}
 
                                 // Show More button
                                 show_more_btn = <View> {
@@ -311,7 +427,7 @@ live_design! {
                                 }
                             }
 
-                            // More chat history items (hidden by default)
+                            // Extra chat history items (hidden by default, shown via Show More)
                             chat_history_more = <View> {
                                 width: Fill, height: Fit
                                 flow: Down
@@ -323,14 +439,40 @@ live_design! {
                                 chat_item_5 = <ChatListItem> { visible: false }
                             }
                         }
-                        models_btn = <SidebarButton> {
-                            text: "Models"
+
+                        // MODELS section
+                        models_section_label = <View> {
+                            width: Fill, height: Fit
+                            padding: {top: 8, bottom: 2, left: 12, right: 8}
+                            <Label> {
+                                text: "MODELS"
+                                draw_text: { color: (TEXT_MUTED), text_style: <FONT_MEDIUM>{ font_size: 10.0 } }
+                            }
+                        }
+
+                        cloud_models_btn = <SidebarButton> {
+                            text: "Model Discovery"
                             draw_icon: { svg_file: (ICON_MODELS) }
                         }
 
                         local_models_btn = <SidebarButton> {
                             text: "Local Models"
                             draw_icon: { svg_file: (ICON_LOCAL_MODELS) }
+                        }
+
+                        // TOOLS section
+                        tools_section_label = <View> {
+                            width: Fill, height: Fit
+                            padding: {top: 8, bottom: 2, left: 12, right: 8}
+                            <Label> {
+                                text: "TOOLS"
+                                draw_text: { color: (TEXT_MUTED), text_style: <FONT_MEDIUM>{ font_size: 10.0 } }
+                            }
+                        }
+
+                        voice_btn = <SidebarButton> {
+                            text: "Voice"
+                            draw_icon: { svg_file: (ICON_VOICE) }
                         }
 
                         // Spacer to push Settings to bottom
@@ -354,7 +496,10 @@ live_design! {
                             visible: false
                             show_bg: true
                             draw_bg: {
-                                color: #f5f7fa
+                                instance dark_mode: 0.0
+                                fn pixel(self) -> vec4 {
+                                    return mix(#f5f7fa, #0d1117, self.dark_mode);
+                                }
                             }
                             padding: {top: 40, left: 48, right: 48, bottom: 32}
 
@@ -363,7 +508,7 @@ live_design! {
                                 width: Fill, height: Fit
                                 margin: {bottom: 32}
                                 align: {x: 0.5}
-                                <Label> {
+                                history_title = <Label> {
                                     text: "Chat History"
                                     draw_text: {
                                         color: #1f2937
@@ -382,10 +527,11 @@ live_design! {
                                     width: 500, height: 48
                                     show_bg: true
                                     draw_bg: {
+                                        instance dark_mode: 0.0
                                         fn pixel(self) -> vec4 {
                                             let sdf = Sdf2d::viewport(self.pos * self.rect_size);
                                             sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 12.0);
-                                            sdf.fill(#e5e7eb);
+                                            sdf.fill(mix(#e5e7eb, #1e293b, self.dark_mode));
                                             return sdf.result;
                                         }
                                     }
@@ -434,7 +580,7 @@ live_design! {
                                 width: Fill, height: Fill
                                 align: {x: 0.5, y: 0.3}
                                 visible: true
-                                <Label> {
+                                empty_label = <Label> {
                                     text: "No chat history yet. Click 'New Chat' to start."
                                     draw_text: {
                                         color: #6b7280
@@ -493,49 +639,19 @@ live_design! {
                                 flow: Right
                                 visible: true
 
-                                // Toggle column (hidden - canvas visibility controlled by A2UI toggle)
+                                // Collapse strip — always visible when canvas is expanded
                                 canvas_toggle_column = <View> {
-                                    visible: false
-                                    width: Fit, height: Fill
+                                    visible: true
+                                    width: 20, height: Fill
+                                    cursor: Hand
                                     show_bg: true
                                     draw_bg: { color: #f8fafc }
-                                    align: {x: 0.5, y: 0.0}
-                                    padding: {left: 4, right: 4, top: 8}
-
-                                    toggle_canvas_btn = <Button> {
-                                        width: Fit, height: Fit
-                                        padding: {left: 8, right: 8, top: 6, bottom: 6}
-                                        text: "<"
-
-                                        animator: {
-                                            hover = {
-                                                default: off,
-                                                off = {
-                                                    from: {all: Forward {duration: 0.15}}
-                                                    apply: { draw_bg: {hover: 0.0} }
-                                                }
-                                                on = {
-                                                    from: {all: Forward {duration: 0.15}}
-                                                    apply: { draw_bg: {hover: 1.0} }
-                                                }
-                                            }
-                                        }
-
+                                    align: {x: 0.5, y: 0.5}
+                                    <Label> {
+                                        text: "›"
                                         draw_text: {
-                                            text_style: <FONT_BOLD>{ font_size: 11.0 }
-                                            color: #64748b
-                                        }
-                                        draw_bg: {
-                                            instance hover: 0.0
-                                            fn pixel(self) -> vec4 {
-                                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                                                sdf.box(0., 0., self.rect_size.x, self.rect_size.y, 4.0);
-                                                let base = #e2e8f0;
-                                                let hover_color = #cbd5e1;
-                                                let color = mix(base, hover_color, self.hover);
-                                                sdf.fill(color);
-                                                return sdf.result;
-                                            }
+                                            color: #9ca3af
+                                            text_style: { font_size: 18.0 }
                                         }
                                     }
                                 }
@@ -578,6 +694,23 @@ live_design! {
                                     }
                                 }
                             }
+
+                            // Reopen strip — visible when canvas is collapsed
+                            canvas_reopen_btn = <View> {
+                                width: 20, height: Fill
+                                visible: false
+                                cursor: Hand
+                                show_bg: true
+                                draw_bg: { color: #f8fafc }
+                                align: {x: 0.5, y: 0.5}
+                                <Label> {
+                                    text: "‹"
+                                    draw_text: {
+                                        color: #9ca3af
+                                        text_style: { font_size: 18.0 }
+                                    }
+                                }
+                            }
                         }
 
                         // Models app
@@ -592,6 +725,11 @@ live_design! {
 
                         // Local Models app
                         local_models_app = <LocalModelsApp> {
+                            visible: false
+                        }
+
+                        // Voice Cloning app
+                        voice_app = <VoiceApp> {
                             visible: false
                         }
 
@@ -616,6 +754,7 @@ enum NavigationTarget {
     Models,
     LocalModels,
     Settings,
+    Voice,
 }
 
 #[derive(Live)]
@@ -660,6 +799,9 @@ pub struct App {
     /// Current A2UI JSON received from the model
     #[rust]
     pending_a2ui_json: Option<String>,
+    /// Chat IDs shown in the sidebar history sublist (up to 6)
+    #[rust]
+    sidebar_chat_ids: Vec<moly_data::ChatId>,
 }
 
 impl LiveHook for App {
@@ -674,6 +816,7 @@ impl LiveHook for App {
                 "LocalModels" => NavigationTarget::LocalModels,
                 "Settings" => NavigationTarget::Settings,
                 "ActiveChat" => NavigationTarget::ActiveChat,
+                "Voice" => NavigationTarget::Voice,
                 _ => NavigationTarget::ChatHistory,
             };
 
@@ -706,6 +849,7 @@ impl LiveRegister for App {
         <moly_settings::MolySettingsApp as MolyApp>::live_design(cx);
         <moly_mcp::MolyMcpApp as MolyApp>::live_design(cx);
         <moly_local_models::MolyLocalModelsApp as MolyApp>::live_design(cx);
+        <moly_voice::MolyVoiceApp as MolyApp>::live_design(cx);
     }
 }
 
@@ -716,6 +860,8 @@ impl MatchEvent for App {
         self.update_sidebar(cx);
         // Force apply view state on startup (bypass same-view check)
         self.apply_view_state(cx, self.current_view);
+        // Populate sidebar chat history items
+        self.update_sidebar_chats(cx);
         // Initialize canvas panel width
         self.canvas_panel_width = 500.0;
         ::log::info!("App initialized with Store and MolyAppData");
@@ -741,7 +887,7 @@ impl MatchEvent for App {
         // Handle New Chat button click (first item in sidebar)
         // Use full path from Window root: body.content.sidebar.new_chat_btn
         let new_chat_clicked = self.ui.button(ids!(body.content.sidebar.new_chat_btn)).clicked(&actions);
-        let chat_clicked = self.ui.button(ids!(body.content.sidebar.chat_section.chat_btn)).clicked(&actions);
+        let chat_clicked = self.ui.button(ids!(body.content.sidebar.chat_section.chat_history_btn)).clicked(&actions);
 
         if new_chat_clicked {
             ::log::info!(">>> New Chat button clicked! <<<");
@@ -761,6 +907,7 @@ impl MatchEvent for App {
             self.current_view = NavigationTarget::ActiveChat;
             self.store.set_current_view("ActiveChat");
             self.apply_view_state(cx, NavigationTarget::ActiveChat);
+            self.update_sidebar_chats(cx);
         } else if chat_clicked {
             ::log::info!("Chat button clicked - opening chat history page");
             // Navigate to chat history page (blank page with "Chat History" text)
@@ -772,17 +919,78 @@ impl MatchEvent for App {
             self.chat_history_expanded = !self.chat_history_expanded;
             self.update_chat_history_visibility(cx);
         }
-        if self.ui.button(ids!(body.content.sidebar.models_btn)).clicked(&actions) {
-            ::log::info!(">>> Models button clicked! <<<");
+        if self.ui.button(ids!(body.content.sidebar.cloud_models_btn)).clicked(&actions) {
+            ::log::info!(">>> Cloud Models button clicked! <<<");
             self.navigate_to(cx, NavigationTarget::Models);
         }
         if self.ui.button(ids!(body.content.sidebar.local_models_btn)).clicked(&actions) {
             ::log::info!(">>> Local Models button clicked! <<<");
             self.navigate_to(cx, NavigationTarget::LocalModels);
         }
+        if self.ui.button(ids!(body.content.sidebar.voice_btn)).clicked(&actions) {
+            ::log::info!(">>> Voice button clicked! <<<");
+            self.navigate_to(cx, NavigationTarget::Voice);
+        }
         if self.ui.button(ids!(body.content.sidebar.settings_btn)).clicked(&actions) {
             ::log::info!(">>> Settings button clicked! <<<");
             self.navigate_to(cx, NavigationTarget::Settings);
+        }
+
+        // Handle sidebar chat history item clicks
+        {
+            let mut sidebar_clicked: Option<usize> = None;
+            macro_rules! check_sidebar {
+                ($index:expr, $section:ident, $item:ident) => {
+                    if sidebar_clicked.is_none() && $index < self.sidebar_chat_ids.len() {
+                        if self.ui.view(ids!(body.content.sidebar.chat_section.$section.$item))
+                            .finger_down(&actions).is_some()
+                        {
+                            sidebar_clicked = Some($index);
+                        }
+                    }
+                };
+            }
+            check_sidebar!(0, chat_history_visible, chat_item_0);
+            check_sidebar!(1, chat_history_visible, chat_item_1);
+            check_sidebar!(2, chat_history_visible, chat_item_2);
+            check_sidebar!(3, chat_history_more, chat_item_3);
+            check_sidebar!(4, chat_history_more, chat_item_4);
+            check_sidebar!(5, chat_history_more, chat_item_5);
+
+            if let Some(idx) = sidebar_clicked {
+                let chat_id = self.sidebar_chat_ids[idx];
+                self.store.chats.set_current_chat(Some(chat_id));
+                if let Some(mut chat_app) = self.ui.widget(ids!(body.content.main_content.chat_with_canvas.chat_app))
+                    .borrow_mut::<moly_chat::screen::ChatApp>()
+                {
+                    chat_app.load_chat(chat_id);
+                }
+                self.current_view = NavigationTarget::ActiveChat;
+                self.store.set_current_view("ActiveChat");
+                self.apply_view_state(cx, NavigationTarget::ActiveChat);
+            }
+        }
+
+        // Handle hover highlight for sidebar chat history items
+        {
+            macro_rules! update_hover {
+                ($section:ident, $item:ident) => {
+                    {
+                        let v = self.ui.view(ids!(body.content.sidebar.chat_section.$section.$item));
+                        if v.finger_hover_in(&actions).is_some() {
+                            v.apply_over(cx, live! { draw_bg: { hover: 1.0 } });
+                        } else if v.finger_hover_out(&actions).is_some() {
+                            v.apply_over(cx, live! { draw_bg: { hover: 0.0 } });
+                        }
+                    }
+                };
+            }
+            update_hover!(chat_history_visible, chat_item_0);
+            update_hover!(chat_history_visible, chat_item_1);
+            update_hover!(chat_history_visible, chat_item_2);
+            update_hover!(chat_history_more, chat_item_3);
+            update_hover!(chat_history_more, chat_item_4);
+            update_hover!(chat_history_more, chat_item_5);
         }
 
         // Handle chat tile clicks
@@ -795,9 +1003,15 @@ impl MatchEvent for App {
             self.update_chat_tiles(cx);
         }
 
-        // Handle canvas panel toggle button
-        if self.ui.button(ids!(body.content.main_content.chat_with_canvas.canvas_section.canvas_toggle_column.toggle_canvas_btn)).clicked(&actions) {
-            ::log::info!(">>> Canvas toggle button clicked! <<<");
+        // Handle canvas reopen strip (shown when canvas is collapsed)
+        if self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_reopen_btn)).finger_down(&actions).is_some() {
+            ::log::info!(">>> Canvas reopen strip clicked! <<<");
+            self.toggle_canvas_panel(cx);
+        }
+
+        // Handle canvas collapse strip (shown when canvas is expanded)
+        if self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_section.canvas_toggle_column)).finger_down(&actions).is_some() {
+            ::log::info!(">>> Canvas collapse strip clicked! <<<");
             self.toggle_canvas_panel(cx);
         }
 
@@ -940,11 +1154,6 @@ impl AppMain for App {
 impl App {
     fn navigate_to(&mut self, cx: &mut Cx, target: NavigationTarget) {
         ::log::info!("navigate_to: current={:?}, target={:?}", self.current_view, target);
-        if self.current_view == target {
-            ::log::info!("navigate_to: same view, skipping");
-            return;
-        }
-
         self.current_view = target;
 
         // Persist to Store
@@ -954,6 +1163,7 @@ impl App {
             NavigationTarget::Models => "Models",
             NavigationTarget::LocalModels => "LocalModels",
             NavigationTarget::Settings => "Settings",
+            NavigationTarget::Voice => "Voice",
         };
         self.store.set_current_view(view_name);
 
@@ -971,6 +1181,7 @@ impl App {
         self.ui.widget(ids!(body.content.main_content.chat_with_canvas)).set_visible(cx, show_active_chat);
         self.ui.widget(ids!(body.content.main_content.models_app)).set_visible(cx, target == NavigationTarget::Models);
         self.ui.widget(ids!(body.content.main_content.local_models_app)).set_visible(cx, target == NavigationTarget::LocalModels);
+        self.ui.widget(ids!(body.content.main_content.voice_app)).set_visible(cx, target == NavigationTarget::Voice);
         self.ui.widget(ids!(body.content.main_content.settings_app)).set_visible(cx, target == NavigationTarget::Settings);
 
         // Notify ChatApp when it becomes visible (to refresh model list)
@@ -983,19 +1194,24 @@ impl App {
         // Update chat tiles when showing chat history
         if show_chat_history {
             self.update_chat_tiles(cx);
+            // Re-apply theme to ensure dark mode colors are correct for the newly visible page
+            self.apply_theme_animation(cx);
         }
 
         // Update button selection state (SidebarButton is a Button with draw_bg.selected)
         // Chat button is selected for both ChatHistory and ActiveChat
         let chat_selected = show_chat_history || show_active_chat;
-        self.ui.button(ids!(body.content.sidebar.chat_section.chat_btn)).apply_over(cx, live! {
+        self.ui.button(ids!(body.content.sidebar.chat_section.chat_history_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if chat_selected { 1.0 } else { 0.0 }) }
         });
-        self.ui.button(ids!(body.content.sidebar.models_btn)).apply_over(cx, live! {
+        self.ui.button(ids!(body.content.sidebar.cloud_models_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if target == NavigationTarget::Models { 1.0 } else { 0.0 }) }
         });
         self.ui.button(ids!(body.content.sidebar.local_models_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if target == NavigationTarget::LocalModels { 1.0 } else { 0.0 }) }
+        });
+        self.ui.button(ids!(body.content.sidebar.voice_btn)).apply_over(cx, live! {
+            draw_bg: { selected: (if target == NavigationTarget::Voice { 1.0 } else { 0.0 }) }
         });
         self.ui.button(ids!(body.content.sidebar.settings_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if target == NavigationTarget::Settings { 1.0 } else { 0.0 }) }
@@ -1012,12 +1228,57 @@ impl App {
             width: (width)
         });
 
-        // Note: With SidebarButton (Button widget), text is drawn by draw_text and can't be hidden separately.
-        // When sidebar is collapsed (width: 60), the text will be clipped automatically.
-        // This is a common pattern in modern apps where collapsed sidebars show only icons.
-
-        // Show/hide chat history based on sidebar state
+        // Hide section label views and chat history sublist when sidebar is collapsed to icon-only mode
+        self.ui.view(ids!(body.content.sidebar.chat_section_label)).set_visible(cx, expanded);
+        self.ui.view(ids!(body.content.sidebar.models_section_label)).set_visible(cx, expanded);
+        self.ui.view(ids!(body.content.sidebar.tools_section_label)).set_visible(cx, expanded);
         self.ui.view(ids!(body.content.sidebar.chat_section.chat_history_visible)).set_visible(cx, expanded);
+
+        self.ui.redraw(cx);
+    }
+
+    /// Populate sidebar chat history items (items 0-5) from the Store.
+    /// Called on startup, after new chat creation, and after chat deletion.
+    fn update_sidebar_chats(&mut self, cx: &mut Cx) {
+        let chats: Vec<_> = self.store.chats.get_sorted_chats()
+            .into_iter()
+            .filter(|c| !c.messages.is_empty())
+            .take(6)
+            .collect();
+        let n = chats.len();
+        self.sidebar_chat_ids = chats.iter().map(|c| c.id).collect();
+
+        macro_rules! update_item {
+            ($index:expr, $section:ident, $item:ident) => {
+                let vis = $index < n;
+                self.ui.view(ids!(body.content.sidebar.chat_section.$section.$item))
+                    .set_visible(cx, vis);
+                if vis {
+                    // Sanitize: collapse newlines, truncate to single display line
+                    let raw = &chats[$index].title;
+                    let single: String = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+                    let display = if single.chars().count() > 28 {
+                        let head: String = single.chars().take(26).collect();
+                        format!("{}…", head)
+                    } else {
+                        single
+                    };
+                    self.ui.label(ids!(body.content.sidebar.chat_section.$section.$item.title))
+                        .set_text(cx, &display);
+                }
+            };
+        }
+
+        update_item!(0, chat_history_visible, chat_item_0);
+        update_item!(1, chat_history_visible, chat_item_1);
+        update_item!(2, chat_history_visible, chat_item_2);
+        update_item!(3, chat_history_more, chat_item_3);
+        update_item!(4, chat_history_more, chat_item_4);
+        update_item!(5, chat_history_more, chat_item_5);
+
+        // Only show "Show More" when there are more than 3 chats
+        self.ui.view(ids!(body.content.sidebar.chat_section.chat_history_visible.show_more_btn))
+            .set_visible(cx, n > 3);
 
         self.ui.redraw(cx);
     }
@@ -1049,14 +1310,18 @@ impl App {
         }
 
         if self.canvas_panel_collapsed {
-            // Collapse: hide entire canvas section
+            // Collapse: hide canvas section, show reopen strip
             self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_section))
                 .set_visible(cx, false);
             self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_splitter))
                 .apply_over(cx, live!{ width: 0 });
+            self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_reopen_btn))
+                .set_visible(cx, true);
         } else {
-            // Expand: show canvas section at saved width
+            // Expand: show canvas section at saved width, hide reopen strip
             let width = self.canvas_panel_width;
+            self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_reopen_btn))
+                .set_visible(cx, false);
             self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_section))
                 .set_visible(cx, true);
             self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_section))
@@ -1165,10 +1430,145 @@ impl App {
     /// Note: Currently using static light mode colors. Dark mode can be implemented
     /// by swapping color values or using a different theming approach.
     fn apply_theme_animation(&mut self, cx: &mut Cx) {
-        // Theme animation currently disabled - using static colors
-        // External app widgets (chat_app, models_app, etc.) handle their own theming
-        // through the Store/preferences
-        let _ = self.app_data.theme.dark_mode_anim; // Silence unused warning
+        let dark = self.app_data.theme.dark_mode_anim;
+        let is_dark = dark > 0.5;
+
+        // Shell layout surfaces — View draw_bg with instance dark_mode (works for Views)
+        self.ui.view(ids!(body)).apply_over(cx, live! {
+            draw_bg: { dark_mode: (dark) }
+        });
+        self.ui.view(ids!(body.header)).apply_over(cx, live! {
+            draw_bg: { dark_mode: (dark) }
+        });
+        self.ui.view(ids!(body.content.sidebar)).apply_over(cx, live! {
+            draw_bg: { dark_mode: (dark) }
+        });
+
+        // Sidebar nav buttons — draw_bg dark_mode (registered via dark_mode_transition animator)
+        self.ui.button(ids!(body.content.sidebar.chat_section.chat_history_btn)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
+        self.ui.button(ids!(body.content.sidebar.cloud_models_btn)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
+        self.ui.button(ids!(body.content.sidebar.local_models_btn)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
+        self.ui.button(ids!(body.content.sidebar.voice_btn)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
+        self.ui.button(ids!(body.content.sidebar.settings_btn)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
+
+        // Button text colors — use vec4 color (vec3 would set alpha=0 making text invisible)
+        // #1f2937 (dark text for light bg) ↔ #f1f5f9 (light text for dark bg)
+        let btn_text = if is_dark {
+            vec4(0.945, 0.961, 0.976, 1.0)   // #f1f5f9 light text for dark mode
+        } else {
+            vec4(0.122, 0.161, 0.216, 1.0)   // #1f2937 dark text for light mode
+        };
+        self.ui.button(ids!(body.content.sidebar.chat_section.chat_history_btn)).apply_over(cx, live! { draw_text: { color: (btn_text) } });
+        self.ui.button(ids!(body.content.sidebar.cloud_models_btn)).apply_over(cx, live! { draw_text: { color: (btn_text) } });
+        self.ui.button(ids!(body.content.sidebar.local_models_btn)).apply_over(cx, live! { draw_text: { color: (btn_text) } });
+        self.ui.button(ids!(body.content.sidebar.voice_btn)).apply_over(cx, live! { draw_text: { color: (btn_text) } });
+        self.ui.button(ids!(body.content.sidebar.settings_btn)).apply_over(cx, live! { draw_text: { color: (btn_text) } });
+
+        // Sidebar chat history item backgrounds (View draw_bg with instance dark_mode)
+        macro_rules! apply_item_bg {
+            ($section:ident, $item:ident) => {
+                self.ui.view(ids!(body.content.sidebar.chat_section.$section.$item))
+                    .apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
+            };
+        }
+        apply_item_bg!(chat_history_visible, chat_item_0);
+        apply_item_bg!(chat_history_visible, chat_item_1);
+        apply_item_bg!(chat_history_visible, chat_item_2);
+        apply_item_bg!(chat_history_more, chat_item_3);
+        apply_item_bg!(chat_history_more, chat_item_4);
+        apply_item_bg!(chat_history_more, chat_item_5);
+
+        // Chat item label colors — use vec4 color (vec3 would set alpha=0 making text invisible)
+        // #374151 (gray-700, dark text for light bg) ↔ #94a3b8 (slate-400, light text for dark bg)
+        let chat_label_color = if is_dark {
+            vec4(0.580, 0.639, 0.722, 1.0)   // #94a3b8 light text for dark mode
+        } else {
+            vec4(0.216, 0.255, 0.318, 1.0)   // #374151 dark text for light mode
+        };
+        macro_rules! apply_label_color {
+            ($section:ident, $item:ident) => {
+                self.ui.label(ids!(body.content.sidebar.chat_section.$section.$item.title))
+                    .apply_over(cx, live! { draw_text: { color: (chat_label_color) } });
+            };
+        }
+        apply_label_color!(chat_history_visible, chat_item_0);
+        apply_label_color!(chat_history_visible, chat_item_1);
+        apply_label_color!(chat_history_visible, chat_item_2);
+        apply_label_color!(chat_history_more, chat_item_3);
+        apply_label_color!(chat_history_more, chat_item_4);
+        apply_label_color!(chat_history_more, chat_item_5);
+
+        // Logo swap: show dark logo in dark mode, light logo in light mode
+        self.ui.widget(ids!(body.header.logo_light)).set_visible(cx, !is_dark);
+        self.ui.widget(ids!(body.header.logo_dark)).set_visible(cx, is_dark);
+
+        // Chat history page background
+        self.ui.view(ids!(body.content.main_content.chat_history_page)).apply_over(cx, live! {
+            draw_bg: { dark_mode: (dark) }
+        });
+        self.ui.view(ids!(body.content.main_content.chat_history_page.search_container)).apply_over(cx, live! {
+            draw_bg: { dark_mode: (dark) }
+        });
+
+        // "Chat History" title and empty state text colors — use vec4 (vec3 alpha=0 = invisible)
+        let page_title_color = if is_dark {
+            vec4(0.945, 0.961, 0.976, 1.0)   // #f1f5f9
+        } else {
+            vec4(0.122, 0.161, 0.216, 1.0)   // #1f2937
+        };
+        let muted_color = if is_dark {
+            vec4(0.580, 0.639, 0.722, 1.0)   // #94a3b8
+        } else {
+            vec4(0.420, 0.447, 0.502, 1.0)   // #6b7280
+        };
+        self.ui.label(ids!(body.content.main_content.chat_history_page.history_title)).apply_over(cx, live! {
+            draw_text: { color: (page_title_color) }
+        });
+        self.ui.label(ids!(body.content.main_content.chat_history_page.empty_state.empty_label)).apply_over(cx, live! {
+            draw_text: { color: (muted_color) }
+        });
+
+        // Search input text colors — use vec4 (vec3 alpha=0 = invisible)
+        let search_text_color = if is_dark {
+            vec4(0.851, 0.882, 0.941, 1.0)   // #d9e0f0 slightly lighter for dark
+        } else {
+            vec4(0.122, 0.161, 0.216, 1.0)   // #1f2937
+        };
+        self.ui.text_input(ids!(body.content.main_content.chat_history_page.search_container.search_input)).apply_over(cx, live! {
+            draw_text: { color: (search_text_color) }
+        });
+
+        // Chat tile backgrounds (12 tiles across 3 rows)
+        // ChatTile is a RoundedView so must use widget() not view()
+        macro_rules! apply_tile_bg {
+            ($row:ident, $tile:ident) => {
+                self.ui.widget(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile))
+                    .apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
+            };
+        }
+        apply_tile_bg!(tile_row_0, tile_0); apply_tile_bg!(tile_row_0, tile_1);
+        apply_tile_bg!(tile_row_0, tile_2); apply_tile_bg!(tile_row_0, tile_3);
+        apply_tile_bg!(tile_row_1, tile_0); apply_tile_bg!(tile_row_1, tile_1);
+        apply_tile_bg!(tile_row_1, tile_2); apply_tile_bg!(tile_row_1, tile_3);
+        apply_tile_bg!(tile_row_2, tile_0); apply_tile_bg!(tile_row_2, tile_1);
+        apply_tile_bg!(tile_row_2, tile_2); apply_tile_bg!(tile_row_2, tile_3);
+
+        // Chat tile title and date label colors
+        macro_rules! apply_tile_text {
+            ($row:ident, $tile:ident) => {
+                self.ui.label(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.header.title))
+                    .apply_over(cx, live! { draw_text: { color: (page_title_color) } });
+                self.ui.label(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.date_label))
+                    .apply_over(cx, live! { draw_text: { color: (muted_color) } });
+            };
+        }
+        apply_tile_text!(tile_row_0, tile_0); apply_tile_text!(tile_row_0, tile_1);
+        apply_tile_text!(tile_row_0, tile_2); apply_tile_text!(tile_row_0, tile_3);
+        apply_tile_text!(tile_row_1, tile_0); apply_tile_text!(tile_row_1, tile_1);
+        apply_tile_text!(tile_row_1, tile_2); apply_tile_text!(tile_row_1, tile_3);
+        apply_tile_text!(tile_row_2, tile_0); apply_tile_text!(tile_row_2, tile_1);
+        apply_tile_text!(tile_row_2, tile_2); apply_tile_text!(tile_row_2, tile_3);
+
         self.ui.redraw(cx);
     }
 
@@ -1284,6 +1684,7 @@ impl App {
             ::log::info!("Delete button clicked for chat at index {}, id={}", idx, chat_id);
             self.store.chats.delete_chat(chat_id);
             self.update_chat_tiles(cx);
+            self.update_sidebar_chats(cx);
             return;
         }
 

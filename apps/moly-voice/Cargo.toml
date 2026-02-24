@@ -1,0 +1,23 @@
+[package]
+name = "moly-voice"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Makepad
+makepad-widgets.workspace = true
+
+# Moly dependencies
+moly-data.workspace = true
+moly-widgets.workspace = true
+
+# HTTP (blocking client for background thread use)
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+# Base64 encoding for audio upload
+base64 = "0.22"
+
+# Utilities
+log.workspace = true

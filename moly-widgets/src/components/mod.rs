@@ -49,10 +49,11 @@ live_design! {
         draw_bg: {
             instance hover: 0.0
             instance selected: 0.0
+            instance dark_mode: 0.0
             fn pixel(self) -> vec4 {
-                let base = (WHITE);
-                let hover_color = (HOVER_BG);
-                let selected_color = (BLUE_100);
+                let base = mix((WHITE), #0f172a, self.dark_mode);
+                let hover_color = mix((HOVER_BG), #1a2332, self.dark_mode);
+                let selected_color = mix((BLUE_100), #1a2845, self.dark_mode);
                 return mix(mix(base, hover_color, self.hover), selected_color, self.selected);
             }
         }

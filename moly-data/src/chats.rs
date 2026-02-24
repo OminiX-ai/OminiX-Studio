@@ -282,9 +282,8 @@ impl Chats {
 
     /// Create a new chat and save it to disk
     pub fn create_chat(&mut self, bot_id: Option<BotId>) -> ChatId {
-        // Increment counter and generate incremental title
-        self.new_chat_counter += 1;
-        let title = format!("New Chat {}", self.new_chat_counter);
+        // Use a plain title — no incrementing number
+        let title = String::from("New Chat");
         let mut chat = ChatData::with_title(title);
 
         // Use provided bot_id or inherit from last chat
@@ -298,7 +297,7 @@ impl Chats {
         chat.save(&self.chats_dir);
         self.saved_chats.insert(0, chat); // Insert at front (most recent)
         self.current_chat_id = Some(id);
-        log::info!("Created new chat {} with title 'New Chat {}'", id, self.new_chat_counter);
+        log::info!("Created new chat {} with title 'New Chat'", id);
         id
     }
 

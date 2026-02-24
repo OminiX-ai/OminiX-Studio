@@ -302,6 +302,7 @@ live_design! {
                 flow: Down
                 align: {x: 0.5, y: 0.35}
                 spacing: 32
+                padding: {left: 48, right: 48}
                 visible: true
 
                 // Greeting text
@@ -317,9 +318,9 @@ live_design! {
                     }
                 }
 
-                // Centered PromptInput with model selector
+                // Responsive PromptInput — fills available width with side padding
                 welcome_prompt = <PromptInput> {
-                    width: 700, height: Fit
+                    width: Fill, height: Fit
                 }
             }
         }

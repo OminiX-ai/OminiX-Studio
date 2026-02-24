@@ -3208,6 +3208,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "malloc_buf"
+version = "0.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62bb907fe88d54d8d9ce32a3cceab4218ed2f6b7d35617cafe9adf84e43919cb"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "markup5ever"
 version = "0.36.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3369,7 +3378,7 @@ dependencies = [
 [[package]]
 name = "mlx-internal-macros"
 version = "0.25.2"
-source = "git+https://github.com/OminiX-ai/OminiX-MLX?rev=cba46212#cba46212d7c8d9c40385d2d8b251b736f59c524d"
+source = "git+https://github.com/OminiX-ai/OminiX-MLX?rev=7540f68a#7540f68ace1610e9124ec4d93913aac1a18c339a"
 dependencies = [
  "darling 0.21.3",
  "itertools 0.14.0",
@@ -3381,7 +3390,7 @@ dependencies = [
 [[package]]
 name = "mlx-macros"
 version = "0.25.2"
-source = "git+https://github.com/OminiX-ai/OminiX-MLX?rev=cba46212#cba46212d7c8d9c40385d2d8b251b736f59c524d"
+source = "git+https://github.com/OminiX-ai/OminiX-MLX?rev=7540f68a#7540f68ace1610e9124ec4d93913aac1a18c339a"
 dependencies = [
  "darling 0.21.3",
  "proc-macro2",
@@ -3392,7 +3401,7 @@ dependencies = [
 [[package]]
 name = "mlx-rs"
 version = "0.25.2"
-source = "git+https://github.com/OminiX-ai/OminiX-MLX?rev=cba46212#cba46212d7c8d9c40385d2d8b251b736f59c524d"
+source = "git+https://github.com/OminiX-ai/OminiX-MLX?rev=7540f68a#7540f68ace1610e9124ec4d93913aac1a18c339a"
 dependencies = [
  "dyn-clone",
  "half",
@@ -3415,7 +3424,7 @@ dependencies = [
 [[package]]
 name = "mlx-rs-core"
 version = "0.1.0"
-source = "git+https://github.com/OminiX-ai/OminiX-MLX?rev=cba46212#cba46212d7c8d9c40385d2d8b251b736f59c524d"
+source = "git+https://github.com/OminiX-ai/OminiX-MLX?rev=7540f68a#7540f68ace1610e9124ec4d93913aac1a18c339a"
 dependencies = [
  "candle-core",
  "mlx-rs",
@@ -3431,7 +3440,7 @@ dependencies = [
 [[package]]
 name = "mlx-sys"
 version = "0.2.0"
-source = "git+https://github.com/OminiX-ai/OminiX-MLX?rev=cba46212#cba46212d7c8d9c40385d2d8b251b736f59c524d"
+source = "git+https://github.com/OminiX-ai/OminiX-MLX?rev=7540f68a#7540f68ace1610e9124ec4d93913aac1a18c339a"
 dependencies = [
  "bindgen",
  "cc",
@@ -3576,12 +3585,28 @@ dependencies = [
  "moly-models",
  "moly-protocol",
  "moly-settings",
+ "moly-voice",
  "moly-widgets",
+ "objc",
  "serde",
  "serde_json",
  "tokio",
  "uuid",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "moly-voice"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "log",
+ "makepad-widgets",
+ "moly-data",
+ "moly-widgets",
+ "reqwest",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3845,6 +3870,15 @@ name = "numerals"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e25be21376a772d15f97ae789845340a9651d3c4246ff5ebb6a2b35f9c37bd31"
+
+[[package]]
+name = "objc"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "915b1b472bc21c53464d6c8461c9d3af805ba1ef837e1cac254428f4a77177b1"
+dependencies = [
+ "malloc_buf",
+]
 
 [[package]]
 name = "objc2"

@@ -2,11 +2,18 @@ pub mod design;
 
 use makepad_widgets::*;
 use moly_data::{
-    LocalModelsConfigV2, LocalModelV2, ModelState, DownloadProgress, SourceType,
+    LocalModelsConfigV2, LocalModelV2, ModelState, DownloadProgress, SourceType, ModelCategory,
 };
 use serde::Deserialize;
 use std::sync::{Arc, atomic::{AtomicBool, AtomicU64, Ordering}};
 use std::collections::HashMap;
+
+/// A row in the flat list fed to PortalList — either a category header or a model item.
+enum ListRow {
+    Header(ModelCategory),
+    /// Index into `LocalModelsConfigV2::models`
+    Model(usize),
+}
 
 /// HuggingFace API file/directory item
 #[derive(Debug, Deserialize)]
@@ -135,6 +142,10 @@ pub struct LocalModelsApp {
     /// Per-model download states (model_id -> state)
     #[rust]
     download_states: HashMap<String, ModelDownloadState>,
+
+    /// Flat list of rows for the PortalList: interleaved category headers and model indices
+    #[rust]
+    flat_list: Vec<ListRow>,
 }
 
 impl Widget for LocalModelsApp {
@@ -145,6 +156,7 @@ impl Widget for LocalModelsApp {
             self.selected_model_index = Some(0);
             self.initialized = true;
             self.download_states = HashMap::new();
+            self.rebuild_flat_list();
             ::log::info!("Loaded local models V2 config with {} models",
                 self.config.as_ref().map(|c| c.models.len()).unwrap_or(0));
         }
@@ -218,8 +230,9 @@ impl Widget for LocalModelsApp {
                 config.save();
                 ::log::info!("Refreshed model availability");
                 self.view.label(ids!(status_message)).set_text(cx, "Model status refreshed");
-                self.view.redraw(cx);
             }
+            self.rebuild_flat_list();
+            self.view.redraw(cx);
         }
 
         // Check for download completion or progress updates for all active downloads
@@ -377,8 +390,11 @@ impl LocalModelsApp {
 
         // Determine source and download based on source_type
         match source_type {
+            SourceType::Local => {
+                Err("This model requires manual installation. See the model description for instructions.".to_string())
+            }
             SourceType::Modelscope => Self::download_from_modelscope(&client, state, url, dest_path),
-            SourceType::Huggingface | SourceType::DirectUrl | SourceType::Local => {
+            SourceType::Huggingface | SourceType::DirectUrl => {
                 Self::download_from_huggingface(&client, state, url, dest_path)
             }
         }
@@ -392,10 +408,11 @@ impl LocalModelsApp {
         dest_path: &str,
     ) -> Result<(), String> {
         let repo_id = Self::parse_huggingface_repo_id(url)?;
-        ::log::info!("Downloading HuggingFace repo: {} to {}", repo_id, dest_path);
+        let token = Self::read_hf_token();
+        ::log::info!("Downloading HuggingFace repo: {} to {} (auth: {})", repo_id, dest_path, token.is_some());
 
-        // Get list of files from HuggingFace API
-        let files = Self::list_huggingface_files(client, &repo_id, "")?;
+        // Get list of files from HuggingFace API (with token for private repos)
+        let files = Self::list_huggingface_files(client, &repo_id, "", token.as_deref())?;
 
         // Calculate total size and set file count
         let total_size: u64 = files.iter().map(|(_, size)| *size).sum();
@@ -426,7 +443,7 @@ impl LocalModelsApp {
                 repo_id, file_path
             );
             ::log::info!("Downloading [{}/{}]: {}", file_index + 1, files.len(), file_path);
-            Self::download_file_streaming(client, &download_url, &local_path, state, &mut downloaded_bytes)?;
+            Self::download_file_streaming(client, &download_url, &local_path, state, &mut downloaded_bytes, token.as_deref())?;
         }
 
         ::log::info!("Download complete: {}", dest_path);
@@ -490,7 +507,7 @@ impl LocalModelsApp {
                 model_id, file_path
             );
             ::log::info!("Downloading [{}/{}]: {}", file_index + 1, files.len(), file_path);
-            Self::download_file_streaming(client, &download_url, &local_path, state, &mut downloaded_bytes)?;
+            Self::download_file_streaming(client, &download_url, &local_path, state, &mut downloaded_bytes, None)?;
         }
 
         ::log::info!("Download complete: {}", download_dir);
@@ -592,10 +609,14 @@ impl LocalModelsApp {
         local_path: &std::path::Path,
         state: &ModelDownloadState,
         downloaded_bytes: &mut u64,
+        token: Option<&str>,
     ) -> Result<(), String> {
-        let response = client.get(url)
-            .header("User-Agent", "moly-local-models/1.0")
-            .send()
+        let mut req = client.get(url)
+            .header("User-Agent", "moly-local-models/1.0");
+        if let Some(tok) = token {
+            req = req.header("Authorization", format!("Bearer {}", tok));
+        }
+        let response = req.send()
             .map_err(|e| format!("Failed to download: {}", e))?;
 
         if !response.status().is_success() {
@@ -631,6 +652,22 @@ impl LocalModelsApp {
         Ok(())
     }
 
+    /// Read HuggingFace auth token from HF_TOKEN env var or ~/.cache/huggingface/token
+    fn read_hf_token() -> Option<String> {
+        if let Ok(token) = std::env::var("HF_TOKEN") {
+            let t = token.trim().to_string();
+            if !t.is_empty() { return Some(t); }
+        }
+        if let Ok(home) = std::env::var("HOME") {
+            let path = std::path::Path::new(&home).join(".cache/huggingface/token");
+            if let Ok(tok) = std::fs::read_to_string(&path) {
+                let t = tok.trim().to_string();
+                if !t.is_empty() { return Some(t); }
+            }
+        }
+        None
+    }
+
     /// Parse HuggingFace URL to extract repo ID (org/repo)
     fn parse_huggingface_repo_id(url: &str) -> Result<String, String> {
         let url = url.trim_end_matches('/');
@@ -648,6 +685,7 @@ impl LocalModelsApp {
         client: &reqwest::blocking::Client,
         repo_id: &str,
         path_prefix: &str,
+        token: Option<&str>,
     ) -> Result<Vec<(String, u64)>, String> {
         let api_url = if path_prefix.is_empty() {
             format!("https://huggingface.co/api/models/{}/tree/main", repo_id)
@@ -655,9 +693,12 @@ impl LocalModelsApp {
             format!("https://huggingface.co/api/models/{}/tree/main/{}", repo_id, path_prefix)
         };
 
-        let response = client.get(&api_url)
-            .header("User-Agent", "moly-local-models/1.0")
-            .send()
+        let mut req = client.get(&api_url)
+            .header("User-Agent", "moly-local-models/1.0");
+        if let Some(tok) = token {
+            req = req.header("Authorization", format!("Bearer {}", tok));
+        }
+        let response = req.send()
             .map_err(|e| format!("Failed to list files: {}", e))?;
 
         if !response.status().is_success() {
@@ -672,7 +713,7 @@ impl LocalModelsApp {
             if item.item_type == "file" {
                 files.push((item.path, item.size.unwrap_or(0)));
             } else if item.item_type == "directory" {
-                let sub_files = Self::list_huggingface_files(client, repo_id, &item.path)?;
+                let sub_files = Self::list_huggingface_files(client, repo_id, &item.path, token)?;
                 files.extend(sub_files);
             }
         }
@@ -798,6 +839,39 @@ impl LocalModelsApp {
         }
     }
 
+    /// Rebuild the flat list of rows (category headers + model indices) used by PortalList.
+    /// Must be called whenever the set of models changes.
+    fn rebuild_flat_list(&mut self) {
+        let Some(config) = &self.config else {
+            self.flat_list.clear();
+            return;
+        };
+
+        let categories = [
+            ModelCategory::Llm,
+            ModelCategory::Image,
+            ModelCategory::Asr,
+            ModelCategory::Tts,
+        ];
+
+        let mut flat = Vec::new();
+        for cat in &categories {
+            let indices: Vec<usize> = config.models.iter().enumerate()
+                .filter(|(_, m)| &m.category == cat)
+                .map(|(i, _)| i)
+                .collect();
+
+            if !indices.is_empty() {
+                flat.push(ListRow::Header(*cat));
+                for idx in indices {
+                    flat.push(ListRow::Model(idx));
+                }
+            }
+        }
+
+        self.flat_list = flat;
+    }
+
     /// Handle clicks on model list items
     ///
     /// Event handling strategy:
@@ -809,22 +883,21 @@ impl LocalModelsApp {
         let models_list = self.view.portal_list(ids!(models_list));
 
         for (item_id, item) in models_list.items_with_actions(actions) {
-            // Check for remove button click first (button actions are separate from finger_down)
+            // Map flat list position to model index; skip header rows
+            let model_idx = match self.flat_list.get(item_id) {
+                Some(ListRow::Model(idx)) => *idx,
+                _ => continue,
+            };
+
             if item.button(ids!(remove_item_button)).clicked(actions) {
-                self.remove_model_files(cx, item_id);
-                return; // Don't process other clicks after removal
+                self.remove_model_files(cx, model_idx);
+                return;
             }
 
-            // Check for click on the item (single tap to select)
-            // With event_order: Down, the main item view captures all clicks
             if let Some(fd) = item.as_view().finger_down(actions) {
                 if fd.tap_count == 1 {
-                    if let Some(config) = &self.config {
-                        if item_id < config.models.len() {
-                            self.selected_model_index = Some(item_id);
-                            self.view.redraw(cx);
-                        }
-                    }
+                    self.selected_model_index = Some(model_idx);
+                    self.view.redraw(cx);
                 }
             }
         }
@@ -884,98 +957,92 @@ impl LocalModelsApp {
         self.view.redraw(cx);
     }
 
-    /// Draw the models PortalList
+    /// Draw the models PortalList, grouped by category
     fn draw_models_list(&mut self, cx: &mut Cx2d, scope: &mut Scope, widget: WidgetRef, dark_mode: f64) {
         let Some(config) = &self.config else { return };
 
         let binding = widget.as_portal_list();
         let Some(mut list) = binding.borrow_mut() else { return };
 
-        list.set_item_range(cx, 0, config.models.len());
+        list.set_item_range(cx, 0, self.flat_list.len());
 
         while let Some(item_id) = list.next_visible_item(cx) {
-            if item_id >= config.models.len() {
-                continue;
-            }
-
-            let model = &config.models[item_id];
-            let is_selected = self.selected_model_index == Some(item_id);
-
-            // Check if this model is downloading
-            let is_downloading = self.download_states
-                .get(&model.id)
-                .map(|s| s.is_downloading.load(Ordering::SeqCst))
-                .unwrap_or(false);
-
-            // Get progress for this model if downloading
-            let download_progress = if is_downloading {
-                self.download_states.get(&model.id).map(|s| s.progress_percent()).unwrap_or(0.0)
-            } else {
-                0.0
-            };
-
-            let item = list.item(cx, item_id, live_id!(ModelItem));
-
-            // Set selection state
-            item.apply_over(cx, live! {
-                draw_bg: {
-                    selected: (if is_selected { 1.0 } else { 0.0 }),
-                    dark_mode: (dark_mode)
+            match self.flat_list.get(item_id) {
+                Some(ListRow::Header(cat)) => {
+                    let cat = *cat;
+                    let item = list.item(cx, item_id, live_id!(CategoryHeader));
+                    item.apply_over(cx, live! {
+                        draw_bg: { dark_mode: (dark_mode) }
+                    });
+                    item.label(ids!(category_header_label)).set_text(cx, cat.label());
+                    item.label(ids!(category_header_label)).apply_over(cx, live! {
+                        draw_text: { dark_mode: (dark_mode) }
+                    });
+                    item.draw_all(cx, scope);
                 }
-            });
+                Some(ListRow::Model(model_idx)) => {
+                    let model_idx = *model_idx;
+                    if model_idx >= config.models.len() { continue; }
 
-            // Set model status (use Downloading state if actively downloading)
-            let status_value = if is_downloading {
-                ModelState::Downloading.as_f64()
-            } else {
-                model.status.state.as_f64()
-            };
-            item.view(ids!(model_status)).apply_over(cx, live! {
-                draw_bg: {
-                    status: (status_value),
-                    dark_mode: (dark_mode)
-                }
-            });
+                    let model = &config.models[model_idx];
+                    let is_selected = self.selected_model_index == Some(model_idx);
 
-            // Set model name
-            item.label(ids!(model_name)).set_text(cx, &model.name);
-            item.label(ids!(model_name)).apply_over(cx, live! {
-                draw_text: { dark_mode: (dark_mode) }
-            });
+                    let is_downloading = self.download_states
+                        .get(&model.id)
+                        .map(|s| s.is_downloading.load(Ordering::SeqCst))
+                        .unwrap_or(false);
 
-            // Set category badge (model_category contains category_label)
-            let category_value = model.category.as_f64();
-            let model_category = item.view(ids!(model_category));
-            model_category.apply_over(cx, live! {
-                draw_bg: {
-                    category: (category_value),
-                    dark_mode: (dark_mode)
-                }
-            });
-            // Set category label text (explicit path: model_category -> category_label)
-            model_category.label(ids!(category_label)).set_text(cx, model.category.label());
-            model_category.label(ids!(category_label)).apply_over(cx, live! {
-                draw_text: {
-                    category: (category_value),
-                    dark_mode: (dark_mode)
-                }
-            });
+                    let download_progress = if is_downloading {
+                        self.download_states.get(&model.id).map(|s| s.progress_percent()).unwrap_or(0.0)
+                    } else {
+                        0.0
+                    };
 
-            // Remove button hidden - not needed in sidebar list
-            item.view(ids!(remove_button_container)).set_visible(cx, false);
+                    let item = list.item(cx, item_id, live_id!(ModelItem));
 
-            // Show/hide inline progress bar and update progress
-            item.view(ids!(inline_progress)).set_visible(cx, is_downloading);
-            if is_downloading {
-                item.view(ids!(inline_progress)).apply_over(cx, live! {
-                    draw_bg: {
-                        dark_mode: (dark_mode),
-                        progress: (download_progress)
+                    item.apply_over(cx, live! {
+                        draw_bg: {
+                            selected: (if is_selected { 1.0 } else { 0.0 }),
+                            dark_mode: (dark_mode)
+                        }
+                    });
+
+                    let status_value = if is_downloading {
+                        ModelState::Downloading.as_f64()
+                    } else {
+                        model.status.state.as_f64()
+                    };
+                    item.view(ids!(model_status)).apply_over(cx, live! {
+                        draw_bg: {
+                            status: (status_value),
+                            dark_mode: (dark_mode)
+                        }
+                    });
+
+                    item.label(ids!(model_name)).set_text(cx, &model.name);
+                    item.label(ids!(model_name)).apply_over(cx, live! {
+                        draw_text: { dark_mode: (dark_mode) }
+                    });
+
+                    // Hide category badge — redundant inside a category group
+                    item.view(ids!(model_category)).set_visible(cx, false);
+
+                    item.view(ids!(remove_button_container)).set_visible(cx, false);
+
+                    item.view(ids!(inline_progress)).set_visible(cx, is_downloading);
+                    if is_downloading {
+                        item.view(ids!(inline_progress)).apply_over(cx, live! {
+                            draw_bg: {
+                                dark_mode: (dark_mode),
+                                progress: (download_progress)
+                            }
+                        });
                     }
-                });
-            }
 
-            item.draw_all(cx, scope);
+                    item.draw_all(cx, scope);
+                }
+                None => continue,
+            }
         }
     }
 

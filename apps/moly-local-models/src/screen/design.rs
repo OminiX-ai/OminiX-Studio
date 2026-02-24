@@ -249,6 +249,30 @@ live_design! {
         }
     }
 
+    // Category group header shown above each group in the sidebar list
+    CategoryGroupHeader = <View> {
+        width: Fill, height: Fit
+        padding: {left: 16, right: 16, top: 10, bottom: 4}
+
+        show_bg: true
+        draw_bg: {
+            instance dark_mode: 0.0
+            fn pixel(self) -> vec4 {
+                return mix(#ffffff, #1e293b, self.dark_mode);
+            }
+        }
+
+        category_header_label = <Label> {
+            draw_text: {
+                instance dark_mode: 0.0
+                fn get_color(self) -> vec4 {
+                    return mix(#9ca3af, #64748b, self.dark_mode);
+                }
+                text_style: <FONT_SEMIBOLD>{ font_size: 10.0 }
+            }
+        }
+    }
+
     // Action button style
     ActionButton = <Button> {
         width: Fit, height: 32
@@ -374,6 +398,7 @@ live_design! {
                 flow: Down
 
                 ModelItem = <ModelListItem> {}
+                CategoryHeader = <CategoryGroupHeader> {}
             }
         }
 

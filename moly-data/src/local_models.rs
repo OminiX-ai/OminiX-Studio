@@ -1051,5 +1051,35 @@ pub fn get_default_local_models_v2() -> Vec<LocalModelV2> {
             status: ModelStatusInfo::default(),
             download_progress: DownloadProgress::default(),
         },
+        LocalModelV2 {
+            id: "gpt-sovits".to_string(),
+            name: "GPT-SoVITS".to_string(),
+            description: "Voice cloning and TTS model. Requires manual installation: place MLX model files (vits_pretrained_v2.safetensors, hubert.safetensors) into ~/.OminiX/models/gpt-sovits-mlx/".to_string(),
+            category: ModelCategory::Tts,
+            tags: vec!["tts".into(), "voice-cloning".into(), "speech-synthesis".into(), "gpt-sovits".into()],
+            source: ModelSource {
+                primary_url: "https://huggingface.co/lj1995/GPT-SoVITS".to_string(),
+                backup_urls: vec![],
+                source_type: SourceType::Local,
+                repo_id: Some("lj1995/GPT-SoVITS".to_string()),
+                revision: "main".to_string(),
+            },
+            storage: ModelStorage {
+                local_path: "~/.OminiX/models/gpt-sovits-mlx".to_string(),
+                total_size_bytes: 3_221_225_472,
+                total_size_display: "~3 GB".to_string(),
+            },
+            files: vec![],
+            runtime: ModelRuntime {
+                memory_required_mb: 4096,
+                memory_peak_mb: None,
+                recommended_vram_mb: None,
+                supported_platforms: vec!["macos-arm64".into()],
+                quantization: None,
+                inference_engine: Some("mlx".into()),
+            },
+            status: ModelStatusInfo::default(),
+            download_progress: DownloadProgress::default(),
+        },
     ]
 }
