@@ -122,6 +122,36 @@
       }
     },
     {
+      "id": "qwen3-4b",
+      "name": "Qwen3 4B",
+      "description": "Compact Qwen3 model — fast responses at ~8 GB. Great for 16 GB Macs. bf16 precision.",
+      "category": "llm",
+      "tags": ["llm", "chat", "qwen3", "small", "fast"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/Qwen3-4B-bf16",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--mlx-community--Qwen3-4B-bf16",
+        "size_bytes": 8589934592,
+        "size_display": "~8 GB"
+      },
+      "runtime": {
+        "api_type": "chat_completions",
+        "api_model_id": "mlx-community/Qwen3-4B-bf16",
+        "memory_gb": 10.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": true,
+        "quantization": "bf16"
+      },
+      "ui": {
+        "panel_type": "llm_chat",
+        "icon": "chat"
+      }
+    },
+    {
       "id": "qwen3-8b",
       "name": "Qwen3 8B",
       "description": "High-quality multilingual chat model, 8-bit quantized. Excellent for chat, coding, and general tasks.",
@@ -146,6 +176,36 @@
         "supports_images": false,
         "supports_streaming": true,
         "quantization": "8bit"
+      },
+      "ui": {
+        "panel_type": "llm_chat",
+        "icon": "chat"
+      }
+    },
+    {
+      "id": "qwen3-8b-bf16",
+      "name": "Qwen3 8B (bf16)",
+      "description": "Qwen3 8B in full bf16 precision — ~16 GB. Best for users who already have this version downloaded.",
+      "category": "llm",
+      "tags": ["llm", "chat", "qwen3", "coding", "multilingual", "bf16"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/Qwen3-8B-bf16",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--mlx-community--Qwen3-8B-bf16",
+        "size_bytes": 16397436766,
+        "size_display": "~16 GB"
+      },
+      "runtime": {
+        "api_type": "chat_completions",
+        "api_model_id": "mlx-community/Qwen3-8B-bf16",
+        "memory_gb": 18.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": true,
+        "quantization": "bf16"
       },
       "ui": {
         "panel_type": "llm_chat",
@@ -464,13 +524,13 @@
         "revision": "master"
       },
       "storage": {
-        "local_path": "~/.dora/models/paraformer",
+        "local_path": "~/.OminiX/models/funasr-paraformer",
         "size_bytes": 1073741824,
         "size_display": "~1 GB"
       },
       "runtime": {
         "api_type": "audio_transcription",
-        "api_model_id": "paraformer-large",
+        "api_model_id": "funasr-paraformer",
         "memory_gb": 2.5,
         "platforms": ["apple_silicon"],
         "supports_images": false,
@@ -494,7 +554,7 @@
         "revision": "main"
       },
       "storage": {
-        "local_path": "~/.dora/models/funasr-nano",
+        "local_path": "~/.OminiX/models/funasr-nano",
         "size_bytes": 2040109465,
         "size_display": "~1.9 GB"
       },
@@ -506,6 +566,96 @@
         "supports_images": false,
         "supports_streaming": false,
         "quantization": "fp16"
+      },
+      "ui": {
+        "panel_type": "asr_transcription",
+        "icon": "local-models"
+      }
+    },
+    {
+      "id": "funasr-qwen4b",
+      "name": "FunASR Qwen4B",
+      "description": "SenseVoice encoder + Qwen3-4B LLM ASR. 5.10% CER on AISHELL-1 with 8-bit quantization at 0.56x RTF.",
+      "category": "asr",
+      "tags": ["asr", "chinese", "speech-recognition", "sensevoice", "qwen", "8bit"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/Qwen3-4B-8bit",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.OminiX/models/funasr-qwen4b",
+        "size_bytes": 6000000000,
+        "size_display": "~5.6 GB"
+      },
+      "runtime": {
+        "api_type": "audio_transcription",
+        "api_model_id": "funasr-qwen4b",
+        "memory_gb": 6.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": false,
+        "quantization": "8bit"
+      },
+      "ui": {
+        "panel_type": "asr_transcription",
+        "icon": "local-models"
+      }
+    },
+    {
+      "id": "qwen3-asr-1.7b",
+      "name": "Qwen3-ASR 1.7B",
+      "description": "Qwen3-ASR 1.7B encoder-decoder ASR. 30+ languages, ~30x real-time on Apple Silicon. Best accuracy among Qwen3-ASR variants.",
+      "category": "asr",
+      "tags": ["asr", "multilingual", "speech-recognition", "qwen3", "8bit"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/Qwen3-ASR-1.7B-8bit",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.OminiX/models/qwen3-asr-1.7b",
+        "size_bytes": 2641100800,
+        "size_display": "~2.5 GB"
+      },
+      "runtime": {
+        "api_type": "audio_transcription",
+        "api_model_id": "qwen3-asr-1.7b",
+        "memory_gb": 4.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": false,
+        "quantization": "8bit"
+      },
+      "ui": {
+        "panel_type": "asr_transcription",
+        "icon": "local-models"
+      }
+    },
+    {
+      "id": "qwen3-asr-0.6b",
+      "name": "Qwen3-ASR 0.6B",
+      "description": "Qwen3-ASR 0.6B encoder-decoder ASR. 30+ languages, compact model (~1 GB). Faster download, slightly lower accuracy.",
+      "category": "asr",
+      "tags": ["asr", "multilingual", "speech-recognition", "qwen3", "8bit", "compact"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "mlx-community/Qwen3-ASR-0.6B-8bit",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.OminiX/models/qwen3-asr-0.6b",
+        "size_bytes": 1085276160,
+        "size_display": "~1.0 GB"
+      },
+      "runtime": {
+        "api_type": "audio_transcription",
+        "api_model_id": "qwen3-asr-0.6b",
+        "memory_gb": 2.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": false,
+        "quantization": "8bit"
       },
       "ui": {
         "panel_type": "asr_transcription",
@@ -560,7 +710,7 @@
       },
       "runtime": {
         "api_type": "image_generation",
-        "api_model_id": "flux-klein",
+        "api_model_id": "black-forest-labs/FLUX.2-klein-4B",
         "memory_gb": 16.0,
         "platforms": ["apple_silicon"],
         "supports_images": false,
@@ -590,7 +740,7 @@
       },
       "runtime": {
         "api_type": "image_generation",
-        "api_model_id": "zimage-turbo",
+        "api_model_id": "uqer1244/MLX-z-image",
         "memory_gb": 14.0,
         "platforms": ["apple_silicon"],
         "supports_images": false,

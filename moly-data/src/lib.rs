@@ -1,4 +1,5 @@
 pub mod a2ui_builder;
+pub mod model_runtime_client;
 pub mod a2ui_tools;
 pub mod chats;
 pub mod local_models;
@@ -27,6 +28,7 @@ pub use model_registry::{
     ModelRegistry, RegistryModel, RegistryCategory, RegistrySource, RegistryStorage,
     RegistryRuntime, RegistryUiHints, ApiType, PanelType, SourceKind,
 };
+pub use model_runtime_client::{ModelRuntimeClient, ServerModelStatus, ServerModelInfo};
 pub use store::{Store, StoreAction};
 
 // A2UI (AI-to-UI) exports

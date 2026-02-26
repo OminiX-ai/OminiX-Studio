@@ -1,6 +1,6 @@
 use makepad_widgets::*;
 
-use moly_data::{ChatId, Store};
+use moly_data::{ChatId, Store, StoreAction};
 use moly_kit::a2ui::{A2uiSurface, A2uiSurfaceAction};
 use moly_kit::widgets::chat::ChatAction;
 use moly_kit::widgets::prompt_input::PromptInputAction;
@@ -17,11 +17,8 @@ live_design! {
 
     // Import app widgets from external app crates
     use moly_chat::screen::design::*;
-    use moly_models::screen::design::*;
     use moly_settings::screen::design::*;
     use moly_mcp::screen::design::*;
-    use moly_local_models::screen::design::*;
-    use moly_voice::screen::design::*;
     use moly_hub::screen::design::*;
 
     // Icon dependencies
@@ -29,10 +26,7 @@ live_design! {
     ICON_SUN = dep("crate://self/resources/icons/sun.svg")
     ICON_MOON = dep("crate://self/resources/icons/moon.svg")
     ICON_CHAT = dep("crate://self/resources/icons/chat.svg")
-    ICON_MODELS = dep("crate://self/resources/icons/app.svg")
     ICON_SETTINGS = dep("crate://self/resources/icons/settings.svg")
-    ICON_LOCAL_MODELS = dep("crate://self/resources/icons/local-models.svg")
-    ICON_VOICE = dep("crate://self/resources/icons/voice.svg")
     ICON_HUB = dep("crate://self/resources/icons/hub.svg")
     ICON_NEW_CHAT = dep("crate://self/resources/icons/new-chat.svg")
     ICON_TRASH = dep("crate://self/resources/icons/trash.svg")
@@ -452,34 +446,9 @@ live_design! {
                             }
                         }
 
-                        cloud_models_btn = <SidebarButton> {
-                            text: "Model Discovery"
-                            draw_icon: { svg_file: (ICON_MODELS) }
-                        }
-
-                        local_models_btn = <SidebarButton> {
-                            text: "Local Models"
-                            draw_icon: { svg_file: (ICON_LOCAL_MODELS) }
-                        }
-
                         hub_btn = <SidebarButton> {
                             text: "Model Hub"
                             draw_icon: { svg_file: (ICON_HUB) }
-                        }
-
-                        // TOOLS section
-                        tools_section_label = <View> {
-                            width: Fill, height: Fit
-                            padding: {top: 8, bottom: 2, left: 12, right: 8}
-                            <Label> {
-                                text: "TOOLS"
-                                draw_text: { color: (TEXT_MUTED), text_style: <FONT_MEDIUM>{ font_size: 10.0 } }
-                            }
-                        }
-
-                        voice_btn = <SidebarButton> {
-                            text: "Voice"
-                            draw_icon: { svg_file: (ICON_VOICE) }
                         }
 
                         // Spacer to push Settings to bottom
@@ -720,23 +689,8 @@ live_design! {
                             }
                         }
 
-                        // Models app
-                        models_app = <ModelsApp> {
-                            visible: false
-                        }
-
                         // Settings app
                         settings_app = <SettingsApp> {
-                            visible: false
-                        }
-
-                        // Local Models app
-                        local_models_app = <LocalModelsApp> {
-                            visible: false
-                        }
-
-                        // Voice Cloning app
-                        voice_app = <VoiceApp> {
                             visible: false
                         }
 
@@ -763,10 +717,7 @@ enum NavigationTarget {
     ChatHistory,
     /// Active chat - shows the chat interface
     ActiveChat,
-    Models,
-    LocalModels,
     Settings,
-    Voice,
     ModelHub,
 }
 
@@ -825,11 +776,8 @@ impl LiveHook for App {
 
             // Set current_view from loaded preferences
             self.current_view = match self.store.current_view() {
-                "Models" => NavigationTarget::Models,
-                "LocalModels" => NavigationTarget::LocalModels,
                 "Settings" => NavigationTarget::Settings,
                 "ActiveChat" => NavigationTarget::ActiveChat,
-                "Voice" => NavigationTarget::Voice,
                 "ModelHub" => NavigationTarget::ModelHub,
                 _ => NavigationTarget::ChatHistory,
             };
@@ -859,11 +807,8 @@ impl LiveRegister for App {
         moly_kit::widgets::live_design(cx);
         // Register app widgets from external app crates via MolyApp trait
         <moly_chat::MolyChatApp as MolyApp>::live_design(cx);
-        <moly_models::MolyModelsApp as MolyApp>::live_design(cx);
         <moly_settings::MolySettingsApp as MolyApp>::live_design(cx);
         <moly_mcp::MolyMcpApp as MolyApp>::live_design(cx);
-        <moly_local_models::MolyLocalModelsApp as MolyApp>::live_design(cx);
-        <moly_voice::MolyVoiceApp as MolyApp>::live_design(cx);
         <moly_hub::MolyHubApp as MolyApp>::live_design(cx);
     }
 }
@@ -933,18 +878,6 @@ impl MatchEvent for App {
         if self.ui.view(ids!(body.content.sidebar.chat_section.chat_history_visible.show_more_btn)).finger_down(&actions).is_some() {
             self.chat_history_expanded = !self.chat_history_expanded;
             self.update_chat_history_visibility(cx);
-        }
-        if self.ui.button(ids!(body.content.sidebar.cloud_models_btn)).clicked(&actions) {
-            ::log::info!(">>> Cloud Models button clicked! <<<");
-            self.navigate_to(cx, NavigationTarget::Models);
-        }
-        if self.ui.button(ids!(body.content.sidebar.local_models_btn)).clicked(&actions) {
-            ::log::info!(">>> Local Models button clicked! <<<");
-            self.navigate_to(cx, NavigationTarget::LocalModels);
-        }
-        if self.ui.button(ids!(body.content.sidebar.voice_btn)).clicked(&actions) {
-            ::log::info!(">>> Voice button clicked! <<<");
-            self.navigate_to(cx, NavigationTarget::Voice);
         }
         if self.ui.button(ids!(body.content.sidebar.hub_btn)).clicked(&actions) {
             ::log::info!(">>> Model Hub button clicked! <<<");
@@ -1042,6 +975,37 @@ impl MatchEvent for App {
                 self.splitter_drag_start_x = fd.abs.x;
                 self.splitter_drag_start_width = self.canvas_panel_width;
                 ::log::info!("Splitter drag started at x={}", fd.abs.x);
+            }
+        }
+
+        // Handle navigation requests from child widgets
+        for action in actions {
+            if let StoreAction::Navigate(view) = action.cast() {
+                let target = match view.as_str() {
+                    "ActiveChat"  => Some(NavigationTarget::ActiveChat),
+                    "ChatHistory" => Some(NavigationTarget::ChatHistory),
+                    "Settings"    => Some(NavigationTarget::Settings),
+                    "ModelHub"    => Some(NavigationTarget::ModelHub),
+                    _ => None,
+                };
+                if let Some(t) = target {
+                    ::log::info!("StoreAction::Navigate({}) → {:?}", view, t);
+                    self.navigate_to(cx, t);
+                }
+            }
+            // Handle "Open in Chat" from Model Hub — create new chat with the selected model
+            if let StoreAction::OpenChatWithModel { model_id, .. } = action.cast() {
+                ::log::info!(">>> OpenChatWithModel: {} <<<", model_id);
+                // Set active local model (injects ominix-local provider)
+                self.store.set_active_local_model(Some(model_id.clone()));
+                // Request a new chat session
+                if let Some(mut chat_app) = self.ui.widget(ids!(body.content.main_content.chat_with_canvas.chat_app))
+                    .borrow_mut::<moly_chat::screen::ChatApp>()
+                {
+                    chat_app.request_new_chat();
+                }
+                self.navigate_to(cx, NavigationTarget::ActiveChat);
+                self.update_sidebar_chats(cx);
             }
         }
 
@@ -1179,10 +1143,7 @@ impl App {
         let view_name = match target {
             NavigationTarget::ChatHistory => "ChatHistory",
             NavigationTarget::ActiveChat => "ActiveChat",
-            NavigationTarget::Models => "Models",
-            NavigationTarget::LocalModels => "LocalModels",
             NavigationTarget::Settings => "Settings",
-            NavigationTarget::Voice => "Voice",
             NavigationTarget::ModelHub => "ModelHub",
         };
         self.store.set_current_view(view_name);
@@ -1199,9 +1160,6 @@ impl App {
 
         self.ui.widget(ids!(body.content.main_content.chat_history_page)).set_visible(cx, show_chat_history);
         self.ui.widget(ids!(body.content.main_content.chat_with_canvas)).set_visible(cx, show_active_chat);
-        self.ui.widget(ids!(body.content.main_content.models_app)).set_visible(cx, target == NavigationTarget::Models);
-        self.ui.widget(ids!(body.content.main_content.local_models_app)).set_visible(cx, target == NavigationTarget::LocalModels);
-        self.ui.widget(ids!(body.content.main_content.voice_app)).set_visible(cx, target == NavigationTarget::Voice);
         self.ui.widget(ids!(body.content.main_content.hub_app)).set_visible(cx, target == NavigationTarget::ModelHub);
         self.ui.widget(ids!(body.content.main_content.settings_app)).set_visible(cx, target == NavigationTarget::Settings);
 
@@ -1225,15 +1183,6 @@ impl App {
         self.ui.button(ids!(body.content.sidebar.chat_section.chat_history_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if chat_selected { 1.0 } else { 0.0 }) }
         });
-        self.ui.button(ids!(body.content.sidebar.cloud_models_btn)).apply_over(cx, live! {
-            draw_bg: { selected: (if target == NavigationTarget::Models { 1.0 } else { 0.0 }) }
-        });
-        self.ui.button(ids!(body.content.sidebar.local_models_btn)).apply_over(cx, live! {
-            draw_bg: { selected: (if target == NavigationTarget::LocalModels { 1.0 } else { 0.0 }) }
-        });
-        self.ui.button(ids!(body.content.sidebar.voice_btn)).apply_over(cx, live! {
-            draw_bg: { selected: (if target == NavigationTarget::Voice { 1.0 } else { 0.0 }) }
-        });
         self.ui.button(ids!(body.content.sidebar.hub_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if target == NavigationTarget::ModelHub { 1.0 } else { 0.0 }) }
         });
@@ -1255,7 +1204,6 @@ impl App {
         // Hide section label views and chat history sublist when sidebar is collapsed to icon-only mode
         self.ui.view(ids!(body.content.sidebar.chat_section_label)).set_visible(cx, expanded);
         self.ui.view(ids!(body.content.sidebar.models_section_label)).set_visible(cx, expanded);
-        self.ui.view(ids!(body.content.sidebar.tools_section_label)).set_visible(cx, expanded);
         self.ui.view(ids!(body.content.sidebar.chat_section.chat_history_visible)).set_visible(cx, expanded);
 
         self.ui.redraw(cx);
@@ -1470,9 +1418,6 @@ impl App {
 
         // Sidebar nav buttons — draw_bg dark_mode (registered via dark_mode_transition animator)
         self.ui.button(ids!(body.content.sidebar.chat_section.chat_history_btn)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.ui.button(ids!(body.content.sidebar.cloud_models_btn)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.ui.button(ids!(body.content.sidebar.local_models_btn)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.ui.button(ids!(body.content.sidebar.voice_btn)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
         self.ui.button(ids!(body.content.sidebar.hub_btn)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
         self.ui.button(ids!(body.content.sidebar.settings_btn)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
 
@@ -1484,9 +1429,6 @@ impl App {
             vec4(0.122, 0.161, 0.216, 1.0)   // #1f2937 dark text for light mode
         };
         self.ui.button(ids!(body.content.sidebar.chat_section.chat_history_btn)).apply_over(cx, live! { draw_text: { color: (btn_text) } });
-        self.ui.button(ids!(body.content.sidebar.cloud_models_btn)).apply_over(cx, live! { draw_text: { color: (btn_text) } });
-        self.ui.button(ids!(body.content.sidebar.local_models_btn)).apply_over(cx, live! { draw_text: { color: (btn_text) } });
-        self.ui.button(ids!(body.content.sidebar.voice_btn)).apply_over(cx, live! { draw_text: { color: (btn_text) } });
         self.ui.button(ids!(body.content.sidebar.hub_btn)).apply_over(cx, live! { draw_text: { color: (btn_text) } });
         self.ui.button(ids!(body.content.sidebar.settings_btn)).apply_over(cx, live! { draw_text: { color: (btn_text) } });
 

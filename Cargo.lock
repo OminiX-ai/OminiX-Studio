@@ -3480,12 +3480,14 @@ dependencies = [
 name = "moly-hub"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "dirs",
  "log",
  "makepad-widgets",
  "moly-data",
  "moly-widgets",
  "reqwest",
+ "rfd",
  "serde",
  "serde_json",
 ]
@@ -3595,12 +3597,9 @@ dependencies = [
  "moly-data",
  "moly-hub",
  "moly-kit",
- "moly-local-models",
  "moly-mcp",
- "moly-models",
  "moly-protocol",
  "moly-settings",
- "moly-voice",
  "moly-widgets",
  "objc",
  "serde",

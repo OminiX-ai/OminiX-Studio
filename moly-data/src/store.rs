@@ -6,6 +6,7 @@ use crate::chats::Chats;
 use crate::moly_client::MolyClient;
 use crate::preferences::Preferences;
 use crate::providers_manager::ProvidersManager;
+use crate::model_registry::RegistryCategory;
 
 /// Actions that can be dispatched to modify the Store
 #[derive(Clone, Debug, DefaultNone)]
@@ -20,6 +21,10 @@ pub enum StoreAction {
     SetSidebarExpanded(bool),
     /// Navigate to a specific view
     Navigate(String),
+    /// Set the active local model for chat routing (api_model_id from registry, or None to clear)
+    SetLocalModel(Option<String>),
+    /// Open a new chat session pre-loaded with a specific model
+    OpenChatWithModel { model_id: String, category: RegistryCategory },
     /// No action
     None,
 }
@@ -63,6 +68,14 @@ pub struct Store {
 
     /// Whether the Store has been fully initialized
     pub initialized: bool,
+
+    /// The api_model_id of the currently active local model (routes chat to localhost:8080).
+    /// Set when user clicks "Open in Chat" from Model Hub; cleared on model unload.
+    pub active_local_model: Option<String>,
+
+    /// Pending model to open in a new chat session.
+    /// Set by StoreAction::OpenChatWithModel; cleared once consumed by ChatApp.
+    pub pending_chat_model: Option<(String, RegistryCategory)>,
 }
 
 impl Default for Store {
@@ -76,6 +89,8 @@ impl Default for Store {
             providers_manager: ProvidersManager::new(),
             moly_client: MolyClient::new(),
             initialized: false,
+            active_local_model: None,
+            pending_chat_model: None,
         }
     }
 }
@@ -110,6 +125,8 @@ impl Store {
             providers_manager,
             moly_client,
             initialized: true,
+            active_local_model: None,
+            pending_chat_model: None,
         }
     }
 
@@ -117,6 +134,34 @@ impl Store {
     pub fn reconfigure_providers(&mut self) {
         let enabled_providers: Vec<_> = self.preferences.get_enabled_providers();
         self.providers_manager.configure_providers(&enabled_providers);
+        // Re-inject local model if active (configure_providers clears all clients)
+        if let Some(ref model_id) = self.active_local_model.clone() {
+            self.providers_manager.inject_local_model(model_id);
+        }
+    }
+
+    /// Set the active local model for chat routing (injects provider at localhost:8080)
+    pub fn set_active_local_model(&mut self, model_id: Option<String>) {
+        match &model_id {
+            Some(id) => self.providers_manager.inject_local_model(id),
+            None     => self.providers_manager.remove_local_model(),
+        }
+        self.active_local_model = model_id;
+    }
+
+    /// Get the currently active local model ID (api_model_id from registry)
+    pub fn get_active_local_model(&self) -> Option<&str> {
+        self.active_local_model.as_deref()
+    }
+
+    /// Set pending chat model (signals ChatApp to open a new chat with this model)
+    pub fn set_pending_chat_model(&mut self, model_id: String, category: RegistryCategory) {
+        self.pending_chat_model = Some((model_id, category));
+    }
+
+    /// Take pending chat model (clears it after reading)
+    pub fn take_pending_chat_model(&mut self) -> Option<(String, RegistryCategory)> {
+        self.pending_chat_model.take()
     }
 
     /// Get a reference to the ChatController
@@ -181,6 +226,13 @@ impl Store {
             }
             StoreAction::Navigate(view) => {
                 self.set_current_view(view);
+            }
+            StoreAction::SetLocalModel(model_id) => {
+                self.set_active_local_model(model_id.clone());
+            }
+            StoreAction::OpenChatWithModel { model_id, category } => {
+                self.set_active_local_model(Some(model_id.clone()));
+                self.set_pending_chat_model(model_id.clone(), *category);
             }
             StoreAction::None => {}
         }

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use moly_kit::aitk::clients::openai::OpenAiClient;
 use moly_kit::aitk::clients::openai_realtime::OpenAiRealtimeClient;
-use moly_kit::aitk::protocol::{Bot, BotClient, BotId};
+use moly_kit::aitk::protocol::{Bot, BotClient, BotId, EntityAvatar};
 
 use crate::ominix_image_client::{OminiXImageClient, ImageGenerationConfig};
 use crate::providers::{ProviderPreferences, ProviderType};
@@ -242,6 +242,40 @@ impl ProvidersManager {
             }
         }
         None
+    }
+
+    /// Inject a local OminiX model provider (no API key required, uses localhost:8080)
+    ///
+    /// This bypasses the normal configure_providers flow and directly registers
+    /// an OpenAI-compatible client for the locally-running ominix-api server.
+    pub fn inject_local_model(&mut self, model_id: &str) {
+        let mut client = OpenAiClient::new("http://localhost:8080/v1".to_string());
+        // Local server accepts any non-empty key string
+        let _ = client.set_key("sk-local");
+        self.clients.insert("ominix-local".to_string(), client);
+
+        let bot = Bot {
+            id: BotId::new(model_id),
+            name: model_id.to_string(),
+            avatar: EntityAvatar::Text("AI".to_string()),
+            capabilities: Default::default(),
+        };
+        self.provider_bots.insert("ominix-local".to_string(), vec![bot]);
+        self.rebuild_all_bots();
+        log::info!("Injected local model: {} at localhost:8080", model_id);
+    }
+
+    /// Remove the injected local model provider
+    pub fn remove_local_model(&mut self) {
+        self.clients.remove("ominix-local");
+        self.provider_bots.remove("ominix-local");
+        self.rebuild_all_bots();
+        log::info!("Removed local model provider");
+    }
+
+    /// Check if a local model is currently injected
+    pub fn has_local_model(&self) -> bool {
+        self.clients.contains_key("ominix-local")
     }
 
     /// Check if any providers are configured

@@ -357,6 +357,10 @@ pub struct ChatApp {
     /// Whether we've set the controller on the welcome prompt
     #[rust]
     welcome_prompt_controller_set: bool,
+
+    /// Tracks the last active_local_model value we handled, to detect changes
+    #[rust]
+    last_active_local_model: Option<String>,
 }
 
 impl LiveHook for ChatApp {
@@ -382,6 +386,7 @@ impl ChatApp {
             "groq" => Some(8),
             "zhipu" => Some(9),
             "ominix-image" => Some(3),
+            "ominix-local" => Some(3), // local model: use the ollama/local icon
             _ => None,
         };
         index.and_then(|i| self.provider_icons.get(i))
@@ -407,6 +412,7 @@ impl ChatApp {
             "siliconflow" => "SiliconFlow",
             "zhipu" => "Zhipu AI",
             "ominix-image" => "OminiX Image",
+            "ominix-local" => "OminiX Local",
             _ => "Unknown",
         }
     }
@@ -834,10 +840,18 @@ impl Widget for ChatApp {
         if self.needs_new_chat {
             self.needs_new_chat = false;
             self.create_new_chat(cx, scope);
+            // Consume pending_chat_model if set by StoreAction::OpenChatWithModel
+            // (model injection happens via maybe_inject_local_model detecting active_local_model change)
+            if let Some(store) = scope.data.get_mut::<Store>() {
+                let _ = store.take_pending_chat_model();
+            }
         }
 
         // Check and configure providers from Store
         self.maybe_configure_providers(cx, scope);
+
+        // React to active_local_model changes (set by Model Hub "Open in Chat")
+        self.maybe_inject_local_model(cx, scope);
 
         // Check for loaded bots from the ChatController
         self.check_for_loaded_bots(cx, scope);
@@ -1555,6 +1569,77 @@ impl ChatApp {
         }
 
         self.restored_saved_model = true;
+    }
+
+    /// React when store.active_local_model changes — switch ChatController to ominix-local
+    fn maybe_inject_local_model(&mut self, cx: &mut Cx, scope: &mut Scope) {
+        let current_local_model = {
+            let Some(store) = scope.data.get::<Store>() else { return };
+            store.active_local_model.clone()
+        };
+
+        if current_local_model == self.last_active_local_model {
+            return;
+        }
+
+        self.last_active_local_model = current_local_model.clone();
+
+        let Some(model_id) = current_local_model else {
+            // Local model cleared — nothing extra needed; normal provider fetch will resume
+            return;
+        };
+
+        // Get all bots (including newly injected local one) and switch client
+        let client = {
+            let Some(store) = scope.data.get::<Store>() else { return };
+            store.providers_manager.get_bot_client("ominix-local")
+        };
+
+        if let Some(client) = client {
+            let a2ui_client = A2uiClient::new(client);
+            self.a2ui_client = Some(a2ui_client.clone());
+
+            // get_all_bots / filter before switching (set_client clears bots in controller)
+            let (all_bots, enabled_bots) = {
+                let Some(store) = scope.data.get::<Store>() else { return };
+                let all = store.providers_manager.get_all_bots().to_vec();
+                let enabled = Self::filter_enabled_bots(&all, store);
+                (all, enabled)
+            };
+
+            {
+                let mut ctrl = self.chat_controller.lock().unwrap();
+                ctrl.set_client(Some(Box::new(a2ui_client)));
+            }
+            self.current_provider_id = Some("ominix-local".to_string());
+
+            // Force re-set controller widget to propagate new client
+            self.force_reset_controller_on_widget(cx);
+
+            // Re-dispatch bots (set_client cleared them inside the controller)
+            {
+                let mut ctrl = self.chat_controller.lock().unwrap();
+                ctrl.dispatch_mutation(VecMutation::Set(enabled_bots));
+            }
+            let _ = all_bots; // used above for filter
+        }
+
+        // Select the local model bot
+        let bot_id = moly_kit::aitk::protocol::BotId::new(&model_id);
+        {
+            let mut ctrl = self.chat_controller.lock().unwrap();
+            ctrl.dispatch_mutation(ChatStateMutation::SetBotId(Some(bot_id)));
+        }
+
+        self.last_saved_bot_id = Some(model_id.clone());
+        self.restored_saved_model = true;
+        self.providers_configured = true;
+
+        // Update model selector grouping
+        self.setup_model_selector_grouping(scope);
+
+        self.view.redraw(cx);
+        self.view.chat(ids!(main_content.chat)).redraw(cx);
     }
 
     /// Update the A2UI toggle visibility in PromptInput based on current provider support
