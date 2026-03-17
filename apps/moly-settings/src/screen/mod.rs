@@ -150,16 +150,6 @@ impl Widget for SettingsApp {
     }
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
-        // Get dark mode value
-        let dark_mode_value = if let Some(store) = scope.data.get::<Store>() {
-            if store.is_dark_mode() { 1.0 } else { 0.0 }
-        } else {
-            0.0
-        };
-
-        // Apply dark mode
-        self.apply_dark_mode(cx, dark_mode_value);
-
         // Update selection highlighting
         self.update_selection(cx);
 
@@ -194,7 +184,7 @@ impl Widget for SettingsApp {
         while let Some(widget) = self.view.draw_walk(cx, scope, walk).step() {
             // Draw providers list
             if widget.widget_uid() == providers_list_uid {
-                self.draw_providers_list(cx, scope, widget, dark_mode_value);
+                self.draw_providers_list(cx, scope, widget);
             }
             // Draw models list
             else if widget.widget_uid() == models_list_uid {
@@ -208,9 +198,6 @@ impl Widget for SettingsApp {
 
                             // Set model name
                             item_widget.label(ids!(model_name)).set_text(cx, model_name);
-                            item_widget.label(ids!(model_name)).apply_over(cx, live!{
-                                draw_text: { dark_mode: (dark_mode_value) }
-                            });
 
                             // Set switch state
                             item_widget.mp_switch(ids!(model_enabled)).set_on(cx, *enabled);
@@ -347,7 +334,7 @@ impl SettingsApp {
     }
 
     /// Draw the providers PortalList
-    fn draw_providers_list(&mut self, cx: &mut Cx2d, scope: &mut Scope, widget: WidgetRef, dark_mode: f64) {
+    fn draw_providers_list(&mut self, cx: &mut Cx2d, scope: &mut Scope, widget: WidgetRef) {
         let binding = widget.as_portal_list();
         let Some(mut list) = binding.borrow_mut() else { return };
 
@@ -386,16 +373,13 @@ impl SettingsApp {
 
             // Apply styling
             item_widget.apply_over(cx, live!{
-                draw_bg: { dark_mode: (dark_mode), selected: (selected_val) }
+                draw_bg: { selected: (selected_val) }
             });
             item_widget.label(ids!(provider_name)).set_text(cx, &name);
-            item_widget.label(ids!(provider_name)).apply_over(cx, live!{
-                draw_text: { dark_mode: (dark_mode) }
-            });
 
             // Set status dot
             item_widget.view(ids!(status_dot)).apply_over(cx, live!{
-                draw_bg: { status: (status_val), dark_mode: (dark_mode) }
+                draw_bg: { status: (status_val) }
             });
 
             // Set icon if available - use file path loading
@@ -535,96 +519,6 @@ impl SettingsApp {
                 store.preferences.save();
             }
         }
-    }
-
-    fn apply_dark_mode(&mut self, cx: &mut Cx2d, dark_mode: f64) {
-        self.view.apply_over(cx, live! {
-            draw_bg: { dark_mode: (dark_mode) }
-        });
-
-        // Apply to panels
-        self.view.view(ids!(providers_panel)).apply_over(cx, live!{
-            draw_bg: { dark_mode: (dark_mode) }
-        });
-
-        // Apply to all labels and inputs that have dark_mode
-        self.view.label(ids!(header_label)).apply_over(cx, live!{
-            draw_text: { dark_mode: (dark_mode) }
-        });
-        self.view.label(ids!(provider_title)).apply_over(cx, live!{
-            draw_text: { dark_mode: (dark_mode) }
-        });
-        self.view.label(ids!(provider_type_label)).apply_over(cx, live!{
-            draw_text: { dark_mode: (dark_mode) }
-        });
-
-        // Provider items dark mode is now handled in draw_providers_list
-
-        // Apply to text inputs
-        self.view.text_input(ids!(api_host_input)).apply_over(cx, live!{
-            draw_bg: { dark_mode: (dark_mode) }
-            draw_text: { dark_mode: (dark_mode) }
-            draw_cursor: { dark_mode: (dark_mode) }
-        });
-        self.view.text_input(ids!(api_key_input)).apply_over(cx, live!{
-            draw_bg: { dark_mode: (dark_mode) }
-            draw_text: { dark_mode: (dark_mode) }
-            draw_cursor: { dark_mode: (dark_mode) }
-        });
-
-        // Apply to test button
-        self.view.button(ids!(test_button)).apply_over(cx, live!{
-            draw_bg: { dark_mode: (dark_mode) }
-            draw_text: { dark_mode: (dark_mode) }
-        });
-
-        // Apply to models section
-        self.view.label(ids!(models_header)).apply_over(cx, live!{
-            draw_text: { dark_mode: (dark_mode) }
-        });
-        self.view.label(ids!(select_all_label)).apply_over(cx, live!{
-            draw_text: { dark_mode: (dark_mode) }
-        });
-        self.view.view(ids!(models_scroll)).apply_over(cx, live!{
-            draw_bg: { dark_mode: (dark_mode) }
-        });
-
-        // Apply to add provider button
-        self.view.button(ids!(add_provider_button)).apply_over(cx, live!{
-            draw_bg: { dark_mode: (dark_mode) }
-            draw_text: { dark_mode: (dark_mode) }
-        });
-
-        // Apply to modal
-        self.view.view(ids!(modal_content)).apply_over(cx, live!{
-            draw_bg: { dark_mode: (dark_mode) }
-        });
-        self.view.label(ids!(modal_title)).apply_over(cx, live!{
-            draw_text: { dark_mode: (dark_mode) }
-        });
-        self.view.button(ids!(close_modal_button)).apply_over(cx, live!{
-            draw_bg: { dark_mode: (dark_mode) }
-            draw_text: { dark_mode: (dark_mode) }
-        });
-        self.view.button(ids!(cancel_modal_button)).apply_over(cx, live!{
-            draw_bg: { dark_mode: (dark_mode) }
-            draw_text: { dark_mode: (dark_mode) }
-        });
-        self.view.text_input(ids!(new_provider_name)).apply_over(cx, live!{
-            draw_bg: { dark_mode: (dark_mode) }
-            draw_text: { dark_mode: (dark_mode) }
-            draw_cursor: { dark_mode: (dark_mode) }
-        });
-        self.view.text_input(ids!(new_provider_url)).apply_over(cx, live!{
-            draw_bg: { dark_mode: (dark_mode) }
-            draw_text: { dark_mode: (dark_mode) }
-            draw_cursor: { dark_mode: (dark_mode) }
-        });
-        self.view.text_input(ids!(new_provider_key)).apply_over(cx, live!{
-            draw_bg: { dark_mode: (dark_mode) }
-            draw_text: { dark_mode: (dark_mode) }
-            draw_cursor: { dark_mode: (dark_mode) }
-        });
     }
 
     /// Start a connection test for the currently selected provider

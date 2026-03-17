@@ -11,9 +11,8 @@ live_design! {
     // Local label style - using Manrope Medium
     LocalModelsLabel = <Label> {
         draw_text: {
-            instance dark_mode: 0.0
             fn get_color(self) -> vec4 {
-                return mix(#6b7280, #94a3b8, self.dark_mode);
+                return #6b7280;
             }
             text_style: <FONT_MEDIUM>{ font_size: 11.0 }
         }
@@ -22,9 +21,8 @@ live_design! {
     // Section title style - using Manrope SemiBold
     SectionTitle = <Label> {
         draw_text: {
-            instance dark_mode: 0.0
             fn get_color(self) -> vec4 {
-                return mix(#1f2937, #f1f5f9, self.dark_mode);
+                return #1f2937;
             }
             text_style: <FONT_SEMIBOLD>{ font_size: 14.0 }
         }
@@ -37,7 +35,6 @@ live_design! {
         margin: {left: 8}
 
         draw_bg: {
-            instance dark_mode: 0.0
             instance category: 0.0  // 0=LLM, 1=Image, 2=ASR, 3=TTS
 
             fn pixel(self) -> vec4 {
@@ -45,10 +42,10 @@ live_design! {
                 sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 3.0);
 
                 // Category colors
-                let llm_color = mix(#dbeafe, #1e3a5f, self.dark_mode);     // Blue
-                let image_color = mix(#fce7f3, #5b2c4a, self.dark_mode);   // Pink
-                let asr_color = mix(#d1fae5, #1a4d3a, self.dark_mode);     // Green
-                let tts_color = mix(#fef3c7, #5c4a1f, self.dark_mode);     // Yellow
+                let llm_color = #dbeafe;     // Blue
+                let image_color = #fce7f3;   // Pink
+                let asr_color = #d1fae5;     // Green
+                let tts_color = #fef3c7;     // Yellow
 
                 let color = mix(
                     mix(llm_color, image_color, clamp(self.category, 0.0, 1.0)),
@@ -63,13 +60,12 @@ live_design! {
 
         category_label = <Label> {
             draw_text: {
-                instance dark_mode: 0.0
                 instance category: 0.0
                 fn get_color(self) -> vec4 {
-                    let llm_color = mix(#1e40af, #93c5fd, self.dark_mode);
-                    let image_color = mix(#9d174d, #f9a8d4, self.dark_mode);
-                    let asr_color = mix(#047857, #6de8b7, self.dark_mode);
-                    let tts_color = mix(#92401f, #fcd34d, self.dark_mode);
+                    let llm_color = #1e40af;
+                    let image_color = #9d174d;
+                    let asr_color = #047857;
+                    let tts_color = #92401f;
 
                     return mix(
                         mix(llm_color, image_color, clamp(self.category, 0.0, 1.0)),
@@ -90,18 +86,17 @@ live_design! {
         margin: {right: 10}
         draw_bg: {
             instance status: 0.0
-            instance dark_mode: 0.0
 
             fn pixel(self) -> vec4 {
                 let sdf = Sdf2d::viewport(self.pos * self.rect_size);
                 sdf.circle(4.0, 4.0, 4.0);
 
                 // Colors for each status
-                let gray = mix(#d1d5db, #64748b, self.dark_mode);
-                let yellow = mix(#f59e0b, #fbbf24, self.dark_mode);
-                let green = mix(#22c55e, #4ade80, self.dark_mode);
-                let orange = mix(#f97316, #fb923c, self.dark_mode);
-                let red = mix(#ef4444, #f87171, self.dark_mode);
+                let gray = #d1d5db;
+                let yellow = #f59e0b;
+                let green = #22c55e;
+                let orange = #f97316;
+                let red = #ef4444;
 
                 // Select color based on status (simplified - no animation)
                 // 0=gray, 1=yellow, 2=green, 3=orange, 4+=red
@@ -122,14 +117,13 @@ live_design! {
         margin: {top: 4}
         show_bg: true
         draw_bg: {
-            instance dark_mode: 0.0
             instance progress: 0.0  // 0.0 to 1.0
 
             fn pixel(self) -> vec4 {
                 // Background color
-                let bg_color = mix(#e5e7eb, #374151, self.dark_mode);
+                let bg_color = #e5e7eb;
                 // Progress fill color
-                let fill_color = mix(#3b82f6, #60a5fa, self.dark_mode);
+                let fill_color = #3b82f6;
 
                 // Calculate if current pixel is in progress area
                 // progress is 0.0-1.0, pos.x is 0.0-1.0
@@ -148,14 +142,13 @@ live_design! {
         draw_bg: {
             instance hover: 0.0
             instance pressed: 0.0
-            instance dark_mode: 0.0
 
             fn pixel(self) -> vec4 {
                 let sdf = Sdf2d::viewport(self.pos * self.rect_size);
                 sdf.circle(12.0, 12.0, 10.0);
 
-                let base = mix(#00000000, #00000000, self.dark_mode);
-                let hover_color = mix(#fee2e2, #7f1d1d, self.dark_mode);
+                let base = #00000000;
+                let hover_color = #fee2e2;
 
                 sdf.fill(mix(base, hover_color, self.hover));
                 return sdf.result;
@@ -163,9 +156,8 @@ live_design! {
         }
 
         draw_text: {
-            instance dark_mode: 0.0
             fn get_color(self) -> vec4 {
-                return mix(#ef4444, #fca5a5, self.dark_mode);
+                return #ef4444;
             }
             text_style: <FONT_MEDIUM>{ font_size: 14.0 }
         }
@@ -196,12 +188,11 @@ live_design! {
         draw_bg: {
             instance hover: 0.0
             instance selected: 0.0
-            instance dark_mode: 0.0
 
             fn pixel(self) -> vec4 {
-                let base = mix(#ffffff, #1e293b, self.dark_mode);
-                let hover_color = mix(#f1f5f9, #334155, self.dark_mode);
-                let selected_color = mix(#dbeafe, #1e3a5f, self.dark_mode);
+                let base = #ffffff;
+                let hover_color = #f1f5f9;
+                let selected_color = #dbeafe;
 
                 return mix(
                     mix(base, hover_color, self.hover),
@@ -224,9 +215,8 @@ live_design! {
             model_name = <Label> {
                 width: Fill
                 draw_text: {
-                    instance dark_mode: 0.0
                     fn get_color(self) -> vec4 {
-                        return mix(#1f2937, #f1f5f9, self.dark_mode);
+                        return #1f2937;
                     }
                     text_style: <FONT_REGULAR>{ font_size: 11.3 }
                 }
@@ -256,17 +246,15 @@ live_design! {
 
         show_bg: true
         draw_bg: {
-            instance dark_mode: 0.0
             fn pixel(self) -> vec4 {
-                return mix(#ffffff, #1e293b, self.dark_mode);
+                return #ffffff;
             }
         }
 
         category_header_label = <Label> {
             draw_text: {
-                instance dark_mode: 0.0
                 fn get_color(self) -> vec4 {
-                    return mix(#9ca3af, #64748b, self.dark_mode);
+                    return #9ca3af;
                 }
                 text_style: <FONT_SEMIBOLD>{ font_size: 10.0 }
             }
@@ -282,7 +270,6 @@ live_design! {
         draw_bg: {
             instance hover: 0.0
             instance pressed: 0.0
-            instance dark_mode: 0.0
             instance btn_type: 0.0  // 0=primary, 1=danger
 
             fn pixel(self) -> vec4 {
@@ -290,15 +277,9 @@ live_design! {
                 sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 5.0);
 
                 let primary = mix(#3b82f6, #2563fa, self.hover);
-                let primary_dark = mix(#2563fa, #1d4fd9, self.hover);
                 let danger = mix(#ef4444, #dc2626, self.hover);
-                let danger_dark = mix(#dc2626, #b91c1c, self.hover);
 
-                let color = mix(
-                    mix(primary, primary_dark, self.dark_mode),
-                    mix(danger, danger_dark, self.dark_mode),
-                    self.btn_type
-                );
+                let color = mix(primary, danger, self.btn_type);
 
                 sdf.fill(mix(color, color * 0.9, self.pressed));
                 return sdf.result;
@@ -327,9 +308,8 @@ live_design! {
         info_value = <Label> {
             width: Fill
             draw_text: {
-                instance dark_mode: 0.0
                 fn get_color(self) -> vec4 {
-                    return mix(#374151, #cbd5e1, self.dark_mode);
+                    return #374151;
                 }
                 text_style: <FONT_REGULAR>{ font_size: 11.0 }
                 wrap: Word
@@ -344,9 +324,8 @@ live_design! {
 
         show_bg: true
         draw_bg: {
-            instance dark_mode: 0.0
             fn pixel(self) -> vec4 {
-                return mix(#f8fafc, #0f172a, self.dark_mode);
+                return #f8fafc;
             }
         }
 
@@ -356,9 +335,8 @@ live_design! {
             flow: Down
             show_bg: true
             draw_bg: {
-                instance dark_mode: 0.0
                 fn pixel(self) -> vec4 {
-                    return mix(#ffffff, #1e293b, self.dark_mode);
+                    return #ffffff;
                 }
             }
 
@@ -371,9 +349,8 @@ live_design! {
                 header_label = <Label> {
                     text: "Local Models"
                     draw_text: {
-                        instance dark_mode: 0.0
                         fn get_color(self) -> vec4 {
-                            return mix(#1f2937, #f1f5f9, self.dark_mode);
+                            return #1f2937;
                         }
                         text_style: <FONT_SEMIBOLD>{ font_size: 14.0 }
                     }
@@ -385,9 +362,8 @@ live_design! {
                 width: Fill, height: 1
                 show_bg: true
                 draw_bg: {
-                    instance dark_mode: 0.0
                     fn pixel(self) -> vec4 {
-                        return mix(#f1f5f9, #334155, self.dark_mode);
+                        return #f1f5f9;
                     }
                 }
             }
@@ -407,9 +383,8 @@ live_design! {
             width: 1, height: Fill
             show_bg: true
             draw_bg: {
-                instance dark_mode: 0.0
                 fn pixel(self) -> vec4 {
-                    return mix(#f1f5f9, #334155, self.dark_mode);
+                    return #f1f5f9;
                 }
             }
         }
@@ -422,9 +397,8 @@ live_design! {
 
             show_bg: true
             draw_bg: {
-                instance dark_mode: 0.0
                 fn pixel(self) -> vec4 {
-                    return mix(#f8fafc, #0f172a, self.dark_mode);
+                    return #f8fafc;
                 }
             }
 
@@ -437,9 +411,8 @@ live_design! {
 
                 model_title = <Label> {
                     draw_text: {
-                        instance dark_mode: 0.0
                         fn get_color(self) -> vec4 {
-                            return mix(#1f2937, #f1f5f9, self.dark_mode);
+                            return #1f2937;
                         }
                         text_style: <FONT_SEMIBOLD>{ font_size: 18.0 }
                     }
@@ -453,9 +426,8 @@ live_design! {
                 width: Fill, height: Fit
                 margin: {bottom: 20}
                 draw_text: {
-                    instance dark_mode: 0.0
                     fn get_color(self) -> vec4 {
-                        return mix(#6b7280, #94a3b8, self.dark_mode);
+                        return #6b7280;
                     }
                     text_style: <FONT_REGULAR>{ font_size: 12.0 }
                     wrap: Word
@@ -471,11 +443,10 @@ live_design! {
 
                 show_bg: true
                 draw_bg: {
-                    instance dark_mode: 0.0
                     fn pixel(self) -> vec4 {
                         let sdf = Sdf2d::viewport(self.pos * self.rect_size);
                         sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 6.0);
-                        sdf.fill(mix(#ffffff, #1e293b, self.dark_mode));
+                        sdf.fill(#ffffff);
                         return sdf.result;
                     }
                 }
@@ -545,11 +516,10 @@ live_design! {
                     width: Fill, height: 8
                     show_bg: true
                     draw_bg: {
-                        instance dark_mode: 0.0
                         fn pixel(self) -> vec4 {
                             let sdf = Sdf2d::viewport(self.pos * self.rect_size);
                             sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 4.0);
-                            sdf.fill(mix(#e5e7eb, #374151, self.dark_mode));
+                            sdf.fill(#e5e7eb);
                             return sdf.result;
                         }
                     }
@@ -559,11 +529,10 @@ live_design! {
                         width: 0, height: Fill
                         show_bg: true
                         draw_bg: {
-                            instance dark_mode: 0.0
                             fn pixel(self) -> vec4 {
                                 let sdf = Sdf2d::viewport(self.pos * self.rect_size);
                                 sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 4.0);
-                                sdf.fill(mix(#3b82f6, #60a5fa, self.dark_mode));
+                                sdf.fill(#3b82f6);
                                 return sdf.result;
                             }
                         }
@@ -575,9 +544,8 @@ live_design! {
                     width: Fill, height: Fit
                     margin: {top: 6}
                     draw_text: {
-                        instance dark_mode: 0.0
                         fn get_color(self) -> vec4 {
-                            return mix(#6b7280, #94a3b8, self.dark_mode);
+                            return #6b7280;
                         }
                         text_style: <FONT_REGULAR>{ font_size: 11.0 }
                     }
@@ -589,9 +557,8 @@ live_design! {
                 width: Fill, height: Fit
                 margin: {top: 12}
                 draw_text: {
-                    instance dark_mode: 0.0
                     fn get_color(self) -> vec4 {
-                        return mix(#6b7280, #94a3b8, self.dark_mode);
+                        return #6b7280;
                     }
                     text_style: <FONT_REGULAR>{ font_size: 11.0 }
                 }

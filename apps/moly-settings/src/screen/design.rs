@@ -25,9 +25,8 @@ live_design! {
     // Settings label style
     SettingsLabel = <Label> {
         draw_text: {
-            instance dark_mode: 0.0
             fn get_color(self) -> vec4 {
-                return mix(#374151, #e2e8f0, self.dark_mode);
+                return #374151;
             }
             text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }
         }
@@ -36,9 +35,8 @@ live_design! {
     // Settings hint/helper text
     SettingsHint = <Label> {
         draw_text: {
-            instance dark_mode: 0.0
             fn get_color(self) -> vec4 {
-                return mix(#9ca3af, #64748b, self.dark_mode);
+                return #9ca3af;
             }
             text_style: <FONT_REGULAR>{ font_size: 10.0 }
         }
@@ -52,37 +50,31 @@ live_design! {
         draw_bg: {
             instance radius: 6.0
             instance border_width: 1.0
-            instance dark_mode: 0.0
 
             fn pixel(self) -> vec4 {
                 let sdf = Sdf2d::viewport(self.pos * self.rect_size);
                 let sz = self.rect_size - 2.0;
                 sdf.box(1.0, 1.0, sz.x, sz.y, max(1.0, self.radius - self.border_width));
 
-                let bg = mix(#ffffff, #1e293b, self.dark_mode);
-                let border = mix(#d1d5db, #475569, self.dark_mode);
-                sdf.fill(bg);
-                sdf.stroke(border, self.border_width);
+                sdf.fill(#ffffff);
+                sdf.stroke(#d1d5db, self.border_width);
                 return sdf.result;
             }
         }
 
         draw_text: {
-            instance dark_mode: 0.0
             fn get_color(self) -> vec4 {
-                return mix(#1f2937, #f1f5f9, self.dark_mode);
+                return #1f2937;
             }
             text_style: <FONT_REGULAR>{ font_size: 12.0 }
         }
 
         draw_cursor: {
-            instance dark_mode: 0.0
             uniform border_radius: 0.5
             fn pixel(self) -> vec4 {
                 let sdf = Sdf2d::viewport(self.pos * self.rect_size);
                 sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, self.border_radius);
-                let color = mix(#1f2937, #f1f5f9, self.dark_mode);
-                sdf.fill(mix(#00000000, color, (1.0 - self.blink) * self.focus));
+                sdf.fill(mix(#00000000, #1f2937, (1.0 - self.blink) * self.focus));
                 return sdf.result;
             }
         }
@@ -98,7 +90,6 @@ live_design! {
         draw_bg: {
             // status: 0=not_connected (gray), 1=connecting (yellow), 2=connected (green), 3=error (red)
             instance status: 0.0
-            instance dark_mode: 0.0
 
             fn pixel(self) -> vec4 {
                 let sdf = Sdf2d::viewport(self.pos * self.rect_size);
@@ -107,10 +98,10 @@ live_design! {
                 sdf.circle(center.x, center.y, radius);
 
                 // Color based on status
-                let gray = mix(#9ca3af, #64748b, self.dark_mode);
-                let yellow = mix(#f59e0b, #fbbf24, self.dark_mode);
-                let green = mix(#22c55e, #4ade80, self.dark_mode);
-                let red = mix(#ef4444, #f87171, self.dark_mode);
+                let gray = #9ca3af;
+                let yellow = #f59e0b;
+                let green = #22c55e;
+                let red = #ef4444;
 
                 // Select color based on status value
                 let color = mix(
@@ -135,12 +126,11 @@ live_design! {
         draw_bg: {
             instance hover: 0.0
             instance selected: 0.0
-            instance dark_mode: 0.0
 
             fn pixel(self) -> vec4 {
-                let base = mix(#ffffff, #1e293b, self.dark_mode);
-                let hover_color = mix(#f1f5f9, #334155, self.dark_mode);
-                let selected_color = mix(#dbeafe, #1e3a5f, self.dark_mode);
+                let base = #ffffff;
+                let hover_color = #f1f5f9;
+                let selected_color = #dbeafe;
                 return mix(mix(base, hover_color, self.hover), selected_color, self.selected);
             }
         }
@@ -160,9 +150,8 @@ live_design! {
         provider_name = <Label> {
             width: Fill
             draw_text: {
-                instance dark_mode: 0.0
                 fn get_color(self) -> vec4 {
-                    return mix(#1f2937, #f1f5f9, self.dark_mode);
+                    return #1f2937;
                 }
                 text_style: <FONT_REGULAR>{ font_size: 11.3 }
             }
@@ -217,27 +206,22 @@ live_design! {
             instance hover: 0.0
             instance pressed: 0.0
             instance radius: 6.0
-            instance dark_mode: 0.0
 
             fn pixel(self) -> vec4 {
                 let sdf = Sdf2d::viewport(self.pos * self.rect_size);
                 let sz = self.rect_size - 2.0;
                 // Secondary button: gray outline style
-                let bg = mix(#ffffff, #1e293b, self.dark_mode);
-                let border = mix(#d1d5db, #475569, self.dark_mode);
-                let hover_bg = mix(#f3f4f6, #334155, self.dark_mode);
-                let bg_color = mix(bg, hover_bg, self.hover);
+                let bg_color = mix(#ffffff, #f3f4f6, self.hover);
                 sdf.box(1.0, 1.0, sz.x, sz.y, self.radius);
                 sdf.fill(bg_color);
-                sdf.stroke(border, 1.0);
+                sdf.stroke(#d1d5db, 1.0);
                 return sdf.result;
             }
         }
 
         draw_text: {
-            instance dark_mode: 0.0
             fn get_color(self) -> vec4 {
-                return mix(#374151, #e2e8f0, self.dark_mode);
+                return #374151;
             }
             text_style: <FONT_SEMIBOLD>{ font_size: 12.0 }
         }
@@ -250,9 +234,8 @@ live_design! {
         flow: Right
         show_bg: true
         draw_bg: {
-            instance dark_mode: 0.0
             fn pixel(self) -> vec4 {
-                return mix(#f5f7fa, #0f172a, self.dark_mode);
+                return #f5f7fa;
             }
         }
 
@@ -275,9 +258,8 @@ live_design! {
             flow: Down
             show_bg: true
             draw_bg: {
-                instance dark_mode: 0.0
                 fn pixel(self) -> vec4 {
-                    return mix(#ffffff, #1e293b, self.dark_mode);
+                    return #ffffff;
                 }
             }
 
@@ -291,9 +273,8 @@ live_design! {
                 header_label = <Label> {
                     text: "Providers"
                     draw_text: {
-                        instance dark_mode: 0.0
                         fn get_color(self) -> vec4 {
-                            return mix(#1f2937, #f1f5f9, self.dark_mode);
+                            return #1f2937;
                         }
                         text_style: <FONT_SEMIBOLD>{ font_size: 20.0 }
                     }
@@ -308,22 +289,19 @@ live_design! {
                         instance hover: 0.0
                         instance pressed: 0.0
                         instance radius: 4.0
-                        instance dark_mode: 0.0
 
                         fn pixel(self) -> vec4 {
                             let sdf = Sdf2d::viewport(self.pos * self.rect_size);
                             let sz = self.rect_size - 2.0;
-                            let hover_color = mix(#e5e7eb, #374151, self.dark_mode);
-                            let color = mix(vec4(0.0), hover_color, self.hover);
+                            let color = mix(vec4(0.0), #e5e7eb, self.hover);
                             sdf.box(1.0, 1.0, sz.x, sz.y, self.radius);
                             sdf.fill(color);
                             return sdf.result;
                         }
                     }
                     draw_text: {
-                        instance dark_mode: 0.0
                         fn get_color(self) -> vec4 {
-                            return mix(#374151, #e2e8f0, self.dark_mode);
+                            return #374151;
                         }
                         text_style: <FONT_SEMIBOLD>{ font_size: 16.0 }
                     }
@@ -345,9 +323,8 @@ live_design! {
             width: 1, height: Fill
             show_bg: true
             draw_bg: {
-                instance dark_mode: 0.0
                 fn pixel(self) -> vec4 {
-                    return mix(#e5e7eb, #374151, self.dark_mode);
+                    return #e5e7eb;
                 }
             }
         }
@@ -381,9 +358,8 @@ live_design! {
                     provider_title = <Label> {
                         text: "OpenAI"
                         draw_text: {
-                            instance dark_mode: 0.0
                             fn get_color(self) -> vec4 {
-                                return mix(#1f2937, #f1f5f9, self.dark_mode);
+                                return #1f2937;
                             }
                             text_style: <FONT_SEMIBOLD>{ font_size: 20.0 }
                         }
@@ -393,9 +369,8 @@ live_design! {
                 provider_type_label = <Label> {
                     text: "OpenAI Compatible API"
                     draw_text: {
-                        instance dark_mode: 0.0
                         fn get_color(self) -> vec4 {
-                            return mix(#6b7280, #94a3b8, self.dark_mode);
+                            return #6b7280;
                         }
                         text_style: <FONT_REGULAR>{ font_size: 12.0 }
                     }
@@ -507,9 +482,8 @@ live_design! {
             status_message = <Label> {
                 text: ""
                 draw_text: {
-                    instance dark_mode: 0.0
                     fn get_color(self) -> vec4 {
-                        return mix(#059669, #10b981, self.dark_mode);
+                        return #059669;
                     }
                     text_style: <FONT_REGULAR>{ font_size: 11.0 }
                 }
@@ -533,9 +507,8 @@ live_design! {
                     models_header = <Label> {
                         text: "Available Models"
                         draw_text: {
-                            instance dark_mode: 0.0
                             fn get_color(self) -> vec4 {
-                                return mix(#374151, #e2e8f0, self.dark_mode);
+                                return #374151;
                             }
                             text_style: <FONT_SEMIBOLD>{ font_size: 13.0 }
                         }
@@ -546,9 +519,8 @@ live_design! {
                     select_all_label = <Label> {
                         text: "Select All"
                         draw_text: {
-                            instance dark_mode: 0.0
                             fn get_color(self) -> vec4 {
-                                return mix(#6b7280, #94a3b8, self.dark_mode);
+                                return #6b7280;
                             }
                             text_style: <FONT_REGULAR>{ font_size: 11.0 }
                         }
@@ -563,15 +535,12 @@ live_design! {
                     show_bg: true
                     draw_bg: {
                         instance radius: 6.0
-                        instance dark_mode: 0.0
                         fn pixel(self) -> vec4 {
                             let sdf = Sdf2d::viewport(self.pos * self.rect_size);
                             let sz = self.rect_size - 2.0;
                             sdf.box(1.0, 1.0, sz.x, sz.y, self.radius);
-                            let bg = mix(#f9fafb, #1e293b, self.dark_mode);
-                            let border = mix(#e5e7eb, #374151, self.dark_mode);
-                            sdf.fill(bg);
-                            sdf.stroke(border, 1.0);
+                            sdf.fill(#f9fafb);
+                            sdf.stroke(#e5e7eb, 1.0);
                             return sdf.result;
                         }
                     }
@@ -592,9 +561,8 @@ live_design! {
                             model_name = <Label> {
                                 width: Fill
                                 draw_text: {
-                                    instance dark_mode: 0.0
                                     fn get_color(self) -> vec4 {
-                                        return mix(#374151, #e2e8f0, self.dark_mode);
+                                        return #374151;
                                     }
                                     text_style: <FONT_REGULAR>{ font_size: 11.0 }
                                 }
@@ -633,16 +601,13 @@ live_design! {
                     show_bg: true
                     draw_bg: {
                         instance radius: 8.0
-                        instance dark_mode: 0.0
                         fn pixel(self) -> vec4 {
                             let sdf = Sdf2d::viewport(self.pos * self.rect_size);
                             let sz = self.rect_size - 2.0;
                             sdf.box(1.0, 1.0, sz.x, sz.y, self.radius);
                             // Slightly gray background so white inputs stand out
-                            let bg = mix(#f3f4f6, #0f172a, self.dark_mode);
-                            let border = mix(#d1d5db, #334155, self.dark_mode);
-                            sdf.fill(bg);
-                            sdf.stroke(border, 1.0);
+                            sdf.fill(#f3f4f6);
+                            sdf.stroke(#d1d5db, 1.0);
                             return sdf.result;
                         }
                     }
@@ -656,9 +621,8 @@ live_design! {
                         modal_title = <Label> {
                             text: "Add Provider"
                             draw_text: {
-                                instance dark_mode: 0.0
                                 fn get_color(self) -> vec4 {
-                                    return mix(#1f2937, #f1f5f9, self.dark_mode);
+                                    return #1f2937;
                                 }
                                 text_style: <FONT_SEMIBOLD>{ font_size: 18.0 }
                             }
@@ -673,22 +637,19 @@ live_design! {
                                 instance hover: 0.0
                                 instance pressed: 0.0
                                 instance radius: 4.0
-                                instance dark_mode: 0.0
 
                                 fn pixel(self) -> vec4 {
                                     let sdf = Sdf2d::viewport(self.pos * self.rect_size);
                                     let sz = self.rect_size - 2.0;
-                                    let hover_color = mix(#e5e7eb, #374151, self.dark_mode);
-                                    let color = mix(vec4(0.0), hover_color, self.hover);
+                                    let color = mix(vec4(0.0), #e5e7eb, self.hover);
                                     sdf.box(1.0, 1.0, sz.x, sz.y, self.radius);
                                     sdf.fill(color);
                                     return sdf.result;
                                 }
                             }
                             draw_text: {
-                                instance dark_mode: 0.0
                                 fn get_color(self) -> vec4 {
-                                    return mix(#6b7280, #9ca3af, self.dark_mode);
+                                    return #6b7280;
                                 }
                                 text_style: <FONT_REGULAR>{ font_size: 14.0 }
                             }

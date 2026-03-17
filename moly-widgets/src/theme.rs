@@ -122,54 +122,6 @@ live_design! {
     pub TRANSPARENT = #00000000
 
     // ========================================================================
-    // DARK THEME VARIANTS
-    // Use with mix(LIGHT_COLOR, DARK_COLOR, dark_mode) in shaders
-    // ========================================================================
-
-    // --- Dark Theme Semantic Colors ---
-    pub DARK_BG_DARK = #0f172a         // Main background (dark)
-    pub PANEL_BG_DARK = #1f293b        // Card/panel background (dark)
-    pub TEXT_PRIMARY_DARK = #f1f5f9    // Main text (dark)
-    pub TEXT_SECONDARY_DARK = #94a3b8  // Secondary text (dark)
-    pub TEXT_MUTED_DARK = #64748b      // Muted text (dark)
-    pub DIVIDER_DARK = #475569         // Divider lines (dark)
-    pub BORDER_DARK = #334155          // Border color (dark)
-    pub HOVER_BG_DARK = #334155        // Hover background (dark)
-    pub ACCENT_BLUE_DARK = #60a5fa     // Primary action (brighter for dark mode)
-
-    // ========================================================================
-    // THEMEABLE WIDGET BASE
-    // Base widget with dark_mode instance for theme switching
-    // ========================================================================
-
-    pub ThemeableView = <View> {
-        show_bg: true
-        draw_bg: {
-            instance dark_mode: 0.0
-
-            fn get_bg_color(self) -> vec4 {
-                return mix((PANEL_BG), (PANEL_BG_DARK), self.dark_mode);
-            }
-
-            fn pixel(self) -> vec4 {
-                return self.get_bg_color();
-            }
-        }
-    }
-
-    pub ThemeableRoundedView = <RoundedView> {
-        show_bg: true
-        draw_bg: {
-            instance dark_mode: 0.0
-            border_radius: 4.0
-
-            fn get_bg_color(self) -> vec4 {
-                return mix((PANEL_BG), (PANEL_BG_DARK), self.dark_mode);
-            }
-        }
-    }
-
-    // ========================================================================
     // MANROPE FONT FAMILY
     // Four weights with Chinese and Emoji support
     // ========================================================================

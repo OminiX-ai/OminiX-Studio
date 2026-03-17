@@ -262,25 +262,15 @@ impl Widget for LocalModelsApp {
     }
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
-        // Get dark mode from scope
-        let dark_mode = scope
-            .data
-            .get::<moly_data::Store>()
-            .map(|s| if s.is_dark_mode() { 1.0 } else { 0.0 })
-            .unwrap_or(0.0);
-
-        // Apply dark mode to all components
-        self.apply_dark_mode(cx, dark_mode);
-
         // Update progress bar if downloading
-        self.update_progress_bar(cx, dark_mode);
+        self.update_progress_bar(cx);
 
         // Update right panel with selected model BEFORE drawing
         if let Some(config) = &self.config {
             if let Some(idx) = self.selected_model_index {
                 if idx < config.models.len() {
                     let model = config.models[idx].clone();
-                    self.update_model_details(cx, &model, dark_mode);
+                    self.update_model_details(cx, &model);
                 }
             }
         }
@@ -292,7 +282,7 @@ impl Widget for LocalModelsApp {
         // Draw with PortalList handling
         while let Some(widget) = self.view.draw_walk(cx, scope, walk).step() {
             if widget.widget_uid() == models_list_uid {
-                self.draw_models_list(cx, scope, widget, dark_mode);
+                self.draw_models_list(cx, scope, widget);
             }
         }
 
@@ -770,7 +760,7 @@ impl LocalModelsApp {
     }
 
     /// Update the progress bar UI for the currently selected model
-    fn update_progress_bar(&mut self, cx: &mut Cx2d, dark_mode: f64) {
+    fn update_progress_bar(&mut self, cx: &mut Cx2d) {
         // Get selected model's download state
         let (is_downloading, progress, progress_bytes, total_bytes, current_file) = self.config
             .as_ref()
@@ -825,17 +815,6 @@ impl LocalModelsApp {
                 )
             };
             self.view.label(ids!(progress_text)).set_text(cx, &progress_text);
-            self.view.label(ids!(progress_text)).apply_over(cx, live! {
-                draw_text: { dark_mode: (dark_mode) }
-            });
-
-            // Apply dark mode to progress bar
-            self.view.view(ids!(progress_bar_bg)).apply_over(cx, live! {
-                draw_bg: { dark_mode: (dark_mode) }
-            });
-            self.view.view(ids!(progress_bar_fill)).apply_over(cx, live! {
-                draw_bg: { dark_mode: (dark_mode) }
-            });
         }
     }
 
@@ -958,7 +937,7 @@ impl LocalModelsApp {
     }
 
     /// Draw the models PortalList, grouped by category
-    fn draw_models_list(&mut self, cx: &mut Cx2d, scope: &mut Scope, widget: WidgetRef, dark_mode: f64) {
+    fn draw_models_list(&mut self, cx: &mut Cx2d, scope: &mut Scope, widget: WidgetRef) {
         let Some(config) = &self.config else { return };
 
         let binding = widget.as_portal_list();
@@ -971,13 +950,7 @@ impl LocalModelsApp {
                 Some(ListRow::Header(cat)) => {
                     let cat = *cat;
                     let item = list.item(cx, item_id, live_id!(CategoryHeader));
-                    item.apply_over(cx, live! {
-                        draw_bg: { dark_mode: (dark_mode) }
-                    });
                     item.label(ids!(category_header_label)).set_text(cx, cat.label());
-                    item.label(ids!(category_header_label)).apply_over(cx, live! {
-                        draw_text: { dark_mode: (dark_mode) }
-                    });
                     item.draw_all(cx, scope);
                 }
                 Some(ListRow::Model(model_idx)) => {
@@ -1002,8 +975,7 @@ impl LocalModelsApp {
 
                     item.apply_over(cx, live! {
                         draw_bg: {
-                            selected: (if is_selected { 1.0 } else { 0.0 }),
-                            dark_mode: (dark_mode)
+                            selected: (if is_selected { 1.0 } else { 0.0 })
                         }
                     });
 
@@ -1014,15 +986,11 @@ impl LocalModelsApp {
                     };
                     item.view(ids!(model_status)).apply_over(cx, live! {
                         draw_bg: {
-                            status: (status_value),
-                            dark_mode: (dark_mode)
+                            status: (status_value)
                         }
                     });
 
                     item.label(ids!(model_name)).set_text(cx, &model.name);
-                    item.label(ids!(model_name)).apply_over(cx, live! {
-                        draw_text: { dark_mode: (dark_mode) }
-                    });
 
                     // Hide category badge — redundant inside a category group
                     item.view(ids!(model_category)).set_visible(cx, false);
@@ -1033,7 +1001,6 @@ impl LocalModelsApp {
                     if is_downloading {
                         item.view(ids!(inline_progress)).apply_over(cx, live! {
                             draw_bg: {
-                                dark_mode: (dark_mode),
                                 progress: (download_progress)
                             }
                         });
@@ -1046,57 +1013,7 @@ impl LocalModelsApp {
         }
     }
 
-    fn apply_dark_mode(&mut self, cx: &mut Cx2d, dark_mode: f64) {
-        // Apply to main backgrounds
-        self.view.apply_over(cx, live! {
-            draw_bg: { dark_mode: (dark_mode) }
-        });
-
-        self.view.view(ids!(models_panel)).apply_over(cx, live! {
-            draw_bg: { dark_mode: (dark_mode) }
-        });
-
-        self.view.view(ids!(model_view)).apply_over(cx, live! {
-            draw_bg: { dark_mode: (dark_mode) }
-        });
-
-        // Apply to labels
-        self.view.label(ids!(header_label)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode) }
-        });
-
-        self.view.label(ids!(model_title)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode) }
-        });
-
-        self.view.label(ids!(model_description)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode) }
-        });
-
-        // Apply to info section
-        self.view.view(ids!(info_section)).apply_over(cx, live! {
-            draw_bg: { dark_mode: (dark_mode) }
-        });
-
-        // Apply to buttons
-        self.view.button(ids!(download_button)).apply_over(cx, live! {
-            draw_bg: { dark_mode: (dark_mode) }
-        });
-
-        self.view.button(ids!(cancel_button)).apply_over(cx, live! {
-            draw_bg: { dark_mode: (dark_mode) }
-        });
-
-        self.view.button(ids!(remove_button)).apply_over(cx, live! {
-            draw_bg: { dark_mode: (dark_mode) }
-        });
-
-        self.view.button(ids!(refresh_button)).apply_over(cx, live! {
-            draw_bg: { dark_mode: (dark_mode) }
-        });
-    }
-
-    fn update_model_details(&mut self, cx: &mut Cx2d, model: &LocalModelV2, dark_mode: f64) {
+    fn update_model_details(&mut self, cx: &mut Cx2d, model: &LocalModelV2) {
         // Update title
         self.view.label(ids!(model_title)).set_text(cx, &model.name);
 
@@ -1107,16 +1024,14 @@ impl LocalModelsApp {
         let title_category = self.view.view(ids!(title_category));
         title_category.apply_over(cx, live! {
             draw_bg: {
-                category: (category_value),
-                dark_mode: (dark_mode)
+                category: (category_value)
             }
         });
         // Update the label inside title_category
         title_category.label(ids!(category_label)).set_text(cx, model.category.label());
         title_category.label(ids!(category_label)).apply_over(cx, live! {
             draw_text: {
-                category: (category_value),
-                dark_mode: (dark_mode)
+                category: (category_value)
             }
         });
 
@@ -1137,12 +1052,6 @@ impl LocalModelsApp {
             model.status.state.label()
         };
         status_row.label(ids!(info_value)).set_text(cx, status_text);
-        status_row.label(ids!(info_label)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode) }
-        });
-        status_row.label(ids!(info_value)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode) }
-        });
 
         // Update size row with more details
         let size_text = if model.status.downloaded_bytes > 0 && model.storage.total_size_bytes > 0 {
@@ -1157,12 +1066,6 @@ impl LocalModelsApp {
         };
         let size_row = self.view.view(ids!(size_row));
         size_row.label(ids!(info_value)).set_text(cx, &size_text);
-        size_row.label(ids!(info_label)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode) }
-        });
-        size_row.label(ids!(info_value)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode) }
-        });
 
         // Update memory row
         let memory_text = if model.runtime.memory_required_mb > 0 {
@@ -1178,32 +1081,14 @@ impl LocalModelsApp {
         };
         let memory_row = self.view.view(ids!(memory_row));
         memory_row.label(ids!(info_value)).set_text(cx, &memory_text);
-        memory_row.label(ids!(info_label)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode) }
-        });
-        memory_row.label(ids!(info_value)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode) }
-        });
 
         // Update path row
         let path_row = self.view.view(ids!(path_row));
         path_row.label(ids!(info_value)).set_text(cx, &model.storage.local_path);
-        path_row.label(ids!(info_label)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode) }
-        });
-        path_row.label(ids!(info_value)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode) }
-        });
 
         // Update url row
         let url_row = self.view.view(ids!(url_row));
         url_row.label(ids!(info_value)).set_text(cx, &model.source.primary_url);
-        url_row.label(ids!(info_label)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode) }
-        });
-        url_row.label(ids!(info_value)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode) }
-        });
 
     }
 }

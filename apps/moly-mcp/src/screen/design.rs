@@ -15,18 +15,16 @@ live_design! {
         flow: Down, align: {x: 0.5, y: 0.5}
         show_bg: true
         draw_bg: {
-            instance dark_mode: 0.0
             fn pixel(self) -> vec4 {
-                return mix(#f5f7fa, #0f172a, self.dark_mode);
+                return #f5f7fa;
             }
         }
 
         title_label = <Label> {
             text: "MCP App"
             draw_text: {
-                instance dark_mode: 0.0
                 fn get_color(self) -> vec4 {
-                    return mix(#1f2937, #f1f5f9, self.dark_mode);
+                    return #1f2937;
                 }
                 text_style: <FONT_SEMIBOLD>{ font_size: 32.0 }
             }
@@ -35,9 +33,8 @@ live_design! {
             margin: {top: 8}
             text: "Model Context Protocol (Desktop Only)"
             draw_text: {
-                instance dark_mode: 0.0
                 fn get_color(self) -> vec4 {
-                    return mix(#6b7280, #94a3b8, self.dark_mode);
+                    return #6b7280;
                 }
                 text_style: <FONT_REGULAR>{ font_size: 14.0 }
             }

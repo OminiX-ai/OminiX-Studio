@@ -36,14 +36,13 @@ live_design! {
         cursor: Hand
         show_bg: true
         draw_bg: {
-            instance dark_mode: 0.0
             instance selected: 0.0
             instance hover: 0.0
             instance down: 0.0
             fn pixel(self) -> vec4 {
-                let base = mix(#ffffff, #1e293b, self.dark_mode);
-                let selected_color = mix(#dbeafe, #1e3a8a, self.dark_mode);
-                let hover_color = mix(#f1f5f9, #334155, self.dark_mode);
+                let base = #ffffff;
+                let selected_color = #dbeafe;
+                let hover_color = #f1f5f9;
                 let color = mix(base, selected_color, self.selected);
                 return mix(color, hover_color, self.hover * (1.0 - self.selected));
             }
@@ -96,10 +95,7 @@ live_design! {
             title_label = <Label> {
                 width: Fill
                 draw_text: {
-                    instance dark_mode: 0.0
-                    fn get_color(self) -> vec4 {
-                        return mix(#1f2937, #f1f5f9, self.dark_mode);
-                    }
+                    color: #1f2937
                     text_style: { font_size: 12.0 }
                     wrap: Ellipsis
                 }
@@ -109,10 +105,7 @@ live_design! {
             date_label = <Label> {
                 width: Fill
                 draw_text: {
-                    instance dark_mode: 0.0
-                    fn get_color(self) -> vec4 {
-                        return mix(#6b7280, #9ca3af, self.dark_mode);
-                    }
+                    color: #6b7280
                     text_style: { font_size: 10.0 }
                 }
                 text: ""
@@ -127,9 +120,8 @@ live_design! {
             show_bg: true
             draw_bg: {
                 instance hover: 0.0
-                instance dark_mode: 0.0
                 fn pixel(self) -> vec4 {
-                    let hover_color = mix(#fee2e2, #7f1d1d, self.dark_mode);
+                    let hover_color = #fee2e2;
                     return mix(vec4(0.0, 0.0, 0.0, 0.0), hover_color, self.hover);
                 }
             }
@@ -151,10 +143,7 @@ live_design! {
             delete_icon = <Icon> {
                 draw_icon: {
                     svg_file: (ICON_TRASH)
-                    instance dark_mode: 0.0
-                    fn get_color(self) -> vec4 {
-                        return mix(#9ca3af, #6b7280, self.dark_mode);
-                    }
+                    color: #9ca3af
                 }
                 icon_walk: { width: 18, height: 18 }
             }
@@ -170,9 +159,8 @@ live_design! {
         flow: Down
         show_bg: true
         draw_bg: {
-            instance dark_mode: 0.0
             fn pixel(self) -> vec4 {
-                return mix(#f8fafc, #0f172a, self.dark_mode);
+                return #f8fafc;
             }
         }
 
@@ -190,13 +178,12 @@ live_design! {
                     color: #ffffff
                 }
                 draw_bg: {
-                    instance dark_mode: 0.0
                     instance hover: 0.0
                     instance pressed: 0.0
                     fn pixel(self) -> vec4 {
-                        let base = mix(#3b82f6, #2055ff, self.dark_mode);
-                        let hover_color = mix(#2055ff, #1045cc, self.dark_mode);
-                        let pressed_color = mix(#1045cc, #1040a0, self.dark_mode);
+                        let base = #3b82f6;
+                        let hover_color = #2055ff;
+                        let pressed_color = #1045cc;
                         let color = mix(base, hover_color, self.hover);
                         return mix(color, pressed_color, self.pressed);
                     }
@@ -212,10 +199,7 @@ live_design! {
             history_title = <Label> {
                 text: "History"
                 draw_text: {
-                    instance dark_mode: 0.0
-                    fn get_color(self) -> vec4 {
-                        return mix(#6b7280, #9ca3af, self.dark_mode);
-                    }
+                    color: #6b7280
                     text_style: { font_size: 11.0 }
                 }
             }
@@ -235,9 +219,8 @@ live_design! {
         flow: Down
         show_bg: true
         draw_bg: {
-            instance dark_mode: 0.0
             fn pixel(self) -> vec4 {
-                return mix(#f5f7fa, #0f172a, self.dark_mode);
+                return #f5f7fa;
             }
         }
 
@@ -266,10 +249,7 @@ live_design! {
             title_label = <Label> {
                 text: "Chat"
                 draw_text: {
-                    instance dark_mode: 0.0
-                    fn get_color(self) -> vec4 {
-                        return mix(#1f2937, #f1f5f9, self.dark_mode);
-                    }
+                    color: #1f2937
                     text_style: <FONT_SEMIBOLD>{ font_size: 20.0 }
                 }
             }
@@ -277,10 +257,7 @@ live_design! {
             status_label = <Label> {
                 text: "No provider configured - Go to Settings to add an API key"
                 draw_text: {
-                    instance dark_mode: 0.0
-                    fn get_color(self) -> vec4 {
-                        return mix(#f59e0b, #fbbf24, self.dark_mode);
-                    }
+                    color: #f59e0b
                     text_style: <FONT_REGULAR>{ font_size: 11.0 }
                 }
             }
@@ -310,10 +287,7 @@ live_design! {
                     width: Fit, height: Fit
                     text: "What can I help you with?"
                     draw_text: {
-                        instance dark_mode: 0.0
-                        fn get_color(self) -> vec4 {
-                            return mix(#1f2937, #f1f5f9, self.dark_mode);
-                        }
+                        color: #1f2937
                         text_style: <FONT_SEMIBOLD>{ font_size: 28.0 }
                     }
                 }

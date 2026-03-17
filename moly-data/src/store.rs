@@ -11,10 +11,6 @@ use crate::model_registry::RegistryCategory;
 /// Actions that can be dispatched to modify the Store
 #[derive(Clone, Debug, DefaultNone)]
 pub enum StoreAction {
-    /// Toggle dark mode
-    ToggleDarkMode,
-    /// Set dark mode explicitly
-    SetDarkMode(bool),
     /// Toggle sidebar expanded/collapsed
     ToggleSidebar,
     /// Set sidebar expanded state explicitly
@@ -169,21 +165,6 @@ impl Store {
         self.chat_controller.clone()
     }
 
-    /// Check if dark mode is enabled
-    pub fn is_dark_mode(&self) -> bool {
-        self.preferences.dark_mode
-    }
-
-    /// Set dark mode state
-    pub fn set_dark_mode(&mut self, dark_mode: bool) {
-        self.preferences.set_dark_mode(dark_mode);
-    }
-
-    /// Toggle dark mode
-    pub fn toggle_dark_mode(&mut self) {
-        self.set_dark_mode(!self.is_dark_mode());
-    }
-
     /// Check if sidebar is expanded
     pub fn is_sidebar_expanded(&self) -> bool {
         self.preferences.sidebar_expanded
@@ -212,12 +193,6 @@ impl Store {
     /// Handle a StoreAction and update state accordingly
     pub fn handle_action(&mut self, action: &StoreAction) {
         match action {
-            StoreAction::ToggleDarkMode => {
-                self.toggle_dark_mode();
-            }
-            StoreAction::SetDarkMode(dark_mode) => {
-                self.set_dark_mode(*dark_mode);
-            }
             StoreAction::ToggleSidebar => {
                 self.toggle_sidebar();
             }

@@ -4,7 +4,8 @@ use makepad_widgets::*;
 use moly_data::{
     ModelRegistry, RegistryModel, RegistryCategory, SourceKind,
     ModelRuntimeClient, ServerModelInfo, ServerModelStatus,
-    StoreAction, Store,
+    StoreAction,
+    ensure_server_running,
 };
 use serde::Deserialize;
 use std::sync::{Arc, atomic::{AtomicBool, AtomicU64, Ordering}};
@@ -188,10 +189,12 @@ impl ModelDownloadState {
         let total = self.total_bytes.load(Ordering::SeqCst);
         let file  = self.current_file.lock().unwrap().clone();
         let pct   = self.fraction() * 100.0;
+        let done_mb  = done  / 1_048_576;
+        let total_mb = total / 1_048_576;
         if file.is_empty() {
-            format!("{:.1}%  ({}/{} MB)", pct, done / 1_048_576, total / 1_048_576)
+            format!("{:.1}%  ({}/{} MB)", pct, done_mb, total_mb)
         } else {
-            format!("{:.1}%  {}", pct, file)
+            format!("{:.1}%  ({}/{} MB)  {}", pct, done_mb, total_mb, file)
         }
     }
 }
@@ -277,6 +280,10 @@ live_design! {
 pub struct ModelHubApp {
     #[deref] view: View,
 
+    /// 0 = All (standalone hub), 1 = LLM, 2 = VLM, 3 = ASR, 4 = TTS, 5 = Image
+    /// Set from live_design in the shell to lock this instance to a category.
+    #[live] hub_category: f64,
+
     // ── Core data ───────────────────────────────────────────────────────────
     #[rust] registry:        Option<ModelRegistry>,
     #[rust] initialized:     bool,
@@ -306,9 +313,6 @@ pub struct ModelHubApp {
     #[rust] tts_state:    TtsState,
     #[rust] image_state:  ImageState,
 
-    // ── Theme ────────────────────────────────────────────────────────────────
-    #[rust] current_dark:        f64,
-
     // ── Resizable split pane ─────────────────────────────────────────────────
     /// Width of the left panel in pixels; 0.0 means not yet initialized
     #[rust] left_panel_width:    f64,
@@ -336,7 +340,6 @@ impl Widget for ModelHubApp {
 
         let actions = cx.capture_actions(|cx| self.view.handle_event(cx, event, scope));
 
-        self.handle_filter_clicks(cx, &actions);
         self.handle_search(&actions, cx);
         self.handle_list_clicks(cx, &actions);
         self.handle_panel_header_buttons(cx, &actions);
@@ -385,16 +388,7 @@ impl Widget for ModelHubApp {
     }
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
-        if !self.initialized { self.initialized = true; }
-
-        // Read dark mode from Store and apply if changed
-        let dark = scope.data.get::<Store>()
-            .map(|s: &Store| if s.is_dark_mode() { 1.0f64 } else { 0.0f64 })
-            .unwrap_or(0.0);
-        if (dark - self.current_dark).abs() > 0.001 {
-            self.current_dark = dark;
-            self.apply_dark_mode_hub(cx, dark);
-        }
+        if !self.initialized { self.initialize(cx); }
 
         // Initialize width tracking on first draw (layout comes from live_design)
         if self.left_panel_width == 0.0 { self.left_panel_width = 270.0; }
@@ -428,11 +422,6 @@ impl ModelHubApp {
                 Some(ListRow::Header(cat)) => {
                     let item = list.item(cx, item_id, live_id!(HubCategoryHeader));
                     item.label(ids!(category_header_label)).set_text(cx, cat.label());
-                    let dm = self.current_dark;
-                    item.apply_over(cx, live! { draw_bg: { dark_mode: (dm) } });
-                    item.label(ids!(category_header_label)).apply_over(cx, live! {
-                        draw_text: { dark_mode: (dm) }
-                    });
                     item.draw_all(cx, scope);
                 }
                 Some(ListRow::Model(gi)) => {
@@ -445,19 +434,14 @@ impl ModelHubApp {
                     let dot  = combined_dot_value(dl, load);
                     let sel  = self.selected_id.as_deref() == Some(model_id);
                     let dl_frac = self.download_states.get(model_id).map(|d| d.fraction());
-                    let dm = self.current_dark;
 
                     let item = list.item(cx, item_id, live_id!(HubModelItem));
                     item.label(ids!(model_name)).set_text(cx, name);
                     item.view(ids!(model_status)).apply_over(cx, live! { draw_bg: { status: (dot) } });
-                    item.view(ids!(model_status)).apply_over(cx, live! { draw_bg: { dark_mode: (dm) } });
                     item.apply_over(cx, live! { draw_bg: { selected: (if sel { 1.0_f64 } else { 0.0_f64 }) } });
-                    item.apply_over(cx, live! { draw_bg: { dark_mode: (dm) } });
-                    item.label(ids!(model_name)).apply_over(cx, live! { draw_text: { dark_mode: (dm) } });
                     if let Some(pct) = dl_frac {
                         item.view(ids!(inline_progress)).set_visible(cx, true);
                         item.view(ids!(inline_progress)).apply_over(cx, live! { draw_bg: { progress: (pct) } });
-                        item.view(ids!(inline_progress)).apply_over(cx, live! { draw_bg: { dark_mode: (dm) } });
                     } else {
                         item.view(ids!(inline_progress)).set_visible(cx, false);
                     }
@@ -465,11 +449,8 @@ impl ModelHubApp {
                 }
                 Some(ListRow::VoiceStudio) => {
                     let sel = self.active_panel == ActivePanel::Voice;
-                    let dm = self.current_dark;
                     let item = list.item(cx, item_id, live_id!(HubVoiceStudioItem));
                     item.apply_over(cx, live! { draw_bg: { selected: (if sel { 1.0_f64 } else { 0.0_f64 }) } });
-                    item.apply_over(cx, live! { draw_bg: { dark_mode: (dm) } });
-                    item.label(ids!(voice_studio_label)).apply_over(cx, live! { draw_text: { dark_mode: (dm) } });
                     item.draw_all(cx, scope);
                 }
                 None => {}
@@ -489,15 +470,10 @@ impl ModelHubApp {
                 let sel   = self.selected_voice_idx == Some(item_id);
                 let ready = voice.is_ready;
                 let name  = voice.name.clone();
-                let dm    = self.current_dark;
 
                 let item = list.item(cx, item_id, live_id!(HubVoiceListItem));
                 item.label(ids!(voice_item_name)).set_text(cx, &name);
                 item.apply_over(cx, live! { draw_bg: { selected: (if sel { 1.0_f64 } else { 0.0_f64 }) } });
-                item.apply_over(cx, live! { draw_bg: { dark_mode: (dm) } });
-                item.label(ids!(voice_item_name)).apply_over(cx, live! {
-                    draw_text: { dark_mode: (dm) }
-                });
                 item.view(ids!(voice_status_dot)).apply_over(cx, live! {
                     draw_bg: { ready: (if ready { 1.0_f64 } else { 0.0_f64 }) }
                 });
@@ -506,180 +482,20 @@ impl ModelHubApp {
         }
     }
 
-    // ── Dark mode ─────────────────────────────────────────────────────────────
-
-    fn apply_dark_mode_hub(&mut self, cx: &mut Cx, dark: f64) {
-        // Root background
-        self.view.apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-
-        // Left panel
-        self.view.view(ids!(hub_left_panel)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_title_label)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_header_divider)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-
-        // Search input
-        self.view.text_input(ids!(search_input)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.text_input(ids!(search_input)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-
-        // Filter tabs
-        self.view.button(ids!(filter_all)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.button(ids!(filter_all)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.button(ids!(filter_llm)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.button(ids!(filter_llm)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.button(ids!(filter_vlm)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.button(ids!(filter_vlm)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.button(ids!(filter_asr)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.button(ids!(filter_asr)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.button(ids!(filter_tts)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.button(ids!(filter_tts)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.button(ids!(filter_image)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.button(ids!(filter_image)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-
-        // Main vertical divider + right panel
-        self.view.view(ids!(hub_main_divider)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_right_panel)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_empty_label)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-
-        // Panel dividers
-        self.view.view(ids!(hub_llm_divider)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_vlm_divider)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_asr_divider)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_tts_divider)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_image_divider)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-
-        // ── LLM panel header ─────────────────────────────────────────────────
-        self.view.label(ids!(hub_llm_panel.hub_panel_header.panel_model_name)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_llm_panel.hub_panel_header.panel_model_desc)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_llm_panel.hub_panel_header.panel_status_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_llm_panel.hub_panel_header.panel_sep1)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_llm_panel.hub_panel_header.panel_size_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_llm_panel.hub_panel_header.panel_sep2)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_llm_panel.hub_panel_header.panel_mem_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_llm_panel.hub_panel_header.panel_loading_label)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_llm_panel.hub_panel_header.panel_progress_section.panel_progress_bg)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_llm_panel.hub_panel_header.panel_progress_section.panel_progress_fill)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_llm_panel.hub_panel_header.panel_progress_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_llm_panel.hub_panel_header.panel_status_msg)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        // LLM panel inputs/outputs
-        self.view.text_input(ids!(hub_llm_panel.llm_system)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_llm_panel.llm_system)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_llm_panel.llm_user)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_llm_panel.llm_user)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_llm_panel.llm_response)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_llm_panel.llm_response.output_label)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_llm_panel.llm_status)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-
-        // ── VLM panel header ─────────────────────────────────────────────────
-        self.view.label(ids!(hub_vlm_panel.hub_panel_header.panel_model_name)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_vlm_panel.hub_panel_header.panel_model_desc)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_vlm_panel.hub_panel_header.panel_status_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_vlm_panel.hub_panel_header.panel_sep1)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_vlm_panel.hub_panel_header.panel_size_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_vlm_panel.hub_panel_header.panel_sep2)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_vlm_panel.hub_panel_header.panel_mem_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_vlm_panel.hub_panel_header.panel_loading_label)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_vlm_panel.hub_panel_header.panel_progress_section.panel_progress_bg)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_vlm_panel.hub_panel_header.panel_progress_section.panel_progress_fill)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_vlm_panel.hub_panel_header.panel_progress_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_vlm_panel.hub_panel_header.panel_status_msg)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        // VLM panel inputs/outputs
-        self.view.text_input(ids!(hub_vlm_panel.vlm_image_path)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_vlm_panel.vlm_image_path)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_vlm_panel.vlm_user)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_vlm_panel.vlm_user)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_vlm_panel.vlm_response)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_vlm_panel.vlm_response.output_label)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_vlm_panel.vlm_status)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-
-        // ── ASR panel header ─────────────────────────────────────────────────
-        self.view.label(ids!(hub_asr_panel.hub_panel_header.panel_model_name)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_asr_panel.hub_panel_header.panel_model_desc)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_asr_panel.hub_panel_header.panel_status_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_asr_panel.hub_panel_header.panel_sep1)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_asr_panel.hub_panel_header.panel_size_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_asr_panel.hub_panel_header.panel_sep2)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_asr_panel.hub_panel_header.panel_mem_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_asr_panel.hub_panel_header.panel_loading_label)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_asr_panel.hub_panel_header.panel_progress_section.panel_progress_bg)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_asr_panel.hub_panel_header.panel_progress_section.panel_progress_fill)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_asr_panel.hub_panel_header.panel_progress_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_asr_panel.hub_panel_header.panel_status_msg)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        // ASR panel input/output
-        self.view.text_input(ids!(hub_asr_panel.asr_audio_path)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_asr_panel.asr_audio_path)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_asr_panel.asr_transcript)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_asr_panel.asr_transcript.output_label)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_asr_panel.asr_status)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-
-        // ── TTS panel header ─────────────────────────────────────────────────
-        self.view.label(ids!(hub_tts_panel.hub_panel_header.panel_model_name)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_tts_panel.hub_panel_header.panel_model_desc)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_tts_panel.hub_panel_header.panel_status_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_tts_panel.hub_panel_header.panel_sep1)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_tts_panel.hub_panel_header.panel_size_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_tts_panel.hub_panel_header.panel_sep2)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_tts_panel.hub_panel_header.panel_mem_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_tts_panel.hub_panel_header.panel_loading_label)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_tts_panel.hub_panel_header.panel_progress_section.panel_progress_bg)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_tts_panel.hub_panel_header.panel_progress_section.panel_progress_fill)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_tts_panel.hub_panel_header.panel_progress_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_tts_panel.hub_panel_header.panel_status_msg)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        // TTS panel inputs
-        self.view.text_input(ids!(hub_tts_panel.tts_voice_input)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_tts_panel.tts_voice_input)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_tts_panel.tts_voices_hint)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_tts_panel.tts_text_input)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_tts_panel.tts_text_input)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_tts_panel.tts_status)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-
-        // ── Image panel header ───────────────────────────────────────────────
-        self.view.label(ids!(hub_image_panel.hub_panel_header.panel_model_name)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_image_panel.hub_panel_header.panel_model_desc)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_image_panel.hub_panel_header.panel_status_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_image_panel.hub_panel_header.panel_sep1)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_image_panel.hub_panel_header.panel_size_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_image_panel.hub_panel_header.panel_sep2)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_image_panel.hub_panel_header.panel_mem_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_image_panel.hub_panel_header.panel_loading_label)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_image_panel.hub_panel_header.panel_progress_section.panel_progress_bg)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_image_panel.hub_panel_header.panel_progress_section.panel_progress_fill)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_image_panel.hub_panel_header.panel_progress_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_image_panel.hub_panel_header.panel_status_msg)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        // Image panel inputs
-        self.view.text_input(ids!(hub_image_panel.img_prompt)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_image_panel.img_prompt)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_image_panel.img_neg_prompt)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_image_panel.img_neg_prompt)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_image_panel.img_output_path)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_image_panel.img_status)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-
-        // ── Voice Studio panel ───────────────────────────────────────────────
-        self.view.label(ids!(hub_voice_panel.voice_list_title)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_voice_panel.voice_left_divider)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_voice_panel.voice_panel_divider)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_voice_panel.voice_training_title)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.view(ids!(hub_voice_panel.voice_synth_divider)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_voice_panel.voice_synthesis_title)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_voice_panel.voice_name_input)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_voice_panel.voice_name_input)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_voice_panel.voice_audio_path_input)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_voice_panel.voice_audio_path_input)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_voice_panel.voice_transcript_input)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_voice_panel.voice_transcript_input)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_voice_panel.voice_train_status)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_voice_panel.voice_synth_text)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_voice_panel.voice_synth_text)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_voice_panel.voice_speed_input)).apply_over(cx, live! { draw_bg: { dark_mode: (dark) } });
-        self.view.text_input(ids!(hub_voice_panel.voice_speed_input)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-        self.view.label(ids!(hub_voice_panel.voice_synth_status)).apply_over(cx, live! { draw_text: { dark_mode: (dark) } });
-
-        self.view.redraw(cx);
-    }
-
     // ── Initialisation ───────────────────────────────────────────────────────
 
     fn initialize(&mut self, cx: &mut Cx) {
         self.initialized = true;
+        ::log::info!("ModelHubApp::initialize — hub_category = {}", self.hub_category);
+        // Lock filter to the configured category (set by the shell via live_design)
+        self.filter = match self.hub_category as u32 {
+            1 => Filter::Cat(RegistryCategory::Llm),
+            2 => Filter::Cat(RegistryCategory::Vlm),
+            3 => Filter::Cat(RegistryCategory::Asr),
+            4 => Filter::Cat(RegistryCategory::Tts),
+            5 => Filter::Cat(RegistryCategory::ImageGen),
+            _ => Filter::All,
+        };
         let registry = ModelRegistry::load();
         ModelRegistry::fetch_updates_async();
         for model in &registry.models {
@@ -687,6 +503,7 @@ impl ModelHubApp {
         }
         self.registry = Some(registry);
         self.rebuild_list();
+        ::log::info!("ModelHubApp::initialize — filter={:?}, flat_list has {} items", self.filter, self.flat_list.len());
         // Sync load states from the server immediately
         self.poll_server_status();
         // Hide "Open in Chat" button and loading label (Label doesn't support visible: false in live_design)
@@ -717,6 +534,7 @@ impl ModelHubApp {
         ];
         self.flat_list.clear();
 
+        let single_category = matches!(self.filter, Filter::Cat(_));
         for cat in CATS {
             if let Filter::Cat(fc) = self.filter { if fc != cat { continue; } }
             let models: Vec<usize> = registry.models.iter().enumerate()
@@ -728,11 +546,15 @@ impl ModelHubApp {
                 .map(|(i, _)| i)
                 .collect();
             if models.is_empty() { continue; }
-            self.flat_list.push(ListRow::Header(cat));
+            // Skip category header when locked to a single category
+            if !single_category {
+                self.flat_list.push(ListRow::Header(cat));
+            }
             for gi in models { self.flat_list.push(ListRow::Model(gi)); }
         }
-        // Voice Studio is always visible as a footer entry (not filtered by category)
-        if self.filter == Filter::All || q.is_empty() {
+        // Voice Studio: show in the All hub (hub_category 0) and the TTS hub (hub_category 4)
+        let in_voice_hub = self.hub_category == 0.0 || self.hub_category as u32 == 4;
+        if in_voice_hub && q.is_empty() {
             self.flat_list.push(ListRow::VoiceStudio);
         }
     }
@@ -819,7 +641,7 @@ impl ModelHubApp {
         let msg = if is_manual {
             format!("Manual install: {}", model.storage.local_path)
         } else if load == ModelLoadState::LoadError {
-            "Failed to load — check that ominix-api is running on port 8080.".to_string()
+            "Load failed. Check logs — ominix-api may be missing or model files incomplete.".to_string()
         } else if show_load {
             "Downloaded. Press Load to bring into memory.".to_string()
         } else {
@@ -998,35 +820,6 @@ impl ModelHubApp {
 // ─── Event handlers ───────────────────────────────────────────────────────────
 
 impl ModelHubApp {
-    fn handle_filter_clicks(&mut self, cx: &mut Cx, actions: &Actions) {
-        let mut new_filter = None;
-        if self.view.button(ids!(filter_all)).clicked(actions)   { new_filter = Some(Filter::All); }
-        else if self.view.button(ids!(filter_llm)).clicked(actions)   { new_filter = Some(Filter::Cat(RegistryCategory::Llm)); }
-        else if self.view.button(ids!(filter_vlm)).clicked(actions)   { new_filter = Some(Filter::Cat(RegistryCategory::Vlm)); }
-        else if self.view.button(ids!(filter_asr)).clicked(actions)   { new_filter = Some(Filter::Cat(RegistryCategory::Asr)); }
-        else if self.view.button(ids!(filter_tts)).clicked(actions)   { new_filter = Some(Filter::Cat(RegistryCategory::Tts)); }
-        else if self.view.button(ids!(filter_image)).clicked(actions) { new_filter = Some(Filter::Cat(RegistryCategory::ImageGen)); }
-
-        if let Some(f) = new_filter {
-            self.filter = f;
-            self.rebuild_list();
-            let s = |b: bool| if b { 1.0_f64 } else { 0.0_f64 };
-            let ia = f == Filter::All;
-            let il = f == Filter::Cat(RegistryCategory::Llm);
-            let iv = f == Filter::Cat(RegistryCategory::Vlm);
-            let ia2 = f == Filter::Cat(RegistryCategory::Asr);
-            let it = f == Filter::Cat(RegistryCategory::Tts);
-            let ii = f == Filter::Cat(RegistryCategory::ImageGen);
-            self.view.button(ids!(filter_all)).apply_over(cx, live! {   draw_bg: { selected: (s(ia))  } });
-            self.view.button(ids!(filter_llm)).apply_over(cx, live! {   draw_bg: { selected: (s(il))  } });
-            self.view.button(ids!(filter_vlm)).apply_over(cx, live! {   draw_bg: { selected: (s(iv))  } });
-            self.view.button(ids!(filter_asr)).apply_over(cx, live! {   draw_bg: { selected: (s(ia2)) } });
-            self.view.button(ids!(filter_tts)).apply_over(cx, live! {   draw_bg: { selected: (s(it))  } });
-            self.view.button(ids!(filter_image)).apply_over(cx, live! { draw_bg: { selected: (s(ii))  } });
-            self.view.redraw(cx);
-        }
-    }
-
     fn handle_search(&mut self, actions: &Actions, cx: &mut Cx) {
         if let Some(txt) = self.view.text_input(ids!(search_input)).changed(actions) {
             self.search_query = txt.to_string();
@@ -1642,7 +1435,9 @@ impl ModelHubApp {
         self.load_rxs.insert(model_id.to_string(), rx);
 
         std::thread::spawn(move || {
-            let result = ModelRuntimeClient::localhost().load_model(&api_id, &model_type);
+            // Auto-start ominix-api if it isn't running yet
+            let result = ensure_server_running()
+                .and_then(|()| ModelRuntimeClient::localhost().load_model(&api_id, &model_type));
             let _ = tx.send(result);
         });
 
@@ -2309,8 +2104,7 @@ fn download_hf(
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
         *ds.current_file.lock().unwrap() = path.clone();
-        done += stream_download(client, &file_url, &dest, &ds.cancel_requested)?;
-        ds.progress_bytes.store(done, Ordering::SeqCst);
+        done += stream_download(client, &file_url, &dest, &ds.cancel_requested, &ds.progress_bytes, done)?;
     }
     Ok(())
 }
@@ -2343,8 +2137,7 @@ fn download_ms(
         );
         let dest = PathBuf::from(local_path).join(path);
         *ds.current_file.lock().unwrap() = path.clone();
-        done += stream_download(client, &file_url, &dest, &ds.cancel_requested)?;
-        ds.progress_bytes.store(done, Ordering::SeqCst);
+        done += stream_download(client, &file_url, &dest, &ds.cancel_requested, &ds.progress_bytes, done)?;
     }
     Ok(())
 }
@@ -2354,6 +2147,7 @@ fn download_ms(
 fn stream_download(
     client: &reqwest::blocking::Client,
     url: &str, dest: &Path, cancel: &Arc<AtomicBool>,
+    progress_bytes: &Arc<AtomicU64>, base_done: u64,
 ) -> Result<u64, String> {
     if let Some(p) = dest.parent() { std::fs::create_dir_all(p).map_err(|e| e.to_string())?; }
     let mut req = client.get(url);
@@ -2361,9 +2155,12 @@ fn stream_download(
     let mut resp = req.send().map_err(|e| e.to_string())?;
     if !resp.status().is_success() { return Err(format!("HTTP {}", resp.status())); }
 
+    let file_name = dest.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    ::log::info!("stream_download: starting {} from {}", file_name, url);
     let mut file = std::fs::File::create(dest).map_err(|e| e.to_string())?;
     let mut buf  = [0u8; 65536];
     let mut total = 0u64;
+    let mut last_log = 0u64;
     loop {
         if cancel.load(Ordering::SeqCst) {
             drop(file); let _ = std::fs::remove_file(dest);
@@ -2371,7 +2168,16 @@ fn stream_download(
         }
         match resp.read(&mut buf) {
             Ok(0) => break,
-            Ok(n) => { file.write_all(&buf[..n]).map_err(|e| e.to_string())?; total += n as u64; }
+            Ok(n) => {
+                file.write_all(&buf[..n]).map_err(|e| e.to_string())?;
+                total += n as u64;
+                progress_bytes.store(base_done + total, Ordering::SeqCst);
+                // Log every 50MB to verify streaming works
+                if total / (50 * 1_048_576) > last_log / (50 * 1_048_576) {
+                    ::log::info!("stream_download: {} — {} MB downloaded", file_name, total / 1_048_576);
+                    last_log = total;
+                }
+            }
             Err(e) => return Err(e.to_string()),
         }
     }

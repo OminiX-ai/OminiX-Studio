@@ -129,21 +129,6 @@ impl Widget for ModelsApp {
     }
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
-        // Get dark mode value
-        let dark_mode = if let Some(store) = scope.data.get::<Store>() {
-            if store.is_dark_mode() { 1.0 } else { 0.0 }
-        } else {
-            0.0
-        };
-
-        // Apply dark mode to main view
-        self.view.apply_over(cx, live! {
-            draw_bg: { dark_mode: (dark_mode) }
-        });
-
-        // Apply dark mode to header elements
-        self.apply_dark_mode(cx, dark_mode);
-
         // Update connection status badge
         self.update_status_badge(cx, scope);
 
@@ -154,7 +139,7 @@ impl Widget for ModelsApp {
         let has_downloads = !self.active_downloads.is_empty();
         self.view.view(ids!(downloads_section)).set_visible(cx, has_downloads);
         if has_downloads {
-            self.update_downloads_section(cx, dark_mode);
+            self.update_downloads_section(cx);
         }
 
         // Show/hide empty state vs model list
@@ -179,9 +164,6 @@ impl Widget for ModelsApp {
                 }
             };
             self.view.label(ids!(empty_label)).set_text(cx, &message);
-            self.view.label(ids!(empty_label)).apply_over(cx, live! {
-                draw_text: { dark_mode: (dark_mode) }
-            });
         }
 
         // Get PortalList widget UID for step pattern
@@ -191,7 +173,7 @@ impl Widget for ModelsApp {
         // Draw with PortalList handling
         while let Some(widget) = self.view.draw_walk(cx, scope, walk).step() {
             if widget.widget_uid() == models_list_uid {
-                self.draw_models_list(cx, scope, widget, dark_mode);
+                self.draw_models_list(cx, scope, widget);
             }
         }
 
@@ -348,31 +330,6 @@ impl ModelsApp {
         }
     }
 
-    /// Apply dark mode to UI elements
-    fn apply_dark_mode(&mut self, cx: &mut Cx2d, dark_mode: f64) {
-        // Header
-        self.view.label(ids!(title_label)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode) }
-        });
-
-        // Search input
-        self.view.text_input(ids!(search_input)).apply_over(cx, live! {
-            draw_bg: { dark_mode: (dark_mode) }
-            draw_text: { dark_mode: (dark_mode) }
-        });
-
-        // Refresh button
-        self.view.button(ids!(refresh_btn)).apply_over(cx, live! {
-            draw_bg: { dark_mode: (dark_mode) }
-            draw_text: { dark_mode: (dark_mode) }
-        });
-
-        // Results label
-        self.view.label(ids!(results_label)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode) }
-        });
-    }
-
     /// Update connection status badge
     fn update_status_badge(&mut self, cx: &mut Cx2d, scope: &mut Scope) {
         let (status_val, status_text) = if let Some(store) = scope.data.get::<Store>() {
@@ -403,7 +360,7 @@ impl ModelsApp {
     }
 
     /// Update downloads section with active download progress
-    fn update_downloads_section(&mut self, cx: &mut Cx2d, dark_mode: f64) {
+    fn update_downloads_section(&mut self, cx: &mut Cx2d) {
         // Update header
         let download_count = self.active_downloads.len();
         let header_text = if download_count == 1 {
@@ -412,9 +369,6 @@ impl ModelsApp {
             format!("Downloading {} files...", download_count)
         };
         self.view.label(ids!(downloads_header)).set_text(cx, &header_text);
-        self.view.label(ids!(downloads_header)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode) }
-        });
 
         // For simplicity, we just update labels with download info
         // A more sophisticated implementation would dynamically create DownloadItem widgets
@@ -432,7 +386,7 @@ impl ModelsApp {
     }
 
     /// Draw the models PortalList
-    fn draw_models_list(&mut self, cx: &mut Cx2d, scope: &mut Scope, widget: WidgetRef, dark_mode: f64) {
+    fn draw_models_list(&mut self, cx: &mut Cx2d, scope: &mut Scope, widget: WidgetRef) {
         let binding = widget.as_portal_list();
         let Some(mut list) = binding.borrow_mut() else { return };
 
@@ -446,36 +400,19 @@ impl ModelsApp {
             let model = &self.models[item_id];
             let item_widget = list.item(cx, item_id, live_id!(ModelCardItem));
 
-            // Apply dark mode to card
-            item_widget.apply_over(cx, live! {
-                draw_bg: { dark_mode: (dark_mode) }
-            });
-
             // Set model name
             item_widget.label(ids!(model_name)).set_text(cx, &model.name);
-            item_widget.label(ids!(model_name)).apply_over(cx, live! {
-                draw_text: { dark_mode: (dark_mode) }
-            });
 
             // Set model size
             item_widget.label(ids!(model_size)).set_text(cx, &model.size);
-            item_widget.label(ids!(model_size)).apply_over(cx, live! {
-                draw_text: { dark_mode: (dark_mode) }
-            });
 
             // Set download count
             let download_text = format!("{} downloads", format_count(model.download_count));
             item_widget.label(ids!(download_count)).set_text(cx, &download_text);
-            item_widget.label(ids!(download_count)).apply_over(cx, live! {
-                draw_text: { dark_mode: (dark_mode) }
-            });
 
             // Set like count
             let like_text = format!("{} likes", format_count(model.like_count));
             item_widget.label(ids!(like_count)).set_text(cx, &like_text);
-            item_widget.label(ids!(like_count)).apply_over(cx, live! {
-                draw_text: { dark_mode: (dark_mode) }
-            });
 
             // Set summary (truncate if too long)
             let summary = if model.summary.len() > 200 {
@@ -484,21 +421,12 @@ impl ModelsApp {
                 model.summary.clone()
             };
             item_widget.label(ids!(model_summary)).set_text(cx, &summary);
-            item_widget.label(ids!(model_summary)).apply_over(cx, live! {
-                draw_text: { dark_mode: (dark_mode) }
-            });
 
             // Set architecture
             item_widget.label(ids!(architecture)).set_text(cx, &model.architecture);
-            item_widget.label(ids!(architecture)).apply_over(cx, live! {
-                draw_text: { dark_mode: (dark_mode) }
-            });
 
             // Set author
             item_widget.label(ids!(author)).set_text(cx, &model.author.name);
-            item_widget.label(ids!(author)).apply_over(cx, live! {
-                draw_text: { dark_mode: (dark_mode) }
-            });
 
             // Show files count and download button for first file
             let has_files = !model.files.is_empty();
@@ -508,9 +436,6 @@ impl ModelsApp {
                 // Show files count
                 let files_text = format!("{} file(s) available", model.files.len());
                 item_widget.label(ids!(files_label)).set_text(cx, &files_text);
-                item_widget.label(ids!(files_label)).apply_over(cx, live! {
-                    draw_text: { dark_mode: (dark_mode) }
-                });
 
                 // Check if first file is being downloaded
                 let first_file = &model.files[0];

@@ -8,10 +8,6 @@ const PREFERENCES_FILENAME: &str = "preferences.json";
 /// User preferences that persist across sessions
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Preferences {
-    /// Whether dark mode is enabled
-    #[serde(default)]
-    pub dark_mode: bool,
-
     /// Whether the sidebar is expanded
     #[serde(default = "default_sidebar_expanded")]
     pub sidebar_expanded: bool,
@@ -36,7 +32,6 @@ fn default_sidebar_expanded() -> bool {
 impl Default for Preferences {
     fn default() -> Self {
         Self {
-            dark_mode: false,
             sidebar_expanded: true,
             current_view: "Chat".to_string(),
             providers_preferences: get_supported_providers(),
@@ -109,13 +104,6 @@ impl Preferences {
             // Fallback to current directory
             PathBuf::from(".moly").join(PREFERENCES_FILENAME)
         }
-    }
-
-    /// Set dark mode and save
-    pub fn set_dark_mode(&mut self, dark_mode: bool) {
-        log::info!("set_dark_mode: {}", dark_mode);
-        self.dark_mode = dark_mode;
-        self.save();
     }
 
     /// Set sidebar expanded state and save

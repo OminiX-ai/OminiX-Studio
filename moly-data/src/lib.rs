@@ -28,7 +28,7 @@ pub use model_registry::{
     ModelRegistry, RegistryModel, RegistryCategory, RegistrySource, RegistryStorage,
     RegistryRuntime, RegistryUiHints, ApiType, PanelType, SourceKind,
 };
-pub use model_runtime_client::{ModelRuntimeClient, ServerModelStatus, ServerModelInfo};
+pub use model_runtime_client::{ModelRuntimeClient, ServerModelStatus, ServerModelInfo, ensure_server_running};
 pub use store::{Store, StoreAction};
 
 // A2UI (AI-to-UI) exports

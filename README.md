@@ -8,49 +8,46 @@
 
 </div>
 
-A native desktop AI application for interacting with local and cloud-based models, built with Rust and the [Makepad](https://github.com/makepad/makepad) UI framework.
+A native desktop AI application built with pure Rust and [Makepad](https://github.com/makepad/makepad). Chat with local and cloud models, generate images, transcribe speech, and manage your model library — all without a Python runtime.
 
-OminiX Studio provides a unified interface for chatting with LLMs, generating images, transcribing speech, and managing models — all running natively on Apple Silicon with no Python runtime required.
+## The OminiX Platform
 
-
-## The OminiX Ecosystem
-
-OminiX Studio is the user-facing layer of a three-part stack, all written in Rust:
+OminiX is a full-stack, pure Rust AI platform for local devices. OminiX Studio is the user-facing layer of a three-part stack:
 
 ```
 ┌─────────────────────────────────────────────┐
-│            OminiX Studio (this repo)        │  Desktop UI
+│            OminiX Studio (this repo)        │  Desktop UI (Rust + Makepad)
 │         Chat · Models · Voice · Settings    │
 └──────────────────────┬──────────────────────┘
-                       │ OpenAI-compatible API
+                       │ OpenAI-compatible REST/WS
 ┌──────────────────────▼──────────────────────┐
-│               OminiX-API                    │  Local API server
-│    LLM · Image · ASR · TTS endpoints        │
+│               OminiX-API                    │  Local inference server (pure Rust)
+│    LLM · ASR · TTS · Image endpoints        │
 └──────────────────────┬──────────────────────┘
-                       │ Rust bindings
+                       │ Rust crate interface
 ┌──────────────────────▼──────────────────────┐
-│               OminiX-MLX                    │  Inference engine
-│   Metal-accelerated ML on Apple Silicon     │
+│               OminiX-MLX                    │  Apple Silicon inference backend
+│      Metal-accelerated · MLX framework      │  (platform-specific layer)
 └─────────────────────────────────────────────┘
 ```
 
-- [**OminiX-MLX**](https://github.com/OminiX-ai/OminiX-MLX) — Pure-Rust inference engine built on Apple's MLX framework. Leverages Metal GPU acceleration and unified memory for high-throughput inference (e.g. ~45 tok/s for LLMs, 18x real-time for ASR on M3 Max). Supports LLMs (Qwen, GLM, Mistral), image generation (FLUX, Z-Image), speech recognition (Paraformer), and voice cloning (GPT-SoVITS).
+- [**OminiX-MLX**](https://github.com/OminiX-ai/OminiX-MLX) — The Apple Silicon inference engine. Pure-Rust bindings to Apple's MLX framework — Metal GPU, unified memory, lazy evaluation. Supports LLMs (Qwen, GLM, Mistral, MiniCPM), VLMs, ASR (Paraformer, Qwen3-ASR), TTS (GPT-SoVITS), and image generation (FLUX, Z-Image).
 
-- [**OminiX-API**](https://github.com/OminiX-ai/OminiX-API) — OpenAI-compatible HTTP/WebSocket server that wraps OminiX-MLX. Provides chat completions, image generation, transcription, and TTS endpoints. Supports dynamic model loading and switching at runtime without server restarts.
+- [**OminiX-API**](https://github.com/OminiX-ai/OminiX-API) — Local AI inference server in pure Rust. OpenAI-compatible HTTP and WebSocket endpoints for chat completions, transcription, TTS, and image generation. Supports dynamic model loading at runtime without restarts.
 
-- **OminiX Studio** (this repo) — The desktop application. Connects to OminiX-API for local inference and also supports cloud providers (OpenAI, Anthropic, Google Gemini, DeepSeek, OpenRouter, and more).
+- **OminiX Studio** (this repo) — The desktop application. Connects to OminiX-API for local inference, and also supports cloud providers (OpenAI, Anthropic, Google Gemini, DeepSeek, OpenRouter, SiliconFlow, and more).
 
-All three projects are available at [github.com/OminiX-ai](https://github.com/OminiX-ai).
+All three projects are at [github.com/OminiX-ai](https://github.com/OminiX-ai).
 
 ## Features
 
-- **Multi-provider chat** — Talk to local models via OminiX-API/Ollama, or cloud models from OpenAI, Anthropic, Gemini, DeepSeek, OpenRouter, and SiliconFlow
-- **Local model management** — Download, import, and run models directly on Apple Silicon
-- **Image generation** — Generate images through local or cloud endpoints
-- **Voice input/output** — Speech-to-text and text-to-speech support
-- **MCP support** — Model Context Protocol integration for tool use (desktop)
+- **Multi-provider chat** — Local models via OminiX-API or Ollama; cloud via OpenAI, Anthropic, Gemini, DeepSeek, OpenRouter, SiliconFlow
+- **Model Hub** — Discover, download, and run models directly. Supports LLM, VLM, ASR, TTS, and image generation
+- **Image generation** — Local or cloud image endpoints
+- **Voice I/O** — Speech-to-text and text-to-speech with voice cloning
+- **MCP support** — Model Context Protocol for tool use
 - **Chat history** — Persistent, searchable conversation history
-- **Dark mode** — Full light/dark theme support
+- **Dark mode** — Full light/dark theme
 
 ## Project Structure
 
@@ -61,30 +58,27 @@ OminiX-Studio/
 ├── moly-widgets/        # Reusable UI components and theming
 └── apps/
     ├── moly-chat/       # Chat interface
-    ├── moly-models/     # Model discovery and downloads
+    ├── moly-hub/        # Model Hub (discovery, download, load/unload)
     ├── moly-settings/   # Provider and API key configuration
-    ├── moly-local-models/ # Local model management (MLX)
     ├── moly-mcp/        # MCP server configuration
     └── moly-voice/      # Voice I/O
 ```
 
 ## Requirements
 
-- macOS 14.0+ (Sonoma) on Apple Silicon (M1/M2/M3/M4)
+- macOS 14.0+ (Sonoma)
 - Rust 1.82+
+- For local inference: OminiX-API with an Apple Silicon Mac (M1/M2/M3/M4)
 
 ## Getting Started
 
 ```bash
-# Clone the repository
 git clone https://github.com/OminiX-ai/OminiX-Studio.git
 cd OminiX-Studio
-
-# Build and run
-cargo run -p moly-shell
+cargo run -p moly-shell --bin ominix-studio
 ```
 
-To use local model inference, you'll also need to set up [OminiX-API](https://github.com/OminiX-ai/OminiX-API) — see its README for instructions.
+For local model inference, set up [OminiX-API](https://github.com/OminiX-ai/OminiX-API) — see its README. OminiX-Studio will auto-start the API server when you load a model from the Hub.
 
 For cloud providers, open Settings in the app and configure your API keys.
 

@@ -19,6 +19,7 @@ use moly_data::{ChatId, Store};
 pub enum ChatHistoryAction {
     None,
     NewChat,
+    ChatCreated,
     SelectChat(ChatId),
     DeleteChat(ChatId),
 }
@@ -120,9 +121,6 @@ pub struct ChatHistoryPanel {
 
     #[rust]
     current_chat_id: Option<ChatId>,
-
-    #[rust]
-    dark_mode: f64,
 }
 
 impl Widget for ChatHistoryPanel {
@@ -137,17 +135,8 @@ impl Widget for ChatHistoryPanel {
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
         // Get data from store
         if let Some(store) = scope.data.get::<Store>() {
-            self.dark_mode = if store.is_dark_mode() { 1.0 } else { 0.0 };
             self.chat_count = store.chats.saved_chats.len();
         }
-
-        // Apply dark mode to panel
-        self.view.apply_over(cx, live! {
-            draw_bg: { dark_mode: (self.dark_mode) }
-        });
-        self.view.button(ids!(new_chat_button)).apply_over(cx, live! {
-            draw_bg: { dark_mode: (self.dark_mode) }
-        });
 
         // Get the history_list PortalList
         let history_list = self.view.portal_list(ids!(history_list));
@@ -186,28 +175,13 @@ impl Widget for ChatHistoryPanel {
 
                             item_widget.apply_over(cx, live! {
                                 draw_bg: {
-                                    dark_mode: (self.dark_mode),
                                     selected: (selected_value)
                                 }
                             });
 
                             item_widget.label(ids!(content.title_label)).set_text(cx, &title);
-                            item_widget.label(ids!(content.title_label)).apply_over(cx, live! {
-                                draw_text: { dark_mode: (self.dark_mode) }
-                            });
 
                             item_widget.label(ids!(content.date_label)).set_text(cx, &date_str);
-                            item_widget.label(ids!(content.date_label)).apply_over(cx, live! {
-                                draw_text: { dark_mode: (self.dark_mode) }
-                            });
-
-                            // Apply dark mode to delete button
-                            item_widget.view(ids!(delete_button)).apply_over(cx, live! {
-                                draw_bg: { dark_mode: (self.dark_mode) }
-                            });
-                            item_widget.icon(ids!(delete_button.delete_icon)).apply_over(cx, live! {
-                                draw_icon: { dark_mode: (self.dark_mode) }
-                            });
 
                             item_widget.draw_all(cx, scope);
                         }
@@ -564,7 +538,7 @@ impl ChatApp {
     }
 
     /// Sync messages from controller to persistence when they change
-    fn sync_messages_to_persistence(&mut self, scope: &mut Scope) {
+    fn sync_messages_to_persistence(&mut self, cx: &mut Cx, scope: &mut Scope) {
         let Some(chat_id) = self.current_chat_id else { return };
 
         // Get current messages from controller
@@ -606,6 +580,11 @@ impl ChatApp {
         // Update the chat in persistence
         if let Some(store) = scope.data.get_mut::<Store>() {
             store.chats.update_chat_messages(chat_id, messages);
+        }
+
+        // Notify shell to refresh sidebar when chat gets its first messages (title updates)
+        if self.last_synced_message_count == 0 && message_count > 0 {
+            cx.action(ChatHistoryAction::ChatCreated);
         }
 
         self.last_synced_message_count = message_count;
@@ -679,6 +658,9 @@ impl ChatApp {
             ctrl.state().messages.len()
         };
         ::log::info!("New chat {} ready - controller has {} messages", chat_id, msg_count);
+
+        // Notify the shell to refresh sidebar chat list
+        cx.action(ChatHistoryAction::ChatCreated);
 
         // Force redraw the entire view
         self.view.redraw(cx);
@@ -863,7 +845,7 @@ impl Widget for ChatApp {
         self.track_model_selection(scope);
 
         // Sync messages to persistence when they change
-        self.sync_messages_to_persistence(scope);
+        self.sync_messages_to_persistence(cx, scope);
 
         // Sync bot selection to current chat
         self.sync_bot_to_chat(scope);
@@ -898,18 +880,6 @@ impl Widget for ChatApp {
     }
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
-        // Get dark mode state
-        let dark_mode_value = if let Some(store) = scope.data.get::<Store>() {
-            if store.is_dark_mode() { 1.0 } else { 0.0 }
-        } else {
-            0.0
-        };
-
-        // Apply dark mode to background
-        self.view.apply_over(cx, live! {
-            draw_bg: { dark_mode: (dark_mode_value) }
-        });
-
         // Update chat title from current chat (empty if no saved chats)
         if let Some(store) = scope.data.get::<Store>() {
             // Only show title if there are saved chats with messages
@@ -922,24 +892,6 @@ impl Widget for ChatApp {
                 self.view.label(ids!(title_label)).set_text(cx, "");
             }
         }
-
-        // Apply dark mode to header labels
-        self.view.label(ids!(title_label)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode_value) }
-        });
-        self.view.label(ids!(status_label)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode_value) }
-        });
-
-        // Apply dark mode to separator
-        self.view.view(ids!(separator)).apply_over(cx, live! {
-            draw_bg: { dark_mode: (dark_mode_value) }
-        });
-
-        // Apply dark mode to welcome greeting
-        self.view.label(ids!(main_content.welcome_overlay.greeting_label)).apply_over(cx, live! {
-            draw_text: { dark_mode: (dark_mode_value) }
-        });
 
         // Show/hide welcome overlay based on welcome mode flag
         // When in welcome mode: show welcome overlay with centered input, hide Chat widget
