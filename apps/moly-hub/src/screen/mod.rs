@@ -2065,9 +2065,18 @@ fn expand_tilde(path: &str) -> String {
 }
 
 fn hf_token() -> Option<String> {
-    let p = dirs::home_dir()?.join(".huggingface").join("hub").join("token");
-    let t = std::fs::read_to_string(p).ok()?.trim().to_string();
-    if t.is_empty() { None } else { Some(t) }
+    let home = dirs::home_dir()?;
+    // Check both token locations: newer ~/.cache/huggingface/token and legacy ~/.huggingface/hub/token
+    for p in [
+        home.join(".cache").join("huggingface").join("token"),
+        home.join(".huggingface").join("hub").join("token"),
+    ] {
+        if let Ok(t) = std::fs::read_to_string(&p) {
+            let t = t.trim().to_string();
+            if !t.is_empty() { return Some(t); }
+        }
+    }
+    None
 }
 
 // ─── HuggingFace download ─────────────────────────────────────────────────────

@@ -243,36 +243,6 @@
       }
     },
     {
-      "id": "qwen3-72b",
-      "name": "Qwen3 72B",
-      "description": "Frontier 72B model from the Qwen3 family. Best-in-class reasoning for M2 Ultra / M3 Max owners.",
-      "category": "llm",
-      "tags": ["llm", "chat", "qwen3", "large", "reasoning", "frontier"],
-      "source": {
-        "kind": "hugging_face",
-        "repo_id": "mlx-community/Qwen3-72B-8bit",
-        "revision": "main"
-      },
-      "storage": {
-        "local_path": "~/.cache/huggingface/hub/models--mlx-community--Qwen3-72B-8bit",
-        "size_bytes": 77309411328,
-        "size_display": "~72 GB"
-      },
-      "runtime": {
-        "api_type": "chat_completions",
-        "api_model_id": "qwen3-72b",
-        "memory_gb": 78.0,
-        "platforms": ["apple_silicon"],
-        "supports_images": false,
-        "supports_streaming": true,
-        "quantization": "8bit"
-      },
-      "ui": {
-        "panel_type": "llm_chat",
-        "icon": "chat"
-      }
-    },
-    {
       "id": "qwen3-235b-moe",
       "name": "Qwen3 235B MoE",
       "description": "Massive 235B Mixture-of-Experts model. Uses ~22B active parameters per token — fast despite total size.",
@@ -310,13 +280,13 @@
       "tags": ["llm", "chat", "glm", "chinese", "bilingual"],
       "source": {
         "kind": "hugging_face",
-        "repo_id": "mlx-community/glm-4-9b-chat-4bit",
+        "repo_id": "mlx-community/glm-4-9b-chat-1m-4bit",
         "revision": "main"
       },
       "storage": {
-        "local_path": "~/.cache/huggingface/hub/models--mlx-community--glm-4-9b-chat-4bit",
-        "size_bytes": 5905580032,
-        "size_display": "~5.5 GB"
+        "local_path": "~/.cache/huggingface/hub/models--mlx-community--glm-4-9b-chat-1m-4bit",
+        "size_bytes": 5355591724,
+        "size_display": "~5.0 GB"
       },
       "runtime": {
         "api_type": "chat_completions",
@@ -460,22 +430,22 @@
       "tags": ["llm", "chat", "long-context", "1m-context", "minicpm", "sparse-attention"],
       "source": {
         "kind": "hugging_face",
-        "repo_id": "mlx-community/MiniCPM-SALA-9B-4bit",
+        "repo_id": "moxin-org/MiniCPM4-SALA-9B-8bit-mlx",
         "revision": "main"
       },
       "storage": {
-        "local_path": "~/.cache/huggingface/hub/models--mlx-community--MiniCPM-SALA-9B-4bit",
-        "size_bytes": 5368709120,
-        "size_display": "~5 GB"
+        "local_path": "~/.cache/huggingface/hub/models--moxin-org--MiniCPM4-SALA-9B-8bit-mlx",
+        "size_bytes": 10355716168,
+        "size_display": "~9.6 GB"
       },
       "runtime": {
         "api_type": "chat_completions",
         "api_model_id": "minicpm-sala-9b",
-        "memory_gb": 7.0,
+        "memory_gb": 12.0,
         "platforms": ["apple_silicon"],
         "supports_images": false,
         "supports_streaming": true,
-        "quantization": "4bit"
+        "quantization": "8bit"
       },
       "ui": {
         "panel_type": "llm_chat",
@@ -490,13 +460,13 @@
       "tags": ["vlm", "vision", "image-understanding", "chat", "moxin", "mistral"],
       "source": {
         "kind": "hugging_face",
-        "repo_id": "moxin-org/moxin-vlm-7b-mlx",
+        "repo_id": "moxin-org/Moxin-7B-VLM-8bit-mlx",
         "revision": "main"
       },
       "storage": {
-        "local_path": "~/.cache/huggingface/hub/models--moxin-org--moxin-vlm-7b-mlx",
-        "size_bytes": 8589934592,
-        "size_display": "~8 GB"
+        "local_path": "~/.cache/huggingface/hub/models--moxin-org--Moxin-7B-VLM-8bit-mlx",
+        "size_bytes": 10321915827,
+        "size_display": "~9.6 GB"
       },
       "runtime": {
         "api_type": "chat_completions",
