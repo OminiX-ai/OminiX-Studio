@@ -8,43 +8,36 @@
 
 </div>
 
-A native desktop AI application built with pure Rust and [Makepad](https://github.com/makepad/makepad). Chat with local and cloud models, generate images, transcribe speech, and manage your model library — all without a Python runtime. Runs on Apple Silicon, Huawei Ascend, and more.
+A native desktop AI application built with pure Rust and [Makepad](https://github.com/makepad/makepad). Chat with local and cloud models, generate images, transcribe speech, and manage your model library — all without a Python runtime.
 
 ## The OminiX Platform
 
-OminiX is a full-stack, pure Rust AI platform for on-device inference across heterogeneous hardware. OminiX Studio is the user-facing layer that connects to platform-specific backends through a unified API:
+OminiX is a full-stack, pure Rust AI platform for on-device inference. OminiX Studio is the user-facing layer of a three-part stack:
 
 ```
-┌──────────────────────────────────────────────────────┐
-│              OminiX Studio (this repo)               │  Desktop UI (Rust + Makepad)
-│           Chat · Models · Voice · Settings           │
-└─────────────────────────┬────────────────────────────┘
-                          │ OpenAI-compatible REST/WS
-┌─────────────────────────▼────────────────────────────┐
-│                    OminiX-API                        │  Local inference server (pure Rust)
-│       LLM · ASR · TTS · Image endpoints              │
-└──────┬──────────────────┬───────────────────┬────────┘
-       │                  │                   │
-┌──────▼──────┐   ┌───────▼───────┐   ┌───────▼───────┐
-│ OminiX-MLX  │   │OminiX-Ascend │   │    Future     │
-│Apple Silicon│   │Huawei Ascend │   │   Backends    │
-│  Metal GPU  │   │  NPU / CANN  │   │  (CUDA, ...)  │
-└─────────────┘   └──────────────┘   └───────────────┘
+┌─────────────────────────────────────────────┐
+│            OminiX Studio (this repo)        │  Desktop UI (Rust + Makepad)
+│         Chat · Models · Voice · Settings    │
+└──────────────────────┬──────────────────────┘
+                       │ OpenAI-compatible REST/WS
+┌──────────────────────▼──────────────────────┐
+│               OminiX-API                    │  Local inference server (pure Rust)
+│    LLM · ASR · TTS · Image endpoints        │
+└──────────────────────┬──────────────────────┘
+                       │ Rust crate interface
+┌──────────────────────▼──────────────────────┐
+│               OminiX-MLX                    │  On-device inference backend
+│      Metal-accelerated · MLX framework      │  (Apple Silicon — more platforms coming)
+└─────────────────────────────────────────────┘
 ```
 
-### Backends
+- [**OminiX-MLX**](https://github.com/OminiX-ai/OminiX-MLX) — The Apple Silicon inference engine. Pure-Rust bindings to Apple's MLX framework — Metal GPU, unified memory, lazy evaluation. Supports LLMs (Qwen, GLM, Mistral, MiniCPM), VLMs, ASR (Paraformer, Qwen3-ASR), TTS (GPT-SoVITS), and image generation (FLUX, Z-Image).
 
-- [**OminiX-MLX**](https://github.com/OminiX-ai/OminiX-MLX) — Apple Silicon inference engine. Pure-Rust bindings to Apple's MLX framework — Metal GPU, unified memory, lazy evaluation. Supports LLMs (Qwen, GLM, Mistral, MiniCPM), VLMs, ASR (Paraformer, Qwen3-ASR), TTS (GPT-SoVITS), and image generation (FLUX, Z-Image).
-
-- **OminiX-Ascend** (under [OpenHarmony](https://gitee.com/openharmony)) — Huawei Ascend NPU inference engine. CANN-accelerated backend targeting Ascend 310/910 hardware. GTML graph compiler and custom operator library for on-device deployment.
-
-### Core
-
-- [**OminiX-API**](https://github.com/OminiX-ai/OminiX-API) — Local AI inference server in pure Rust. OpenAI-compatible HTTP and WebSocket endpoints for chat completions, transcription, TTS, and image generation. Backend-agnostic — routes to MLX, Ascend, or other backends based on available hardware. Supports dynamic model loading at runtime without restarts.
+- [**OminiX-API**](https://github.com/OminiX-ai/OminiX-API) — Local AI inference server in pure Rust. OpenAI-compatible HTTP and WebSocket endpoints for chat completions, transcription, TTS, and image generation. Supports dynamic model loading at runtime without restarts.
 
 - **OminiX Studio** (this repo) — The desktop application. Connects to OminiX-API for local inference, and also supports cloud providers (OpenAI, Anthropic, Google Gemini, DeepSeek, OpenRouter, SiliconFlow, and more).
 
-All projects are at [github.com/OminiX-ai](https://github.com/OminiX-ai).
+All three projects are at [github.com/OminiX-ai](https://github.com/OminiX-ai).
 
 ## Features
 
@@ -71,19 +64,11 @@ OminiX-Studio/
     └── moly-voice/      # Voice I/O
 ```
 
-## Supported Platforms
-
-| Platform | Hardware | Backend | Status |
-|----------|----------|---------|--------|
-| macOS | Apple Silicon (M1–M4) | OminiX-MLX | Available |
-| Linux / OpenHarmony | Huawei Ascend 310/910 | OminiX-Ascend | In development |
-| Linux | NVIDIA CUDA | — | Planned |
-
 ## Requirements
 
+- macOS 14.0+ (Sonoma)
 - Rust 1.82+
-- **macOS**: macOS 14.0+ (Sonoma) with Apple Silicon
-- **Ascend**: Huawei Ascend hardware with CANN toolkit (coming soon)
+- For local inference: OminiX-API with an Apple Silicon Mac (M1–M5)
 
 ## Getting Started
 
