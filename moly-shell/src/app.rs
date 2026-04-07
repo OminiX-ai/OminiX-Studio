@@ -545,7 +545,7 @@ live_design! {
 
                             // Middle: Splitter (resizable divider)
                             canvas_splitter = <View> {
-                                width: 16, height: Fill  // 0 when collapsed, 16 when expanded
+                                width: 0, height: Fill  // 0 when collapsed, 16 when expanded
                                 cursor: ColResize
                                 show_bg: true
                                 draw_bg: {
@@ -559,11 +559,11 @@ live_design! {
                                 }
                             }
 
-                            // Right: Canvas panel (visible by default for A2UI)
+                            // Right: Canvas panel (collapsed by default, opens when A2UI is enabled)
                             canvas_section = <View> {
                                 width: 500, height: Fill
                                 flow: Right
-                                visible: true
+                                visible: false
 
                                 // Collapse strip — always visible when canvas is expanded
                                 canvas_toggle_column = <View> {
@@ -624,7 +624,7 @@ live_design! {
                             // Reopen strip — visible when canvas is collapsed
                             canvas_reopen_btn = <View> {
                                 width: 20, height: Fill
-                                visible: false
+                                visible: true
                                 cursor: Hand
                                 show_bg: true
                                 draw_bg: { color: #f8fafc }
@@ -792,8 +792,9 @@ impl MatchEvent for App {
         self.apply_view_state(cx, self.current_view);
         // Populate sidebar chat history items
         self.update_sidebar_chats(cx);
-        // Initialize canvas panel width
+        // Initialize canvas panel — collapsed by default, opens when A2UI is enabled
         self.canvas_panel_width = 500.0;
+        self.canvas_panel_collapsed = true;
         ::log::info!("App initialized with Store and MolyAppData");
     }
 

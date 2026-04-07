@@ -25,6 +25,8 @@ pub enum RegistryCategory {
     Tts,
     /// Image Generation — text in, image out
     ImageGen,
+    /// Video Generation — text/image in, video out
+    VideoGen,
 }
 
 impl RegistryCategory {
@@ -35,17 +37,19 @@ impl RegistryCategory {
             Self::Asr => "ASR",
             Self::Tts => "TTS",
             Self::ImageGen => "Image",
+            Self::VideoGen => "Video",
         }
     }
 
     /// UI accent color (hex) for the category badge
     pub fn color(&self) -> &'static str {
         match self {
-            Self::Llm => "#6366f1",     // indigo
-            Self::Vlm => "#8b5cf6",     // violet
-            Self::Asr => "#10b981",     // emerald
-            Self::Tts => "#f59e0b",     // amber
+            Self::Llm => "#6366f1",      // indigo
+            Self::Vlm => "#8b5cf6",      // violet
+            Self::Asr => "#10b981",      // emerald
+            Self::Tts => "#f59e0b",      // amber
             Self::ImageGen => "#ec4899", // pink
+            Self::VideoGen => "#0ea5e9", // sky blue
         }
     }
 }
@@ -65,6 +69,8 @@ pub enum ApiType {
     AudioSpeech,
     /// POST /v1/images/generations  (Image Gen)
     ImageGeneration,
+    /// POST /v1/videos/generations  (Video Gen — coming soon)
+    VideoGeneration,
 }
 
 // ─── Panel Type ───────────────────────────────────────────────────────────────
@@ -79,6 +85,7 @@ pub enum PanelType {
     AsrTranscription,
     TtsSynthesis,
     ImageGeneration,
+    VideoGeneration,
 }
 
 // ─── Source ───────────────────────────────────────────────────────────────────
@@ -213,6 +220,9 @@ pub struct RegistryModel {
     pub runtime: RegistryRuntime,
     /// UI display hints
     pub ui: RegistryUiHints,
+    /// Sub-group label within a category (e.g. "Qwen3", "GLM", "Qwen3.5")
+    #[serde(default)]
+    pub subfolder: String,
 }
 
 impl RegistryModel {

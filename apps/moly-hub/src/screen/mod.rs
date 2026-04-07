@@ -22,8 +22,9 @@ use rfd::FileDialog;
 #[derive(Clone, Copy)]
 enum ListRow {
     Header(RegistryCategory),
-    Model(usize), // index into registry.models
-    VoiceStudio,  // always-visible footer entry
+    SubHeader(usize), // index into ModelHubApp::subfolder_names
+    Model(usize),     // index into registry.models
+    VoiceStudio,      // always-visible footer entry
 }
 
 // ─── Filter ───────────────────────────────────────────────────────────────────
@@ -101,7 +102,7 @@ fn combined_status_label(dl: ModelUiState, load: ModelLoadState) -> &'static str
 enum ActivePanel {
     #[default]
     None,
-    Llm, Vlm, Asr, Tts, Image, Voice,
+    Llm, Vlm, Asr, Tts, Image, Video, Voice,
 }
 
 // ─── Per-panel interaction state ─────────────────────────────────────────────
@@ -291,6 +292,7 @@ pub struct ModelHubApp {
     #[rust] search_query:    String,
     #[rust] selected_id:     Option<String>,
     #[rust] flat_list:       Vec<ListRow>,
+    #[rust] subfolder_names: Vec<String>,
 
     // ── Download tracking ───────────────────────────────────────────────────
     #[rust] model_states:    HashMap<String, ModelUiState>,
@@ -424,6 +426,12 @@ impl ModelHubApp {
                     item.label(ids!(category_header_label)).set_text(cx, cat.label());
                     item.draw_all(cx, scope);
                 }
+                Some(ListRow::SubHeader(idx)) => {
+                    let name = self.subfolder_names.get(idx).map(|s| s.as_str()).unwrap_or("");
+                    let item = list.item(cx, item_id, live_id!(HubSubfolderHeader));
+                    item.label(ids!(subfolder_header_label)).set_text(cx, name);
+                    item.draw_all(cx, scope);
+                }
                 Some(ListRow::Model(gi)) => {
                     let model_id = self.registry.as_ref()
                         .and_then(|r| r.models.get(gi)).map(|m| m.id.as_str()).unwrap_or("");
@@ -494,6 +502,7 @@ impl ModelHubApp {
             3 => Filter::Cat(RegistryCategory::Asr),
             4 => Filter::Cat(RegistryCategory::Tts),
             5 => Filter::Cat(RegistryCategory::ImageGen),
+            6 => Filter::Cat(RegistryCategory::VideoGen),
             _ => Filter::All,
         };
         let registry = ModelRegistry::load();
@@ -528,11 +537,12 @@ impl ModelHubApp {
         let Some(registry) = &self.registry else { return };
         let q = self.search_query.to_lowercase();
 
-        const CATS: [RegistryCategory; 5] = [
+        const CATS: [RegistryCategory; 6] = [
             RegistryCategory::Llm, RegistryCategory::Vlm, RegistryCategory::Asr,
-            RegistryCategory::Tts, RegistryCategory::ImageGen,
+            RegistryCategory::Tts, RegistryCategory::ImageGen, RegistryCategory::VideoGen,
         ];
         self.flat_list.clear();
+        self.subfolder_names.clear();
 
         let single_category = matches!(self.filter, Filter::Cat(_));
         for cat in CATS {
@@ -550,7 +560,18 @@ impl ModelHubApp {
             if !single_category {
                 self.flat_list.push(ListRow::Header(cat));
             }
-            for gi in models { self.flat_list.push(ListRow::Model(gi)); }
+            // Emit subfolder headers when the subfolder name changes
+            let mut last_subfolder = String::new();
+            for gi in models {
+                let sf = registry.models[gi].subfolder.clone();
+                if !sf.is_empty() && sf != last_subfolder {
+                    last_subfolder = sf.clone();
+                    let idx = self.subfolder_names.len();
+                    self.subfolder_names.push(sf);
+                    self.flat_list.push(ListRow::SubHeader(idx));
+                }
+                self.flat_list.push(ListRow::Model(gi));
+            }
         }
         // Voice Studio: show in the All hub (hub_category 0) and the TTS hub (hub_category 4)
         let in_voice_hub = self.hub_category == 0.0 || self.hub_category as u32 == 4;
@@ -569,6 +590,7 @@ impl ModelHubApp {
         self.view.widget(ids!(hub_asr_panel)).set_visible(cx, panel == ActivePanel::Asr);
         self.view.widget(ids!(hub_tts_panel)).set_visible(cx, panel == ActivePanel::Tts);
         self.view.widget(ids!(hub_image_panel)).set_visible(cx, panel == ActivePanel::Image);
+        self.view.widget(ids!(hub_video_panel)).set_visible(cx, panel == ActivePanel::Video);
         self.view.widget(ids!(hub_voice_panel)).set_visible(cx, panel == ActivePanel::Voice);
     }
 
@@ -585,6 +607,7 @@ impl ModelHubApp {
             Some(RegistryCategory::Asr)      => ActivePanel::Asr,
             Some(RegistryCategory::Tts)      => ActivePanel::Tts,
             Some(RegistryCategory::ImageGen) => ActivePanel::Image,
+            Some(RegistryCategory::VideoGen) => ActivePanel::Video,
             None => return,
         };
 
@@ -811,6 +834,11 @@ impl ModelHubApp {
                     }
                 }
             }
+            ActivePanel::Video => {
+                // Video models are "Coming Soon" — just show name/desc, no actions
+                self.view.label(ids!(hub_video_panel.hub_video_name)).set_text(cx, &name);
+                self.view.label(ids!(hub_video_panel.hub_video_desc)).set_text(cx, &desc);
+            }
             ActivePanel::Voice => {}
             ActivePanel::None => {}
         }
@@ -887,7 +915,7 @@ impl ModelHubApp {
                 self.view.button(ids!(hub_image_panel.hub_panel_header.panel_cancel_btn)).clicked(actions),
                 self.view.button(ids!(hub_image_panel.hub_panel_header.panel_remove_btn)).clicked(actions),
             ),
-            ActivePanel::Voice | ActivePanel::None => return,
+            ActivePanel::Video | ActivePanel::Voice | ActivePanel::None => return,
         };
 
         if dl { self.start_download(cx, &sel); }
@@ -937,7 +965,7 @@ impl ModelHubApp {
                 self.view.button(ids!(hub_image_panel.hub_panel_header.panel_load_btn)).clicked(actions),
                 self.view.button(ids!(hub_image_panel.hub_panel_header.panel_unload_btn)).clicked(actions),
             ),
-            ActivePanel::Voice | ActivePanel::None => return,
+            ActivePanel::Video | ActivePanel::Voice | ActivePanel::None => return,
         };
 
         if load_clicked   { self.start_load(cx, &sel); }
@@ -1062,6 +1090,13 @@ impl ModelHubApp {
                 let prompt = self.image_state.prompt.clone();
                 let neg    = self.image_state.neg_prompt.clone();
                 self.call_image(cx, sel, prompt, neg);
+            }
+        }
+
+        if self.view.button(ids!(hub_image_panel.img_result_row.img_open_finder_btn)).clicked(actions) {
+            let path = self.image_state.output_path.clone();
+            if !path.is_empty() {
+                let _ = std::process::Command::new("open").args(["-R", &path]).spawn();
             }
         }
     }
@@ -1430,6 +1465,7 @@ impl ModelHubApp {
             RegistryCategory::Asr      => "asr",
             RegistryCategory::Tts      => "tts",
             RegistryCategory::ImageGen => "image",
+            RegistryCategory::VideoGen => "video",
         }.to_string();
         let (tx, rx) = mpsc::channel::<Result<(), String>>();
         self.load_rxs.insert(model_id.to_string(), rx);
@@ -1462,6 +1498,7 @@ impl ModelHubApp {
             RegistryCategory::Asr      => "asr",
             RegistryCategory::Tts      => "tts",
             RegistryCategory::ImageGen => "image",
+            RegistryCategory::VideoGen => "video",
         }.to_string();
         let model_id_owned = model_id.to_string();
         let (tx, rx) = mpsc::channel::<Result<(), String>>();
@@ -1804,8 +1841,21 @@ impl ModelHubApp {
         }
         self.image_state.is_running = true;
         self.view.label(ids!(hub_image_panel.img_status)).set_text(cx, "Generating image...");
-        self.view.label(ids!(hub_image_panel.img_output_path)).set_text(cx, "");
+        self.view.view(ids!(hub_image_panel.img_result_row)).set_visible(cx, false);
+        self.view.image(ids!(hub_image_panel.img_preview)).set_visible(cx, false);
         self.view.redraw(cx);
+
+        // Build a filename slug from the prompt (first 40 chars, alphanumeric + dash)
+        let slug: String = prompt.chars()
+            .take(40)
+            .map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+            .collect::<String>()
+            .trim_matches('-')
+            .to_string();
+        let slug = if slug.is_empty() { "image".to_string() } else { slug };
+        // Collapse runs of dashes
+        let slug = slug.split('-').filter(|s| !s.is_empty()).collect::<Vec<_>>().join("-");
+        let out_path = format!("/tmp/ominix-{}.png", slug);
 
         let (tx, rx) = mpsc::channel();
         self.image_state.rx = Some(rx);
@@ -1826,9 +1876,8 @@ impl ModelHubApp {
                         .ok_or_else(|| "No image data".to_string())?;
                     let bytes = base64::engine::general_purpose::STANDARD.decode(b64)
                         .map_err(|e| e.to_string())?;
-                    let out = "/tmp/ominix-hub-image.png";
-                    std::fs::write(out, &bytes).map_err(|e| e.to_string())?;
-                    Ok(out.to_string())
+                    std::fs::write(&out_path, &bytes).map_err(|e| e.to_string())?;
+                    Ok(out_path)
                 });
             let _ = tx.send(result);
         });
@@ -1959,7 +2008,7 @@ impl ModelHubApp {
                             self.view.view(ids!(hub_image_panel.hub_panel_header.panel_progress_fill)).apply_over(cx, live! { draw_bg: { progress: (pct) } });
                             self.view.label(ids!(hub_image_panel.hub_panel_header.panel_progress_text)).set_text(cx, &txt);
                         }
-                        ActivePanel::Voice | ActivePanel::None => {}
+                        ActivePanel::Video | ActivePanel::Voice | ActivePanel::None => {}
                     }
                     self.view.redraw(cx);
                 }
@@ -2002,9 +2051,32 @@ impl ModelHubApp {
         poll_string_rx!(self.asr_state,
             ids!(hub_asr_panel.asr_transcript.output_label),
             ids!(hub_asr_panel.asr_status));
-        poll_string_rx!(self.image_state,
-            ids!(hub_image_panel.img_output_path),
-            ids!(hub_image_panel.img_status));
+        // Image: custom poll so we can show preview + result row
+        if self.image_state.is_running {
+            if let Some(rx) = &self.image_state.rx {
+                if let Ok(result) = rx.try_recv() {
+                    match result {
+                        Ok(path) => {
+                            self.view.label(ids!(hub_image_panel.img_status)).set_text(cx, "Done.");
+                            self.view.label(ids!(hub_image_panel.img_output_path)).set_text(cx, &path);
+                            self.view.view(ids!(hub_image_panel.img_result_row)).set_visible(cx, true);
+                            // Load image into preview widget
+                            let img_ref = self.view.image(ids!(hub_image_panel.img_preview));
+                            if img_ref.load_image_file_by_path(cx, std::path::Path::new(&path)).is_ok() {
+                                img_ref.set_visible(cx, true);
+                            }
+                            self.image_state.output_path = path;
+                        }
+                        Err(e) => {
+                            self.view.label(ids!(hub_image_panel.img_status)).set_text(cx, &format!("Error: {}", e));
+                        }
+                    }
+                    self.image_state.is_running = false;
+                    self.image_state.rx = None;
+                    redraw = true;
+                } else { cx.new_next_frame(); }
+            }
+        }
 
         // TTS (returns ())
         if self.tts_state.is_running {
@@ -2048,11 +2120,35 @@ fn scan_state(model: &RegistryModel) -> ModelUiState {
     let p = expand_tilde(&model.storage.local_path);
     let path = Path::new(&p);
     if !path.exists() { return ModelUiState::NotDownloaded; }
+    // For models with a known size > 100 MB, require at least one weight file
+    // (.safetensors or .bin) to exist — prevents partial downloads (e.g. only
+    // config.json fetched by the HF library) from showing as "Downloaded".
+    if model.storage.size_bytes > 100 * 1024 * 1024 {
+        return if has_weight_files(path) { ModelUiState::Downloaded } else { ModelUiState::NotDownloaded };
+    }
     let n = std::fs::read_dir(path)
         .map(|e| e.filter_map(|x| x.ok())
              .filter(|x| !x.file_name().to_string_lossy().starts_with('.')).count())
         .unwrap_or(0);
     if n > 0 { ModelUiState::Downloaded } else { ModelUiState::NotDownloaded }
+}
+
+/// Recursively search for any `.safetensors` or `.bin` weight file under `dir`.
+/// Returns true as soon as one is found (early-exit, cheap for large trees).
+fn has_weight_files(dir: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(dir) else { return false; };
+    for entry in entries.filter_map(|e| e.ok()) {
+        let p = entry.path();
+        if p.is_file() {
+            let name = p.file_name().unwrap_or_default().to_string_lossy();
+            if name.ends_with(".safetensors") || name.ends_with(".bin") {
+                return true;
+            }
+        } else if p.is_dir() && has_weight_files(&p) {
+            return true;
+        }
+    }
+    false
 }
 
 fn expand_tilde(path: &str) -> String {

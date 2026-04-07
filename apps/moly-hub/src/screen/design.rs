@@ -135,6 +135,27 @@ live_design! {
         inline_progress = <HubInlineProgress> { visible: false }
     }
 
+    // ── Subfolder group header (e.g. "Qwen3", "GLM") ──
+
+    HubSubfolderGroupHeader = <View> {
+        width: Fill, height: Fit
+        padding: {left: 22, right: 14, top: 6, bottom: 2}
+        show_bg: true
+        draw_bg: {
+            fn pixel(self) -> vec4 {
+                return #ffffff;
+            }
+        }
+        subfolder_header_label = <Label> {
+            draw_text: {
+                fn get_color(self) -> vec4 {
+                    return #6b7280;
+                }
+                text_style: <FONT_MEDIUM>{ font_size: 9.5 }
+            }
+        }
+    }
+
     // ── Category group header ──
 
     HubCategoryGroupHeader = <View> {
@@ -645,6 +666,7 @@ live_design! {
                 flow: Down
                 HubModelItem        = <HubModelListItem> {}
                 HubCategoryHeader   = <HubCategoryGroupHeader> {}
+                HubSubfolderHeader  = <HubSubfolderGroupHeader> {}
                 HubVoiceStudioItem  = <HubVoiceStudioItem> {}
             }
         }
@@ -929,19 +951,84 @@ live_design! {
                         img_generate_btn = <HubActionButton> { text: "Generate Image" }
                     }
 
-                    img_output_path = <Label> {
-                        width: Fill, height: Fit
-                        margin: {bottom: 8}
-                        draw_text: {
-                            fn get_color(self) -> vec4 {
-                                return #374151;
-                            }
-                            text_style: { font_size: 11.0 }
-                            wrap: Word
-                        }
+                    img_status = <HubPanelStatus> {}
+
+                    // Preview image (hidden until generated)
+                    img_preview = <Image> {
+                        width: Fill, height: 400
+                        visible: false
+                        margin: {top: 16, bottom: 8}
+                        fit: Biggest
                     }
 
-                    img_status = <HubPanelStatus> {}
+                    // File path + Finder button row (hidden until generated)
+                    img_result_row = <View> {
+                        width: Fill, height: Fit
+                        flow: Right
+                        align: {y: 0.5}
+                        margin: {bottom: 8}
+                        visible: false
+                        spacing: 8
+
+                        img_output_path = <Label> {
+                            width: Fill, height: Fit
+                            draw_text: {
+                                fn get_color(self) -> vec4 { return #374151; }
+                                text_style: { font_size: 11.0 }
+                                wrap: Word
+                            }
+                        }
+
+                        img_open_finder_btn = <HubActionButton> {
+                            text: "Show in Finder"
+                            width: Fit
+                        }
+                    }
+                }
+            }
+
+            // ── Video Generation Panel (Coming Soon) ───────────────────────────
+            hub_video_panel = <View> {
+                width: Fill, height: Fill
+                visible: false
+                flow: Down
+                align: {x: 0.5, y: 0.35}
+                spacing: 16.0
+                padding: 40.0
+
+                <Label> {
+                    text: "Coming Soon"
+                    draw_text: {
+                        fn get_color(self) -> vec4 { return #38bdf8; }
+                        text_style: <FONT_SEMIBOLD>{ font_size: 22.0 }
+                    }
+                }
+
+                hub_video_name = <Label> {
+                    text: ""
+                    draw_text: {
+                        fn get_color(self) -> vec4 { return #1f2937; }
+                        text_style: <FONT_SEMIBOLD>{ font_size: 16.0 }
+                    }
+                }
+
+                hub_video_desc = <Label> {
+                    width: 480.0
+                    text: ""
+                    draw_text: {
+                        fn get_color(self) -> vec4 { return #6b7280; }
+                        text_style: { font_size: 13.0 }
+                        wrap: Word
+                    }
+                }
+
+                <Label> {
+                    text: "Video generation support is under development.\nCheck back in a future update."
+                    draw_text: {
+                        fn get_color(self) -> vec4 { return #9ca3af; }
+                        text_style: { font_size: 12.0 }
+                        wrap: Word
+                    }
                 }
             }
 
