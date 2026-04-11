@@ -1,6 +1,8 @@
 use makepad_widgets::*;
 
-use moly_data::{ChatId, Store, StoreAction};
+use moly_data::{ChatId, Store, StoreAction, ModelRegistry, RegistryCategory, ModelRuntimeClient, ensure_server_running};
+use std::sync::mpsc;
+use std::path::Path;
 use moly_kit::a2ui::{A2uiSurface, A2uiSurfaceAction};
 use moly_kit::widgets::chat::ChatAction;
 use moly_kit::widgets::prompt_input::PromptInputAction;
@@ -239,6 +241,93 @@ live_design! {
         }
     }
 
+    // Slot item in the model-selector dropdown
+    ModelDropdownSlot = <View> {
+        width: Fill, height: 52
+        cursor: Hand
+        visible: false
+        flow: Right
+        align: {y: 0.5}
+        padding: {left: 16, right: 16}
+        spacing: 10
+        show_bg: true
+        draw_bg: {
+            instance hover: 0.0
+            fn pixel(self) -> vec4 {
+                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 0.0);
+                sdf.fill(mix(#ffffff, #f9fafb, self.hover));
+                return sdf.result;
+            }
+        }
+        animator: {
+            hover = {
+                default: off
+                off = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 0.0}} }
+                on  = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 1.0}} }
+            }
+        }
+
+        // Category color dot
+        category_dot = <View> {
+            width: 8, height: 8
+            show_bg: true
+            draw_bg: {
+                instance cat: 0.0
+                fn pixel(self) -> vec4 {
+                    let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                    sdf.circle(4.0, 4.0, 3.5);
+                    let llm_c = vec4(0.388, 0.400, 0.945, 1.0);
+                    let vlm_c = vec4(0.545, 0.361, 0.965, 1.0);
+                    let asr_c = vec4(0.063, 0.725, 0.506, 1.0);
+                    let tts_c = vec4(0.961, 0.620, 0.043, 1.0);
+                    let img_c = vec4(0.925, 0.286, 0.600, 1.0);
+                    let c = mix(mix(mix(mix(
+                        llm_c,
+                        vlm_c, step(0.5, self.cat)),
+                        asr_c, step(1.5, self.cat)),
+                        tts_c, step(2.5, self.cat)),
+                        img_c, step(3.5, self.cat));
+                    sdf.fill(c);
+                    return sdf.result;
+                }
+            }
+        }
+
+        // Model name
+        slot_name = <Label> {
+            width: Fill
+            draw_text: {
+                color: #1f2937
+                text_style: <FONT_MEDIUM>{ font_size: 13.0 }
+                wrap: Ellipsis
+            }
+        }
+
+        // Size · Category tag on the right
+        slot_meta = <Label> {
+            draw_text: {
+                color: #9ca3af
+                text_style: { font_size: 11.0 }
+            }
+        }
+
+        // Green dot when loaded
+        slot_loaded_dot = <View> {
+            width: 8, height: 8
+            show_bg: true
+            draw_bg: {
+                instance loaded: 0.0
+                fn pixel(self) -> vec4 {
+                    let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                    sdf.circle(4.0, 4.0, 3.5);
+                    sdf.fill(mix(#e5e7eb, #22c55e, self.loaded));
+                    return sdf.result;
+                }
+            }
+        }
+    }
+
     App = {{App}} {
         ui: <Window> {
             window: { title: "OminiX Studio", inner_size: vec2(1400, 900) }
@@ -248,11 +337,16 @@ live_design! {
 
             body = <View> {
                 width: Fill, height: Fill
-                flow: Down
+                flow: Overlay
                 show_bg: true
                 draw_bg: {
                     color: #f5f7fa
                 }
+
+                // ── Normal app layout (header + sidebar + content) ──────────
+                body_layout = <View> {
+                    width: Fill, height: Fill
+                    flow: Down
 
                 // Header
                 header = <View> {
@@ -293,7 +387,150 @@ live_design! {
                         width: 0
                     }
 
-                    <View> { width: Fill } // Spacer
+                    <View> { width: Fill } // Left spacer
+
+                    // ── Model Selector pill (center of header, like LM Studio) ──
+                    model_selector_btn = <View> {
+                        width: Fit, height: 36
+                        cursor: Hand
+                        align: {x: 0.5, y: 0.5}
+                        padding: {left: 16, right: 12, top: 0, bottom: 0}
+                        margin: {right: 4}
+                        show_bg: true
+                        draw_bg: {
+                            instance hover: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(1.0, 1.0, self.rect_size.x - 2.0, self.rect_size.y - 2.0, 8.0);
+                                sdf.fill(mix(#f3f4f6, #e5e7eb, self.hover));
+                                return sdf.result;
+                            }
+                        }
+                        animator: {
+                            hover = {
+                                default: off
+                                off = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 0.0}} }
+                                on  = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 1.0}} }
+                            }
+                        }
+                        flow: Right
+                        spacing: 8
+
+                        selector_dot = <View> {
+                            width: 8, height: 8
+                            show_bg: true
+                            draw_bg: {
+                                instance loaded: 0.0
+                                fn pixel(self) -> vec4 {
+                                    let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                    sdf.circle(4.0, 4.0, 3.5);
+                                    sdf.fill(mix(#9ca3af, #22c55e, self.loaded));
+                                    return sdf.result;
+                                }
+                            }
+                        }
+
+                        // Category type badge — hidden until a model is loaded
+                        category_tag = <View> {
+                            width: Fit, height: 20
+                            visible: false
+                            padding: {left: 6, right: 6}
+                            align: {x: 0.5, y: 0.5}
+                            show_bg: true
+                            draw_bg: {
+                                instance cat: 0.0
+                                fn pixel(self) -> vec4 {
+                                    let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                    sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 4.0);
+                                    // LLM indigo-50, VLM violet-50, ASR green-50, TTS amber-50, Image pink-50
+                                    let c0 = #dbeafe;
+                                    let c1 = #ede9fe;
+                                    let c2 = #d1fae5;
+                                    let c3 = #fef3c7;
+                                    let c4 = #fce7f3;
+                                    let w0 = 1.0 - step(0.5, self.cat);
+                                    let w1 = step(0.5, self.cat) * (1.0 - step(1.5, self.cat));
+                                    let w2 = step(1.5, self.cat) * (1.0 - step(2.5, self.cat));
+                                    let w3 = step(2.5, self.cat) * (1.0 - step(3.5, self.cat));
+                                    let w4 = step(3.5, self.cat);
+                                    sdf.fill(c0 * w0 + c1 * w1 + c2 * w2 + c3 * w3 + c4 * w4);
+                                    return sdf.result;
+                                }
+                            }
+                            category_tag_label = <Label> {
+                                text: "LLM"
+                                draw_text: {
+                                    instance cat: 0.0
+                                    fn get_color(self) -> vec4 {
+                                        let c0 = #1a40af;
+                                        let c1 = #5b21b6;
+                                        let c2 = #047857;
+                                        let c3 = #92400f;
+                                        let c4 = #9d174d;
+                                        let w0 = 1.0 - step(0.5, self.cat);
+                                        let w1 = step(0.5, self.cat) * (1.0 - step(1.5, self.cat));
+                                        let w2 = step(1.5, self.cat) * (1.0 - step(2.5, self.cat));
+                                        let w3 = step(2.5, self.cat) * (1.0 - step(3.5, self.cat));
+                                        let w4 = step(3.5, self.cat);
+                                        return c0 * w0 + c1 * w1 + c2 * w2 + c3 * w3 + c4 * w4;
+                                    }
+                                    text_style: <FONT_SEMIBOLD>{ font_size: 9.5 }
+                                }
+                            }
+                        }
+
+                        selector_label = <Label> {
+                            text: "Select a model to load"
+                            draw_text: {
+                                color: #374151
+                                text_style: <FONT_MEDIUM>{ font_size: 13.0 }
+                            }
+                        }
+
+                        <Label> {
+                            text: "▾"
+                            margin: {left: 2}
+                            draw_text: {
+                                color: #6b7280
+                                text_style: { font_size: 11.0 }
+                            }
+                        }
+                    }
+
+                    // Eject / unload button (visible only when a model is loaded)
+                    eject_btn = <View> {
+                        width: 32, height: 32
+                        cursor: Hand
+                        visible: false
+                        align: {x: 0.5, y: 0.5}
+                        margin: {right: 8}
+                        show_bg: true
+                        draw_bg: {
+                            instance hover: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(1.0, 1.0, self.rect_size.x - 2.0, self.rect_size.y - 2.0, 6.0);
+                                sdf.fill(mix(#f9fafb, #fee2e2, self.hover));
+                                return sdf.result;
+                            }
+                        }
+                        animator: {
+                            hover = {
+                                default: off
+                                off = { from: {all: Forward{duration: 0.1}}, apply: {draw_bg: {hover: 0.0}} }
+                                on  = { from: {all: Forward{duration: 0.1}}, apply: {draw_bg: {hover: 1.0}} }
+                            }
+                        }
+                        <Label> {
+                            text: "⏏"
+                            draw_text: {
+                                color: #6b7280
+                                text_style: { font_size: 15.0 }
+                            }
+                        }
+                    }
+
+                    <View> { width: Fill } // Right spacer
                 }
 
                 // Content area
@@ -672,10 +909,171 @@ live_design! {
                         }
                     }
                 }
+                } // closes body_layout
+
+                // ── Model-selector dropdown overlay ─────────────────────────
+                model_selector_dropdown = <View> {
+                    abs_pos: vec2(0.0, 0.0)
+                    width: Fill, height: Fill
+                    flow: Down
+                    visible: false
+
+                    // Transparent spacer equal to header height
+                    <View> { width: Fill, height: 72 }
+
+                    // Centered dropdown panel row
+                    dropdown_wrapper = <View> {
+                        width: Fill, height: Fit
+                        flow: Right
+                        align: {x: 0.5}
+
+                        dropdown_panel = <RoundedView> {
+                            width: 440, height: Fit
+                            show_bg: true
+                            draw_bg: {
+                                color: #ffffff
+                                border_radius: 12.0
+                            }
+                            flow: Down
+
+                            // Panel header row
+                            dropdown_header = <View> {
+                                width: Fill, height: 48
+                                flow: Right
+                                align: {y: 0.5}
+                                padding: {left: 16, right: 16}
+
+                                <Label> {
+                                    width: Fill
+                                    text: "On-Device Models"
+                                    draw_text: {
+                                        color: #1f2937
+                                        text_style: <FONT_SEMIBOLD>{ font_size: 14.0 }
+                                    }
+                                }
+                                dropdown_status_label = <Label> {
+                                    text: ""
+                                    draw_text: {
+                                        color: #9ca3af
+                                        text_style: { font_size: 11.0 }
+                                    }
+                                }
+                            }
+
+                            <View> { width: Fill, height: 1, show_bg: true, draw_bg: { color: #e5e7eb } }
+
+                            // Empty state
+                            empty_state = <View> {
+                                width: Fill, height: 80
+                                visible: true
+                                align: {x: 0.5, y: 0.5}
+                                <Label> {
+                                    text: "No models downloaded. Visit the Model Hub."
+                                    draw_text: { color: #6b7280, text_style: { font_size: 12.0 } }
+                                }
+                            }
+
+                            // Scrollable model list (hidden when empty)
+                            model_scroll = <ScrollYView> {
+                                width: Fill, height: Fit
+                                flow: Down
+                                visible: false
+
+                                slot_0 = <ModelDropdownSlot> {}
+                                slot_1 = <ModelDropdownSlot> {}
+                                slot_2 = <ModelDropdownSlot> {}
+                                slot_3 = <ModelDropdownSlot> {}
+                                slot_4 = <ModelDropdownSlot> {}
+                                slot_5 = <ModelDropdownSlot> {}
+                                slot_6 = <ModelDropdownSlot> {}
+                                slot_7 = <ModelDropdownSlot> {}
+                                slot_8 = <ModelDropdownSlot> {}
+                                slot_9 = <ModelDropdownSlot> {}
+                            }
+                        }
+                    }
+
+                    // Click-anywhere-outside to dismiss
+                    dismiss_area = <View> {
+                        width: Fill, height: Fill
+                        cursor: Arrow
+                    }
+                }
             }
         }
     }
 }
+
+// ── Model selector types ──────────────────────────────────────────────────────
+
+#[derive(Clone, Copy, PartialEq, Default, Debug)]
+enum ShellModelLoadState {
+    #[default]
+    Unloaded,
+    Loading,
+    Loaded,
+    Error,
+}
+
+#[derive(Clone, Debug)]
+struct DownloadedModelEntry {
+    registry_id:   String,
+    name:          String,
+    api_model_id:  String,
+    category:      RegistryCategory,
+    model_type_str: &'static str,
+    size_display:  String,
+}
+
+fn category_to_model_type(cat: RegistryCategory) -> &'static str {
+    match cat {
+        RegistryCategory::Llm      => "llm",
+        RegistryCategory::Vlm      => "vlm",
+        RegistryCategory::Asr      => "asr",
+        RegistryCategory::Tts      => "tts",
+        RegistryCategory::ImageGen => "image",
+        RegistryCategory::VideoGen => "video",
+    }
+}
+
+fn registry_category_as_f64(cat: RegistryCategory) -> f64 {
+    match cat {
+        RegistryCategory::Llm      => 0.0,
+        RegistryCategory::Vlm      => 1.0,
+        RegistryCategory::Asr      => 2.0,
+        RegistryCategory::Tts      => 3.0,
+        RegistryCategory::ImageGen => 4.0,
+        RegistryCategory::VideoGen => 5.0,
+    }
+}
+
+/// Check if a registry model's files are present on disk.
+fn shell_is_model_downloaded(model: &moly_data::RegistryModel) -> bool {
+    let expanded = model.storage.expanded_path();
+    let path = Path::new(&expanded);
+    if !path.exists() { return false; }
+    if model.storage.size_bytes > 100 * 1024 * 1024 {
+        return has_weight_files_shell(path);
+    }
+    std::fs::read_dir(path)
+        .map(|e| e.filter_map(|x| x.ok())
+             .filter(|x| !x.file_name().to_string_lossy().starts_with('.')).count())
+        .unwrap_or(0) > 0
+}
+
+fn has_weight_files_shell(dir: &Path) -> bool {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for e in entries.flatten() {
+            let n = e.file_name();
+            let name = n.to_string_lossy();
+            if name.ends_with(".safetensors") || name.ends_with(".bin") { return true; }
+            if e.path().is_dir() && has_weight_files_shell(&e.path()) { return true; }
+        }
+    }
+    false
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 enum NavigationTarget {
@@ -737,6 +1135,29 @@ pub struct App {
     /// Chat IDs shown in the sidebar history sublist (up to 6)
     #[rust]
     sidebar_chat_ids: Vec<moly_data::ChatId>,
+
+    // ── Model-selector state ────────────────────────────────────────────────
+    /// Whether the model-selector dropdown is currently open
+    #[rust]
+    selector_open: bool,
+    /// Registry ID of the currently loaded local model (empty = none)
+    #[rust]
+    loaded_model_id: String,
+    /// Display name of the loaded model
+    #[rust]
+    loaded_model_name: String,
+    /// Category of the loaded model
+    #[rust]
+    loaded_model_category: Option<RegistryCategory>,
+    /// Load state for the shell-level model selector
+    #[rust]
+    shell_load_state: ShellModelLoadState,
+    /// Receiver for the async load thread
+    #[rust]
+    load_rx: Option<mpsc::Receiver<Result<(), String>>>,
+    /// List of downloaded models available for selection
+    #[rust]
+    downloaded_models: Vec<DownloadedModelEntry>,
 }
 
 impl LiveHook for App {
@@ -799,8 +1220,82 @@ impl MatchEvent for App {
     }
 
     fn handle_actions(&mut self, cx: &mut Cx, actions: &Actions) {
+        // ── Model selector pill click ───────────────────────────────────────
+        if self.ui.view(ids!(body.body_layout.header.model_selector_btn)).finger_down(&actions).is_some() {
+            if self.selector_open {
+                self.close_selector(cx);
+            } else {
+                self.open_selector(cx);
+            }
+        }
+
+        // ── Eject / unload button click ────────────────────────────────────
+        if self.ui.view(ids!(body.body_layout.header.eject_btn)).finger_down(&actions).is_some() {
+            self.start_unload_model(cx);
+        }
+
+        // ── Dropdown: click-outside dismiss area ───────────────────────────
+        if self.selector_open {
+            if self.ui.view(ids!(body.model_selector_dropdown.dismiss_area)).finger_down(&actions).is_some() {
+                self.close_selector(cx);
+            }
+
+            // ── Dropdown slot clicks (explicit, no macro_rules) ─────────────
+            let n = self.downloaded_models.len();
+            if n > 0 && self.ui.view(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_0)).finger_down(&actions).is_some() {
+                let entry = self.downloaded_models[0].clone();
+                self.close_selector(cx);
+                self.start_load_model(cx, entry);
+            }
+            if n > 1 && self.ui.view(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_1)).finger_down(&actions).is_some() {
+                let entry = self.downloaded_models[1].clone();
+                self.close_selector(cx);
+                self.start_load_model(cx, entry);
+            }
+            if n > 2 && self.ui.view(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_2)).finger_down(&actions).is_some() {
+                let entry = self.downloaded_models[2].clone();
+                self.close_selector(cx);
+                self.start_load_model(cx, entry);
+            }
+            if n > 3 && self.ui.view(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_3)).finger_down(&actions).is_some() {
+                let entry = self.downloaded_models[3].clone();
+                self.close_selector(cx);
+                self.start_load_model(cx, entry);
+            }
+            if n > 4 && self.ui.view(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_4)).finger_down(&actions).is_some() {
+                let entry = self.downloaded_models[4].clone();
+                self.close_selector(cx);
+                self.start_load_model(cx, entry);
+            }
+            if n > 5 && self.ui.view(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_5)).finger_down(&actions).is_some() {
+                let entry = self.downloaded_models[5].clone();
+                self.close_selector(cx);
+                self.start_load_model(cx, entry);
+            }
+            if n > 6 && self.ui.view(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_6)).finger_down(&actions).is_some() {
+                let entry = self.downloaded_models[6].clone();
+                self.close_selector(cx);
+                self.start_load_model(cx, entry);
+            }
+            if n > 7 && self.ui.view(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_7)).finger_down(&actions).is_some() {
+                let entry = self.downloaded_models[7].clone();
+                self.close_selector(cx);
+                self.start_load_model(cx, entry);
+            }
+            if n > 8 && self.ui.view(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_8)).finger_down(&actions).is_some() {
+                let entry = self.downloaded_models[8].clone();
+                self.close_selector(cx);
+                self.start_load_model(cx, entry);
+            }
+            if n > 9 && self.ui.view(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_9)).finger_down(&actions).is_some() {
+                let entry = self.downloaded_models[9].clone();
+                self.close_selector(cx);
+                self.start_load_model(cx, entry);
+            }
+        }
+
         // Handle hamburger menu click
-        if self.ui.view(ids!(body.header.hamburger_btn)).finger_down(&actions).is_some() {
+        if self.ui.view(ids!(body.body_layout.header.hamburger_btn)).finger_down(&actions).is_some() {
             ::log::info!(">>> Hamburger button clicked! <<<");
             self.store.toggle_sidebar();
             self.update_sidebar(cx);
@@ -808,14 +1303,14 @@ impl MatchEvent for App {
 
         // Handle New Chat button click (first item in sidebar)
         // Use full path from Window root: body.content.sidebar.new_chat_btn
-        let new_chat_clicked = self.ui.button(ids!(body.content.sidebar.new_chat_btn)).clicked(&actions);
-        let chat_clicked = self.ui.button(ids!(body.content.sidebar.chat_section.chat_history_btn)).clicked(&actions);
+        let new_chat_clicked = self.ui.button(ids!(body.body_layout.content.sidebar.new_chat_btn)).clicked(&actions);
+        let chat_clicked = self.ui.button(ids!(body.body_layout.content.sidebar.chat_section.chat_history_btn)).clicked(&actions);
 
         if new_chat_clicked {
             ::log::info!(">>> New Chat button clicked! <<<");
 
             // Request new chat directly on ChatApp (bypasses action dispatch timing issues)
-            if let Some(mut chat_app) = self.ui.widget(ids!(body.content.main_content.chat_with_canvas.chat_app))
+            if let Some(mut chat_app) = self.ui.widget(ids!(body.body_layout.content.main_content.chat_with_canvas.chat_app))
                 .borrow_mut::<moly_chat::screen::ChatApp>()
             {
                 chat_app.request_new_chat();
@@ -837,26 +1332,26 @@ impl MatchEvent for App {
         }
 
         // Handle Show More button click
-        if self.ui.view(ids!(body.content.sidebar.chat_section.chat_history_visible.show_more_btn)).finger_down(&actions).is_some() {
+        if self.ui.view(ids!(body.body_layout.content.sidebar.chat_section.chat_history_visible.show_more_btn)).finger_down(&actions).is_some() {
             self.chat_history_expanded = !self.chat_history_expanded;
             self.update_chat_history_visibility(cx);
         }
-        if self.ui.button(ids!(body.content.sidebar.llm_btn)).clicked(&actions) {
+        if self.ui.button(ids!(body.body_layout.content.sidebar.llm_btn)).clicked(&actions) {
             self.navigate_to(cx, NavigationTarget::LlmHub);
         }
-        if self.ui.button(ids!(body.content.sidebar.vlm_btn)).clicked(&actions) {
+        if self.ui.button(ids!(body.body_layout.content.sidebar.vlm_btn)).clicked(&actions) {
             self.navigate_to(cx, NavigationTarget::VlmHub);
         }
-        if self.ui.button(ids!(body.content.sidebar.asr_btn)).clicked(&actions) {
+        if self.ui.button(ids!(body.body_layout.content.sidebar.asr_btn)).clicked(&actions) {
             self.navigate_to(cx, NavigationTarget::AsrHub);
         }
-        if self.ui.button(ids!(body.content.sidebar.tts_btn)).clicked(&actions) {
+        if self.ui.button(ids!(body.body_layout.content.sidebar.tts_btn)).clicked(&actions) {
             self.navigate_to(cx, NavigationTarget::TtsHub);
         }
-        if self.ui.button(ids!(body.content.sidebar.image_btn)).clicked(&actions) {
+        if self.ui.button(ids!(body.body_layout.content.sidebar.image_btn)).clicked(&actions) {
             self.navigate_to(cx, NavigationTarget::ImageHub);
         }
-        if self.ui.button(ids!(body.content.sidebar.settings_btn)).clicked(&actions) {
+        if self.ui.button(ids!(body.body_layout.content.sidebar.settings_btn)).clicked(&actions) {
             ::log::info!(">>> Settings button clicked! <<<");
             self.navigate_to(cx, NavigationTarget::Settings);
         }
@@ -867,7 +1362,7 @@ impl MatchEvent for App {
             macro_rules! check_sidebar {
                 ($index:expr, $section:ident, $item:ident) => {
                     if sidebar_clicked.is_none() && $index < self.sidebar_chat_ids.len() {
-                        if self.ui.view(ids!(body.content.sidebar.chat_section.$section.$item))
+                        if self.ui.view(ids!(body.body_layout.content.sidebar.chat_section.$section.$item))
                             .finger_down(&actions).is_some()
                         {
                             sidebar_clicked = Some($index);
@@ -885,7 +1380,7 @@ impl MatchEvent for App {
             if let Some(idx) = sidebar_clicked {
                 let chat_id = self.sidebar_chat_ids[idx];
                 self.store.chats.set_current_chat(Some(chat_id));
-                if let Some(mut chat_app) = self.ui.widget(ids!(body.content.main_content.chat_with_canvas.chat_app))
+                if let Some(mut chat_app) = self.ui.widget(ids!(body.body_layout.content.main_content.chat_with_canvas.chat_app))
                     .borrow_mut::<moly_chat::screen::ChatApp>()
                 {
                     chat_app.load_chat(chat_id);
@@ -900,26 +1395,26 @@ impl MatchEvent for App {
         self.handle_chat_tile_clicks(cx, actions);
 
         // Handle search input changes
-        let search_input = self.ui.text_input(ids!(body.content.main_content.chat_history_page.search_container.search_input));
+        let search_input = self.ui.text_input(ids!(body.body_layout.content.main_content.chat_history_page.search_container.search_input));
         if search_input.changed(&actions).is_some() {
             self.search_query = search_input.text();
             self.update_chat_tiles(cx);
         }
 
         // Handle canvas reopen strip (shown when canvas is collapsed)
-        if self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_reopen_btn)).finger_down(&actions).is_some() {
+        if self.ui.view(ids!(body.body_layout.content.main_content.chat_with_canvas.canvas_reopen_btn)).finger_down(&actions).is_some() {
             ::log::info!(">>> Canvas reopen strip clicked! <<<");
             self.toggle_canvas_panel(cx);
         }
 
         // Handle canvas collapse strip (shown when canvas is expanded)
-        if self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_section.canvas_toggle_column)).finger_down(&actions).is_some() {
+        if self.ui.view(ids!(body.body_layout.content.main_content.chat_with_canvas.canvas_section.canvas_toggle_column)).finger_down(&actions).is_some() {
             ::log::info!(">>> Canvas collapse strip clicked! <<<");
             self.toggle_canvas_panel(cx);
         }
 
         // Handle canvas splitter drag start
-        let splitter = self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_splitter));
+        let splitter = self.ui.view(ids!(body.body_layout.content.main_content.chat_with_canvas.canvas_splitter));
         if let Some(fd) = splitter.finger_down(&actions) {
             if !self.canvas_panel_collapsed {
                 self.splitter_dragging = true;
@@ -954,7 +1449,7 @@ impl MatchEvent for App {
                 // Set active local model (injects ominix-local provider)
                 self.store.set_active_local_model(Some(model_id.clone()));
                 // Request a new chat session
-                if let Some(mut chat_app) = self.ui.widget(ids!(body.content.main_content.chat_with_canvas.chat_app))
+                if let Some(mut chat_app) = self.ui.widget(ids!(body.body_layout.content.main_content.chat_with_canvas.chat_app))
                     .borrow_mut::<moly_chat::screen::ChatApp>()
                 {
                     chat_app.request_new_chat();
@@ -1064,7 +1559,7 @@ impl AppMain for App {
                     let new_width = (self.splitter_drag_start_width - delta).max(200.0).min(1200.0);
                     self.canvas_panel_width = new_width;
 
-                    self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_section))
+                    self.ui.view(ids!(body.body_layout.content.main_content.chat_with_canvas.canvas_section))
                         .apply_over(cx, live!{ width: (new_width) });
                     self.ui.redraw(cx);
                 }
@@ -1075,6 +1570,9 @@ impl AppMain for App {
                 _ => {}
             }
         }
+
+        // Poll model load thread for completion
+        self.poll_load_result(cx);
 
         // Pass Store to child widgets via Scope
         // TODO: Migrate apps to use MolyAppData instead of Store directly
@@ -1091,6 +1589,259 @@ impl AppMain for App {
 }
 
 impl App {
+    // ── Model selector methods ────────────────────────────────────────────────
+
+    /// Scan the registry for downloaded models and cache the list.
+    fn refresh_downloaded_models(&mut self) {
+        let registry = ModelRegistry::load();
+        self.downloaded_models = registry.models.iter()
+            .filter(|m| shell_is_model_downloaded(m))
+            .map(|m| DownloadedModelEntry {
+                registry_id:    m.id.clone(),
+                name:           m.name.clone(),
+                api_model_id:   m.runtime.api_model_id.clone(),
+                category:       m.category,
+                model_type_str: category_to_model_type(m.category),
+                size_display:   m.storage.size_display.clone(),
+            })
+            .collect();
+        ::log::info!("Model selector: {} downloaded models", self.downloaded_models.len());
+    }
+
+    /// Open the dropdown and populate slots.
+    fn open_selector(&mut self, cx: &mut Cx) {
+        if self.shell_load_state == ShellModelLoadState::Loading { return; }
+        self.refresh_downloaded_models();
+        self.selector_open = true;
+        self.update_dropdown_slots(cx);
+        self.ui.view(ids!(body.model_selector_dropdown)).set_visible(cx, true);
+        self.ui.redraw(cx);
+    }
+
+    /// Close the dropdown.
+    fn close_selector(&mut self, cx: &mut Cx) {
+        self.selector_open = false;
+        self.ui.view(ids!(body.model_selector_dropdown)).set_visible(cx, false);
+        self.ui.redraw(cx);
+    }
+
+    /// Update selector pill label and eject-button visibility.
+    fn update_selector_bar(&mut self, cx: &mut Cx) {
+        let label_text = match self.shell_load_state {
+            ShellModelLoadState::Unloaded => "Select a model to load".to_string(),
+            ShellModelLoadState::Loading  => format!("Loading {}...", self.loaded_model_name),
+            ShellModelLoadState::Loaded   => self.loaded_model_name.clone(),
+            ShellModelLoadState::Error    => "Load failed — click to retry".to_string(),
+        };
+        let loaded = matches!(self.shell_load_state, ShellModelLoadState::Loaded);
+
+        self.ui.label(ids!(body.body_layout.header.model_selector_btn.selector_label))
+            .set_text(cx, &label_text);
+
+        let loaded_val = if loaded { 1.0 } else { 0.0 };
+        self.ui.view(ids!(body.body_layout.header.model_selector_btn.selector_dot))
+            .apply_over(cx, live!{ draw_bg: { loaded: (loaded_val) } });
+
+        self.ui.view(ids!(body.body_layout.header.eject_btn))
+            .set_visible(cx, loaded);
+
+        // Category tag — show with correct type/color when a model is loaded
+        let tag = self.ui.view(ids!(body.body_layout.header.model_selector_btn.category_tag));
+        tag.set_visible(cx, loaded);
+        if loaded {
+            let cat_val = registry_category_as_f64(
+                self.loaded_model_category.unwrap_or(RegistryCategory::Llm)
+            );
+            let cat_label = match self.loaded_model_category {
+                Some(RegistryCategory::Llm)      => "LLM",
+                Some(RegistryCategory::Vlm)      => "VLM",
+                Some(RegistryCategory::Asr)      => "ASR",
+                Some(RegistryCategory::Tts)      => "TTS",
+                Some(RegistryCategory::ImageGen) => "Image",
+                Some(RegistryCategory::VideoGen) => "Video",
+                None => "LLM",
+            };
+            tag.apply_over(cx, live! { draw_bg: { cat: (cat_val) } });
+            tag.label(ids!(category_tag_label)).set_text(cx, cat_label);
+            tag.label(ids!(category_tag_label)).apply_over(cx, live! { draw_text: { cat: (cat_val) } });
+        }
+    }
+
+    /// Write data into a single dropdown slot widget.
+    fn update_slot_view(&self, cx: &mut Cx, slot: WidgetRef, entry: &DownloadedModelEntry) {
+        slot.set_visible(cx, true);
+        slot.label(ids!(slot_name)).set_text(cx, &entry.name);
+        let meta = format!("{} · {}", entry.category.label(), entry.size_display);
+        slot.label(ids!(slot_meta)).set_text(cx, &meta);
+        let is_loaded = self.loaded_model_id == entry.registry_id;
+        let loaded_val = if is_loaded { 1.0 } else { 0.0 };
+        slot.view(ids!(slot_loaded_dot)).apply_over(cx, live!{ draw_bg: { loaded: (loaded_val) } });
+        let cat_val = registry_category_as_f64(entry.category);
+        slot.view(ids!(category_dot)).apply_over(cx, live!{ draw_bg: { cat: (cat_val) } });
+    }
+
+    /// Populate/hide all 10 dropdown slots from `self.downloaded_models`.
+    fn update_dropdown_slots(&mut self, cx: &mut Cx) {
+        let models = self.downloaded_models.clone();
+        let n = models.len();
+
+        self.ui.view(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.empty_state))
+            .set_visible(cx, n == 0);
+        self.ui.view(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll))
+            .set_visible(cx, n > 0);
+
+        // Explicit per-slot update (ids!() can't be in macro_rules)
+        let slot = self.ui.widget(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_0));
+        if n > 0 { self.update_slot_view(cx, slot, &models[0]); } else { slot.set_visible(cx, false); }
+
+        let slot = self.ui.widget(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_1));
+        if n > 1 { self.update_slot_view(cx, slot, &models[1]); } else { slot.set_visible(cx, false); }
+
+        let slot = self.ui.widget(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_2));
+        if n > 2 { self.update_slot_view(cx, slot, &models[2]); } else { slot.set_visible(cx, false); }
+
+        let slot = self.ui.widget(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_3));
+        if n > 3 { self.update_slot_view(cx, slot, &models[3]); } else { slot.set_visible(cx, false); }
+
+        let slot = self.ui.widget(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_4));
+        if n > 4 { self.update_slot_view(cx, slot, &models[4]); } else { slot.set_visible(cx, false); }
+
+        let slot = self.ui.widget(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_5));
+        if n > 5 { self.update_slot_view(cx, slot, &models[5]); } else { slot.set_visible(cx, false); }
+
+        let slot = self.ui.widget(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_6));
+        if n > 6 { self.update_slot_view(cx, slot, &models[6]); } else { slot.set_visible(cx, false); }
+
+        let slot = self.ui.widget(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_7));
+        if n > 7 { self.update_slot_view(cx, slot, &models[7]); } else { slot.set_visible(cx, false); }
+
+        let slot = self.ui.widget(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_8));
+        if n > 8 { self.update_slot_view(cx, slot, &models[8]); } else { slot.set_visible(cx, false); }
+
+        let slot = self.ui.widget(ids!(body.model_selector_dropdown.dropdown_wrapper.dropdown_panel.model_scroll.slot_9));
+        if n > 9 { self.update_slot_view(cx, slot, &models[9]); } else { slot.set_visible(cx, false); }
+    }
+
+    /// Start loading a model in a background thread.
+    fn start_load_model(&mut self, cx: &mut Cx, entry: DownloadedModelEntry) {
+        let (tx, rx) = mpsc::channel::<Result<(), String>>();
+        self.load_rx = Some(rx);
+        self.shell_load_state    = ShellModelLoadState::Loading;
+        self.loaded_model_id     = entry.registry_id.clone();
+        self.loaded_model_name   = entry.name.clone();
+        self.loaded_model_category = Some(entry.category);
+
+        let api_model_id  = entry.api_model_id.clone();
+        let model_type    = entry.model_type_str.to_string();
+
+        std::thread::spawn(move || {
+            let result = ensure_server_running()
+                .and_then(|()| ModelRuntimeClient::localhost().load_model(&api_model_id, &model_type));
+            let _ = tx.send(result);
+        });
+
+        self.update_selector_bar(cx);
+        self.ui.redraw(cx);
+    }
+
+    /// Optimistically unload the current model (fire-and-forget).
+    fn start_unload_model(&mut self, cx: &mut Cx) {
+        let model_type = match self.loaded_model_category {
+            Some(RegistryCategory::Llm)      => "llm",
+            Some(RegistryCategory::Vlm)      => "vlm",
+            Some(RegistryCategory::Asr)      => "asr",
+            Some(RegistryCategory::Tts)      => "tts",
+            Some(RegistryCategory::ImageGen) => "image",
+            Some(RegistryCategory::VideoGen) => "video",
+            None                             => "all",
+        }.to_string();
+
+        std::thread::spawn(move || {
+            ModelRuntimeClient::localhost().unload_model(&model_type).ok();
+        });
+
+        // Optimistic UI reset
+        self.shell_load_state    = ShellModelLoadState::Unloaded;
+        self.loaded_model_id     = String::new();
+        self.loaded_model_name   = String::new();
+        self.loaded_model_category = None;
+        self.store.set_active_local_model(None);
+
+        self.update_selector_bar(cx);
+        self.ui.redraw(cx);
+    }
+
+    /// Poll the load thread; navigate on success, report on failure.
+    fn poll_load_result(&mut self, cx: &mut Cx) {
+        let result = self.load_rx.as_ref().and_then(|rx| rx.try_recv().ok());
+        let Some(result) = result else { return };
+        self.load_rx = None;
+
+        match result {
+            Ok(()) => {
+                self.shell_load_state = ShellModelLoadState::Loaded;
+
+                // Inject model into store so ChatApp routes to localhost
+                let model_id = self.loaded_model_id.clone();
+                self.store.set_active_local_model(Some(model_id));
+
+                // Navigate to the appropriate view for this model category
+                let nav = match self.loaded_model_category {
+                    Some(RegistryCategory::Vlm)      => NavigationTarget::VlmHub,
+                    Some(RegistryCategory::Asr)      => NavigationTarget::AsrHub,
+                    Some(RegistryCategory::Tts)      => NavigationTarget::TtsHub,
+                    Some(RegistryCategory::ImageGen) => NavigationTarget::ImageHub,
+                    _                                => NavigationTarget::ActiveChat,
+                };
+
+                if nav == NavigationTarget::ActiveChat {
+                    if let Some(mut chat_app) = self.ui
+                        .widget(ids!(body.body_layout.content.main_content.chat_with_canvas.chat_app))
+                        .borrow_mut::<moly_chat::screen::ChatApp>()
+                    {
+                        chat_app.request_new_chat();
+                    }
+                }
+
+                self.navigate_to(cx, nav);
+
+                // Auto-focus the loaded model inside its hub inference panel
+                let mid = self.loaded_model_id.clone();
+                match nav {
+                    NavigationTarget::VlmHub => {
+                        if let Some(mut h) = self.ui.widget(ids!(body.body_layout.content.main_content.vlm_hub_app))
+                            .borrow_mut::<moly_hub::screen::ModelHubApp>() { h.focus_model(cx, &mid); }
+                    }
+                    NavigationTarget::AsrHub => {
+                        if let Some(mut h) = self.ui.widget(ids!(body.body_layout.content.main_content.asr_hub_app))
+                            .borrow_mut::<moly_hub::screen::ModelHubApp>() { h.focus_model(cx, &mid); }
+                    }
+                    NavigationTarget::TtsHub => {
+                        if let Some(mut h) = self.ui.widget(ids!(body.body_layout.content.main_content.tts_hub_app))
+                            .borrow_mut::<moly_hub::screen::ModelHubApp>() { h.focus_model(cx, &mid); }
+                    }
+                    NavigationTarget::ImageHub => {
+                        if let Some(mut h) = self.ui.widget(ids!(body.body_layout.content.main_content.image_hub_app))
+                            .borrow_mut::<moly_hub::screen::ModelHubApp>() { h.focus_model(cx, &mid); }
+                    }
+                    _ => {}
+                }
+
+                self.update_sidebar_chats(cx);
+            }
+            Err(e) => {
+                self.shell_load_state    = ShellModelLoadState::Error;
+                self.loaded_model_id     = String::new();
+                self.loaded_model_name   = String::new();
+                self.loaded_model_category = None;
+                ::log::error!("Model load failed: {}", e);
+            }
+        }
+
+        self.update_selector_bar(cx);
+        self.ui.redraw(cx);
+    }
+
     fn navigate_to(&mut self, cx: &mut Cx, target: NavigationTarget) {
         ::log::info!("navigate_to: current={:?}, target={:?}", self.current_view, target);
         self.current_view = target;
@@ -1118,18 +1869,18 @@ impl App {
         let show_chat_history = target == NavigationTarget::ChatHistory;
         let show_active_chat = target == NavigationTarget::ActiveChat;
 
-        self.ui.widget(ids!(body.content.main_content.chat_history_page)).set_visible(cx, show_chat_history);
-        self.ui.widget(ids!(body.content.main_content.chat_with_canvas)).set_visible(cx, show_active_chat);
-        self.ui.widget(ids!(body.content.main_content.llm_hub_app)).set_visible(cx, target == NavigationTarget::LlmHub);
-        self.ui.widget(ids!(body.content.main_content.vlm_hub_app)).set_visible(cx, target == NavigationTarget::VlmHub);
-        self.ui.widget(ids!(body.content.main_content.asr_hub_app)).set_visible(cx, target == NavigationTarget::AsrHub);
-        self.ui.widget(ids!(body.content.main_content.tts_hub_app)).set_visible(cx, target == NavigationTarget::TtsHub);
-        self.ui.widget(ids!(body.content.main_content.image_hub_app)).set_visible(cx, target == NavigationTarget::ImageHub);
-        self.ui.widget(ids!(body.content.main_content.settings_app)).set_visible(cx, target == NavigationTarget::Settings);
+        self.ui.widget(ids!(body.body_layout.content.main_content.chat_history_page)).set_visible(cx, show_chat_history);
+        self.ui.widget(ids!(body.body_layout.content.main_content.chat_with_canvas)).set_visible(cx, show_active_chat);
+        self.ui.widget(ids!(body.body_layout.content.main_content.llm_hub_app)).set_visible(cx, target == NavigationTarget::LlmHub);
+        self.ui.widget(ids!(body.body_layout.content.main_content.vlm_hub_app)).set_visible(cx, target == NavigationTarget::VlmHub);
+        self.ui.widget(ids!(body.body_layout.content.main_content.asr_hub_app)).set_visible(cx, target == NavigationTarget::AsrHub);
+        self.ui.widget(ids!(body.body_layout.content.main_content.tts_hub_app)).set_visible(cx, target == NavigationTarget::TtsHub);
+        self.ui.widget(ids!(body.body_layout.content.main_content.image_hub_app)).set_visible(cx, target == NavigationTarget::ImageHub);
+        self.ui.widget(ids!(body.body_layout.content.main_content.settings_app)).set_visible(cx, target == NavigationTarget::Settings);
 
         // Notify ChatApp when it becomes visible (to refresh model list)
         if show_active_chat {
-            if let Some(mut chat_app) = self.ui.widget(ids!(body.content.main_content.chat_with_canvas.chat_app)).borrow_mut::<moly_chat::screen::ChatApp>() {
+            if let Some(mut chat_app) = self.ui.widget(ids!(body.body_layout.content.main_content.chat_with_canvas.chat_app)).borrow_mut::<moly_chat::screen::ChatApp>() {
                 chat_app.on_become_visible();
             }
         }
@@ -1142,25 +1893,25 @@ impl App {
         // Update button selection state (SidebarButton is a Button with draw_bg.selected)
         // Chat button is selected for both ChatHistory and ActiveChat
         let chat_selected = show_chat_history || show_active_chat;
-        self.ui.button(ids!(body.content.sidebar.chat_section.chat_history_btn)).apply_over(cx, live! {
+        self.ui.button(ids!(body.body_layout.content.sidebar.chat_section.chat_history_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if chat_selected { 1.0 } else { 0.0 }) }
         });
-        self.ui.button(ids!(body.content.sidebar.llm_btn)).apply_over(cx, live! {
+        self.ui.button(ids!(body.body_layout.content.sidebar.llm_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if target == NavigationTarget::LlmHub { 1.0 } else { 0.0 }) }
         });
-        self.ui.button(ids!(body.content.sidebar.vlm_btn)).apply_over(cx, live! {
+        self.ui.button(ids!(body.body_layout.content.sidebar.vlm_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if target == NavigationTarget::VlmHub { 1.0 } else { 0.0 }) }
         });
-        self.ui.button(ids!(body.content.sidebar.asr_btn)).apply_over(cx, live! {
+        self.ui.button(ids!(body.body_layout.content.sidebar.asr_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if target == NavigationTarget::AsrHub { 1.0 } else { 0.0 }) }
         });
-        self.ui.button(ids!(body.content.sidebar.tts_btn)).apply_over(cx, live! {
+        self.ui.button(ids!(body.body_layout.content.sidebar.tts_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if target == NavigationTarget::TtsHub { 1.0 } else { 0.0 }) }
         });
-        self.ui.button(ids!(body.content.sidebar.image_btn)).apply_over(cx, live! {
+        self.ui.button(ids!(body.body_layout.content.sidebar.image_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if target == NavigationTarget::ImageHub { 1.0 } else { 0.0 }) }
         });
-        self.ui.button(ids!(body.content.sidebar.settings_btn)).apply_over(cx, live! {
+        self.ui.button(ids!(body.body_layout.content.sidebar.settings_btn)).apply_over(cx, live! {
             draw_bg: { selected: (if target == NavigationTarget::Settings { 1.0 } else { 0.0 }) }
         });
 
@@ -1171,14 +1922,14 @@ impl App {
         let expanded = self.store.is_sidebar_expanded();
         let width = if expanded { 250.0 } else { 60.0 };
 
-        self.ui.view(ids!(body.content.sidebar)).apply_over(cx, live! {
+        self.ui.view(ids!(body.body_layout.content.sidebar)).apply_over(cx, live! {
             width: (width)
         });
 
         // Hide section label views and chat history sublist when sidebar is collapsed to icon-only mode
-        self.ui.view(ids!(body.content.sidebar.chat_section_label)).set_visible(cx, expanded);
-        self.ui.view(ids!(body.content.sidebar.models_section_label)).set_visible(cx, expanded);
-        self.ui.view(ids!(body.content.sidebar.chat_section.chat_history_visible)).set_visible(cx, expanded);
+        self.ui.view(ids!(body.body_layout.content.sidebar.chat_section_label)).set_visible(cx, expanded);
+        self.ui.view(ids!(body.body_layout.content.sidebar.models_section_label)).set_visible(cx, expanded);
+        self.ui.view(ids!(body.body_layout.content.sidebar.chat_section.chat_history_visible)).set_visible(cx, expanded);
 
         self.ui.redraw(cx);
     }
@@ -1196,7 +1947,7 @@ impl App {
         macro_rules! update_item {
             ($index:expr, $section:ident, $item:ident) => {
                 let vis = $index < n;
-                self.ui.view(ids!(body.content.sidebar.chat_section.$section.$item))
+                self.ui.view(ids!(body.body_layout.content.sidebar.chat_section.$section.$item))
                     .set_visible(cx, vis);
                 if vis {
                     // Sanitize: collapse newlines, truncate to single display line
@@ -1208,7 +1959,7 @@ impl App {
                     } else {
                         single
                     };
-                    self.ui.label(ids!(body.content.sidebar.chat_section.$section.$item.title))
+                    self.ui.label(ids!(body.body_layout.content.sidebar.chat_section.$section.$item.title))
                         .set_text(cx, &display);
                 }
             };
@@ -1222,7 +1973,7 @@ impl App {
         update_item!(5, chat_history_more, chat_item_5);
 
         // Only show "Show More" when there are more than 3 chats
-        self.ui.view(ids!(body.content.sidebar.chat_section.chat_history_visible.show_more_btn))
+        self.ui.view(ids!(body.body_layout.content.sidebar.chat_section.chat_history_visible.show_more_btn))
             .set_visible(cx, n > 3);
 
         self.ui.redraw(cx);
@@ -1231,7 +1982,7 @@ impl App {
     /// Update chat history visibility based on expanded state
     fn update_chat_history_visibility(&mut self, cx: &mut Cx) {
         // Update "Show More" section visibility
-        self.ui.view(ids!(body.content.sidebar.chat_section.chat_history_more)).set_visible(cx, self.chat_history_expanded);
+        self.ui.view(ids!(body.body_layout.content.sidebar.chat_section.chat_history_more)).set_visible(cx, self.chat_history_expanded);
 
         // Update "Show More" button text and arrow
         let (text, arrow) = if self.chat_history_expanded {
@@ -1239,8 +1990,8 @@ impl App {
         } else {
             ("Show More", ">")
         };
-        self.ui.label(ids!(body.content.sidebar.chat_section.chat_history_visible.show_more_label)).set_text(cx, text);
-        self.ui.label(ids!(body.content.sidebar.chat_section.chat_history_visible.show_more_arrow)).set_text(cx, arrow);
+        self.ui.label(ids!(body.body_layout.content.sidebar.chat_section.chat_history_visible.show_more_label)).set_text(cx, text);
+        self.ui.label(ids!(body.body_layout.content.sidebar.chat_section.chat_history_visible.show_more_arrow)).set_text(cx, arrow);
 
         self.ui.redraw(cx);
     }
@@ -1256,24 +2007,24 @@ impl App {
 
         if self.canvas_panel_collapsed {
             // Collapse: hide canvas section, show reopen strip
-            self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_section))
+            self.ui.view(ids!(body.body_layout.content.main_content.chat_with_canvas.canvas_section))
                 .set_visible(cx, false);
-            self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_splitter))
+            self.ui.view(ids!(body.body_layout.content.main_content.chat_with_canvas.canvas_splitter))
                 .apply_over(cx, live!{ width: 0 });
-            self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_reopen_btn))
+            self.ui.view(ids!(body.body_layout.content.main_content.chat_with_canvas.canvas_reopen_btn))
                 .set_visible(cx, true);
         } else {
             // Expand: show canvas section at saved width, hide reopen strip
             let width = self.canvas_panel_width;
-            self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_reopen_btn))
+            self.ui.view(ids!(body.body_layout.content.main_content.chat_with_canvas.canvas_reopen_btn))
                 .set_visible(cx, false);
-            self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_section))
+            self.ui.view(ids!(body.body_layout.content.main_content.chat_with_canvas.canvas_section))
                 .set_visible(cx, true);
-            self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_section))
+            self.ui.view(ids!(body.body_layout.content.main_content.chat_with_canvas.canvas_section))
                 .apply_over(cx, live!{ width: (width) });
-            self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_section.canvas_content))
+            self.ui.view(ids!(body.body_layout.content.main_content.chat_with_canvas.canvas_section.canvas_content))
                 .set_visible(cx, true);
-            self.ui.view(ids!(body.content.main_content.chat_with_canvas.canvas_splitter))
+            self.ui.view(ids!(body.body_layout.content.main_content.chat_with_canvas.canvas_splitter))
                 .apply_over(cx, live!{ width: 16 });
         }
 
@@ -1397,31 +2148,31 @@ impl App {
 
         // Show/hide empty state and scroll container
         let has_chats = chat_count > 0;
-        self.ui.view(ids!(body.content.main_content.chat_history_page.empty_state)).set_visible(cx, !has_chats);
-        self.ui.view(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll)).set_visible(cx, has_chats);
+        self.ui.view(ids!(body.body_layout.content.main_content.chat_history_page.empty_state)).set_visible(cx, !has_chats);
+        self.ui.view(ids!(body.body_layout.content.main_content.chat_history_page.chat_tiles_scroll)).set_visible(cx, has_chats);
 
         // Show/hide row containers based on how many chats we have
         // Row 0 visible if we have any chats (indices 0-3)
         // Row 1 visible if we have more than 4 chats (indices 4-7)
         // Row 2 visible if we have more than 8 chats (indices 8-11)
-        self.ui.view(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.tile_row_0))
+        self.ui.view(ids!(body.body_layout.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.tile_row_0))
             .set_visible(cx, chat_count > 0);
-        self.ui.view(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.tile_row_1))
+        self.ui.view(ids!(body.body_layout.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.tile_row_1))
             .set_visible(cx, chat_count > 4);
-        self.ui.view(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.tile_row_2))
+        self.ui.view(ids!(body.body_layout.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.tile_row_2))
             .set_visible(cx, chat_count > 8);
 
         macro_rules! update_tile {
             ($index:expr, $row:ident, $tile:ident) => {
                 let visible = $index < chat_count;
-                self.ui.view(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile))
+                self.ui.view(ids!(body.body_layout.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile))
                     .set_visible(cx, visible);
                 if visible {
                     let chat = chats[$index];
-                    self.ui.label(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.header.title))
+                    self.ui.label(ids!(body.body_layout.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.header.title))
                         .set_text(cx, &chat.title);
                     let date_str = chat.accessed_at.format("%b %d, %Y").to_string();
-                    self.ui.label(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.date_label))
+                    self.ui.label(ids!(body.body_layout.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.date_label))
                         .set_text(cx, &date_str);
                 }
             };
@@ -1451,11 +2202,11 @@ impl App {
         macro_rules! check_tile {
             ($index:expr, $row:ident, $tile:ident) => {
                 if $index < self.displayed_chat_ids.len() && delete_clicked.is_none() && tile_clicked.is_none() {
-                    if self.ui.view(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.header.delete_btn))
+                    if self.ui.view(ids!(body.body_layout.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.header.delete_btn))
                         .finger_down(actions).is_some() {
                         delete_clicked = Some($index);
                     }
-                    else if self.ui.view(ids!(body.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile))
+                    else if self.ui.view(ids!(body.body_layout.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile))
                         .finger_down(actions).is_some() {
                         tile_clicked = Some($index);
                     }
@@ -1495,7 +2246,7 @@ impl App {
             self.store.chats.set_current_chat(Some(chat_id));
 
             // Load chat in ChatApp
-            if let Some(mut chat_app) = self.ui.widget(ids!(body.content.main_content.chat_with_canvas.chat_app))
+            if let Some(mut chat_app) = self.ui.widget(ids!(body.body_layout.content.main_content.chat_with_canvas.chat_app))
                 .borrow_mut::<moly_chat::screen::ChatApp>()
             {
                 chat_app.load_chat(chat_id);

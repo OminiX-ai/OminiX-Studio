@@ -506,6 +506,63 @@ live_design! {
         }
     }
 
+    // ── TTS voice selector item ──
+    HubTtsVoiceItem = <View> {
+        width: Fill, height: 40
+        padding: {left: 12, right: 12, top: 8, bottom: 8}
+        cursor: Hand
+        event_order: Down
+        flow: Right
+        align: {y: 0.5}
+        show_bg: true
+        draw_bg: {
+            instance selected: 0.0
+            fn pixel(self) -> vec4 {
+                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 4.0);
+                let normal  = #ffffff;
+                let sel_col = #dbeafe;
+                sdf.fill(mix(normal, sel_col, self.selected));
+                return sdf.result;
+            }
+        }
+        tts_voice_name = <Label> {
+            width: Fill
+            draw_text: {
+                fn get_color(self) -> vec4 { return #1f2937; }
+                text_style: <FONT_REGULAR>{ font_size: 11.5 }
+                wrap: Ellipsis
+            }
+        }
+        tts_lang_badge = <View> {
+            width: Fit, height: Fit
+            padding: {left: 6, right: 6, top: 2, bottom: 2}
+            margin: {left: 8}
+            draw_bg: {
+                instance is_chinese: 0.0
+                fn pixel(self) -> vec4 {
+                    let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                    sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 3.0);
+                    let en_bg = #dbeafe;
+                    let zh_bg = #fef3c7;
+                    sdf.fill(mix(en_bg, zh_bg, self.is_chinese));
+                    return sdf.result;
+                }
+            }
+            tts_lang_label = <Label> {
+                draw_text: {
+                    instance is_chinese: 0.0
+                    fn get_color(self) -> vec4 {
+                        let en_col = #1a40af;
+                        let zh_col = #92400f;
+                        return mix(en_col, zh_col, self.is_chinese);
+                    }
+                    text_style: <FONT_MEDIUM>{ font_size: 9.0 }
+                }
+            }
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Main ModelHubApp widget
     // ─────────────────────────────────────────────────────────────────────────
@@ -877,21 +934,11 @@ live_design! {
                     flow: Down
                     padding: {left: 28, right: 28, top: 16, bottom: 32}
 
-                    <HubInputLabel> { text: "VOICE ID" }
-                    tts_voice_input = <HubPanelInput> {
-                        empty_text: "default"
-                    }
-
-                    tts_voices_hint = <Label> {
-                        width: Fill, height: Fit
-                        margin: {top: 4, bottom: 8}
-                        draw_text: {
-                            fn get_color(self) -> vec4 {
-                                return #9ca3af;
-                            }
-                            text_style: { font_size: 10.5 }
-                            wrap: Word
-                        }
+                    <HubInputLabel> { text: "VOICE" }
+                    tts_voice_list = <PortalList> {
+                        width: Fill, height: 360
+                        flow: Down
+                        HubTtsVoiceItem = <HubTtsVoiceItem> {}
                     }
 
                     <HubInputLabel> { text: "TEXT TO SPEAK" }
@@ -908,6 +955,22 @@ live_design! {
                     }
 
                     tts_status = <HubPanelStatus> {}
+
+                    // Save + Finder row (hidden until audio is generated)
+                    tts_result_row = <View> {
+                        width: Fill, height: Fit
+                        flow: Right
+                        align: {y: 0.5}
+                        margin: {top: 8}
+                        visible: false
+                        spacing: 8
+
+                        tts_save_btn = <HubActionButton> { text: "Save to Downloads" }
+                        tts_finder_btn = <HubActionButton> {
+                            text: "Show in Finder"
+                            visible: false
+                        }
+                    }
                 }
             }
 

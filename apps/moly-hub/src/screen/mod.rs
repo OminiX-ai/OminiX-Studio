@@ -131,10 +131,27 @@ struct AsrState {
 #[derive(Default)]
 struct TtsState {
     voice_id: String, text: String, voices: Vec<String>,
+    output_path: String,
     is_running: bool,
     rx:        Option<mpsc::Receiver<Result<(), String>>>,
     voices_rx: Option<mpsc::Receiver<Result<Vec<String>, String>>>,
 }
+
+struct TtsVoiceEntry { id: &'static str, label: &'static str, is_chinese: bool }
+
+static TTS_PRESET_VOICES: &[TtsVoiceEntry] = &[
+    // English voices
+    TtsVoiceEntry { id: "vivian",        label: "Vivian",         is_chinese: false },
+    TtsVoiceEntry { id: "serena",        label: "Serena",         is_chinese: false },
+    TtsVoiceEntry { id: "ryan",          label: "Ryan",           is_chinese: false },
+    TtsVoiceEntry { id: "aiden",         label: "Aiden",          is_chinese: false },
+    TtsVoiceEntry { id: "english_man",   label: "English Male",   is_chinese: false },
+    // Chinese voices
+    TtsVoiceEntry { id: "uncle_fu",      label: "Uncle Fu",       is_chinese: true  },
+    TtsVoiceEntry { id: "chinese_woman", label: "Chinese Female", is_chinese: true  },
+    TtsVoiceEntry { id: "chinese_man",   label: "Chinese Male",   is_chinese: true  },
+    TtsVoiceEntry { id: "dialect",       label: "Dialect",        is_chinese: true  },
+];
 
 #[derive(Default)]
 struct ImageState {
@@ -313,6 +330,7 @@ pub struct ModelHubApp {
     #[rust] vlm_state:    VlmState,
     #[rust] asr_state:    AsrState,
     #[rust] tts_state:    TtsState,
+    #[rust] selected_tts_voice_idx: usize,
     #[rust] image_state:  ImageState,
 
     // ── Resizable split pane ─────────────────────────────────────────────────
@@ -399,12 +417,16 @@ impl Widget for ModelHubApp {
         let hub_list_uid  = hub_list.widget_uid();
         let voice_list    = self.view.portal_list(ids!(hub_voice_panel.voice_list));
         let voice_list_uid = voice_list.widget_uid();
+        let tts_voice_list    = self.view.portal_list(ids!(hub_tts_panel.tts_voice_list));
+        let tts_voice_list_uid = tts_voice_list.widget_uid();
 
         while let Some(widget) = self.view.draw_walk(cx, scope, walk).step() {
             if widget.widget_uid() == hub_list_uid {
                 self.draw_hub_list(cx, scope, widget);
             } else if widget.widget_uid() == voice_list_uid {
                 self.draw_voice_list(cx, scope, widget);
+            } else if widget.widget_uid() == tts_voice_list_uid {
+                self.draw_tts_voice_list(cx, scope, widget);
             }
         }
         DrawStep::done()
@@ -485,6 +507,30 @@ impl ModelHubApp {
                 item.view(ids!(voice_status_dot)).apply_over(cx, live! {
                     draw_bg: { ready: (if ready { 1.0_f64 } else { 0.0_f64 }) }
                 });
+                item.draw_all(cx, scope);
+            }
+        }
+    }
+
+    // ── Draw TTS voice selector list ──────────────────────────────────────────
+
+    fn draw_tts_voice_list(&mut self, cx: &mut Cx2d, scope: &mut Scope, widget: WidgetRef) {
+        let binding = widget.as_portal_list();
+        let Some(mut list) = binding.borrow_mut() else { return };
+        list.set_item_range(cx, 0, TTS_PRESET_VOICES.len());
+
+        while let Some(item_id) = list.next_visible_item(cx) {
+            if let Some(voice) = TTS_PRESET_VOICES.get(item_id) {
+                let sel    = self.selected_tts_voice_idx == item_id;
+                let is_zh  = if voice.is_chinese { 1.0_f64 } else { 0.0_f64 };
+                let lang   = if voice.is_chinese { "ZH" } else { "EN" };
+
+                let item = list.item(cx, item_id, live_id!(HubTtsVoiceItem));
+                item.label(ids!(tts_voice_name)).set_text(cx, voice.label);
+                item.label(ids!(tts_lang_badge.tts_lang_label)).set_text(cx, lang);
+                item.apply_over(cx, live! { draw_bg: { selected: (if sel { 1.0_f64 } else { 0.0_f64 }) } });
+                item.view(ids!(tts_lang_badge)).apply_over(cx, live! { draw_bg: { is_chinese: (is_zh) } });
+                item.label(ids!(tts_lang_badge.tts_lang_label)).apply_over(cx, live! { draw_text: { is_chinese: (is_zh) } });
                 item.draw_all(cx, scope);
             }
         }
@@ -595,6 +641,15 @@ impl ModelHubApp {
     }
 
     // ── Model selection ───────────────────────────────────────────────────────
+
+    /// Called by the shell after loading a model via the model-selector bar.
+    /// Auto-selects the model and shows its inference panel.
+    pub fn focus_model(&mut self, cx: &mut Cx, model_id: &str) {
+        if !self.initialized { self.initialize(cx); }
+        self.selected_id = Some(model_id.to_string());
+        self.on_model_selected(cx, model_id);
+        self.view.redraw(cx);
+    }
 
     fn on_model_selected(&mut self, cx: &mut Cx, model_id: &str) {
         let cat = self.registry.as_ref()
@@ -1006,7 +1061,6 @@ impl ModelHubApp {
         if let Some(t) = self.view.text_input(ids!(hub_vlm_panel.vlm_image_path)).changed(actions)   { self.vlm_state.image_path = t.to_string(); }
         if let Some(t) = self.view.text_input(ids!(hub_vlm_panel.vlm_user)).changed(actions)         { self.vlm_state.user = t.to_string(); }
         if let Some(t) = self.view.text_input(ids!(hub_asr_panel.asr_audio_path)).changed(actions)   { self.asr_state.audio_path = t.to_string(); }
-        if let Some(t) = self.view.text_input(ids!(hub_tts_panel.tts_voice_input)).changed(actions)  { self.tts_state.voice_id = t.to_string(); }
         if let Some(t) = self.view.text_input(ids!(hub_tts_panel.tts_text_input)).changed(actions)   { self.tts_state.text = t.to_string(); }
         if let Some(t) = self.view.text_input(ids!(hub_image_panel.img_prompt)).changed(actions)     { self.image_state.prompt = t.to_string(); }
         if let Some(t) = self.view.text_input(ids!(hub_image_panel.img_neg_prompt)).changed(actions) { self.image_state.neg_prompt = t.to_string(); }
@@ -1066,6 +1120,55 @@ impl ModelHubApp {
         }
     }
     fn handle_tts_actions(&mut self, cx: &mut Cx, actions: &Actions) {
+        // TTS voice selector clicks
+        let tts_voice_list = self.view.portal_list(ids!(hub_tts_panel.tts_voice_list));
+        for (item_id, item) in tts_voice_list.items_with_actions(actions) {
+            if let Some(fd) = item.as_view().finger_down(actions) {
+                if fd.tap_count == 1 {
+                    self.selected_tts_voice_idx = item_id;
+                    self.tts_state.voice_id = TTS_PRESET_VOICES.get(item_id)
+                        .map(|v| v.id.to_string())
+                        .unwrap_or_else(|| "vivian".to_string());
+                    self.view.redraw(cx);
+                }
+            }
+        }
+
+        // Save audio to Downloads
+        if self.view.button(ids!(hub_tts_panel.tts_result_row.tts_save_btn)).clicked(actions) {
+            let src = self.tts_state.output_path.clone();
+            if !src.is_empty() {
+                let downloads = dirs::download_dir()
+                    .or_else(|| dirs::home_dir().map(|h| h.join("Downloads")))
+                    .unwrap_or_else(|| std::path::PathBuf::from("/tmp"));
+                let ts = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs()).unwrap_or(0);
+                let dest = downloads.join(format!("ominix-tts-{}.wav", ts));
+                match std::fs::copy(&src, &dest) {
+                    Ok(_) => {
+                        self.tts_state.output_path = dest.to_string_lossy().to_string();
+                        self.view.label(ids!(hub_tts_panel.tts_status)).set_text(cx, &format!("Saved to {}", dest.display()));
+                        self.view.button(ids!(hub_tts_panel.tts_result_row.tts_save_btn)).set_visible(cx, false);
+                        self.view.button(ids!(hub_tts_panel.tts_result_row.tts_finder_btn)).set_visible(cx, true);
+                        self.view.redraw(cx);
+                    }
+                    Err(e) => {
+                        self.view.label(ids!(hub_tts_panel.tts_status)).set_text(cx, &format!("Save failed: {}", e));
+                        self.view.redraw(cx);
+                    }
+                }
+            }
+        }
+
+        // Show saved audio in Finder
+        if self.view.button(ids!(hub_tts_panel.tts_result_row.tts_finder_btn)).clicked(actions) {
+            let path = self.tts_state.output_path.clone();
+            if !path.is_empty() {
+                let _ = std::process::Command::new("open").args(["-R", &path]).spawn();
+            }
+        }
+
         if self.view.button(ids!(hub_tts_panel.tts_generate_btn)).clicked(actions) {
             if let Some(sel) = self.selected_id.clone() {
                 let load = self.load_states.get(&sel).copied().unwrap_or_default();
@@ -1805,12 +1908,14 @@ impl ModelHubApp {
             return;
         }
         self.tts_state.is_running = true;
+        self.tts_state.output_path.clear();
         self.view.label(ids!(hub_tts_panel.tts_status)).set_text(cx, "Generating audio...");
+        self.view.view(ids!(hub_tts_panel.tts_result_row)).set_visible(cx, false);
         self.view.redraw(cx);
 
         let (tx, rx) = mpsc::channel();
         self.tts_state.rx = Some(rx);
-        let voice = if voice_id.is_empty() { "default".to_string() } else { voice_id };
+        let voice = if voice_id.is_empty() { "vivian".to_string() } else { voice_id };
         std::thread::spawn(move || {
             let client = reqwest::blocking::Client::builder()
                 .timeout(std::time::Duration::from_secs(120)).build().unwrap();
@@ -2083,8 +2188,14 @@ impl ModelHubApp {
             if let Some(rx) = &self.tts_state.rx {
                 if let Ok(result) = rx.try_recv() {
                     match result {
-                        Ok(())  => { self.view.label(ids!(hub_tts_panel.tts_status)).set_text(cx, "Playing..."); }
-                        Err(e)  => { self.view.label(ids!(hub_tts_panel.tts_status)).set_text(cx, &format!("Error: {}", e)); }
+                        Ok(()) => {
+                            self.view.label(ids!(hub_tts_panel.tts_status)).set_text(cx, "Playing...");
+                            self.tts_state.output_path = "/tmp/ominix-hub-tts.wav".to_string();
+                            self.view.view(ids!(hub_tts_panel.tts_result_row)).set_visible(cx, true);
+                            self.view.button(ids!(hub_tts_panel.tts_result_row.tts_save_btn)).set_visible(cx, true);
+                            self.view.button(ids!(hub_tts_panel.tts_result_row.tts_finder_btn)).set_visible(cx, false);
+                        }
+                        Err(e) => { self.view.label(ids!(hub_tts_panel.tts_status)).set_text(cx, &format!("Error: {}", e)); }
                     }
                     self.tts_state.is_running = false;
                     self.tts_state.rx = None;
@@ -2097,9 +2208,6 @@ impl ModelHubApp {
         let voices_done = if let Some(rx) = &self.tts_state.voices_rx {
             match rx.try_recv() {
                 Ok(Ok(voices)) => {
-                    let hint = if voices.is_empty() { String::new() }
-                               else { format!("Available: {}", voices.join(", ")) };
-                    self.view.label(ids!(hub_tts_panel.tts_voices_hint)).set_text(cx, &hint);
                     self.tts_state.voices = voices;
                     redraw = true;
                     true
