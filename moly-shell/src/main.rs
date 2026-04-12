@@ -69,4 +69,8 @@ fn main() {
     }
 
     app::app_main();
+
+    // app_main() returns when the user closes the window.
+    // Kill the ominix-api server if we launched it.
+    moly_data::kill_server_process();
 }

@@ -7,6 +7,22 @@
 //!   POST /v1/models/{id}/unload   → free the model from memory
 
 use serde::Deserialize;
+use std::sync::Mutex;
+
+/// Handle to the ominix-api child process we launched (None if we didn't launch it).
+static SERVER_CHILD: Mutex<Option<std::process::Child>> = Mutex::new(None);
+
+/// Kill the ominix-api process if we started it.
+/// Called from the shell's main() after app_main() returns (i.e. on window close).
+pub fn kill_server_process() {
+    if let Ok(mut guard) = SERVER_CHILD.lock() {
+        if let Some(mut child) = guard.take() {
+            log::info!("Shutting down ominix-api (pid {})", child.id());
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
 
 // ─── Server-side model status ─────────────────────────────────────────────────
 
@@ -129,11 +145,16 @@ pub fn ensure_server_running() -> Result<(), String> {
 
     log::info!("Auto-starting ominix-api from {}", binary.display());
 
-    std::process::Command::new(&binary)
+    let child = std::process::Command::new(&binary)
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn()
         .map_err(|e| format!("Failed to launch ominix-api: {}", e))?;
+
+    // Remember the child so we can kill it when the studio exits.
+    if let Ok(mut guard) = SERVER_CHILD.lock() {
+        *guard = Some(child);
+    }
 
     // Poll until ready (max 30 s)
     for _ in 0..60 {
