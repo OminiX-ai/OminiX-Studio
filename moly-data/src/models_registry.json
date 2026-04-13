@@ -560,68 +560,6 @@
       }
     },
     {
-      "id": "minimax-m2.5-q4km",
-      "name": "MiniMax-M2.5 (Q4_K_M)",
-      "description": "MiniMax-M2.5 229B MoE GGUF Q4_K_M (~140 GB). 10B active params. #1 open-source SWE-bench at 80.2%. Requires 192 GB+ RAM.",
-      "category": "llm",
-      "subfolder": "MiniMax",
-      "tags": ["llm", "chat", "minimax", "gguf", "q4km", "moe", "agentic", "coding"],
-      "source": {
-        "kind": "hugging_face",
-        "repo_id": "unsloth/MiniMax-M2.5-GGUF",
-        "revision": "main"
-      },
-      "storage": {
-        "local_path": "~/.cache/huggingface/hub/models--unsloth--MiniMax-M2.5-GGUF",
-        "size_bytes": 150323855360,
-        "size_display": "~140 GB"
-      },
-      "runtime": {
-        "api_type": "chat_completions",
-        "api_model_id": "minimax-m2.5-q4km",
-        "memory_gb": 160.0,
-        "platforms": ["apple_silicon"],
-        "supports_images": false,
-        "supports_streaming": true,
-        "quantization": "Q4_K_M"
-      },
-      "ui": {
-        "panel_type": "llm_chat",
-        "icon": "chat"
-      }
-    },
-    {
-      "id": "kimi-k2.5-q4km",
-      "name": "Kimi-K2.5 (Q4_K_M)",
-      "description": "Moonshot Kimi-K2.5 MoE GGUF Q4_K_M. 32B active params, frontier agentic capabilities. Requires 256 GB+ RAM.",
-      "category": "llm",
-      "subfolder": "Kimi",
-      "tags": ["llm", "chat", "kimi", "moonshot", "gguf", "q4km", "moe", "agentic"],
-      "source": {
-        "kind": "hugging_face",
-        "repo_id": "unsloth/Kimi-K2.5-GGUF",
-        "revision": "main"
-      },
-      "storage": {
-        "local_path": "~/.cache/huggingface/hub/models--unsloth--Kimi-K2.5-GGUF",
-        "size_bytes": 644245094400,
-        "size_display": "~600 GB"
-      },
-      "runtime": {
-        "api_type": "chat_completions",
-        "api_model_id": "kimi-k2.5-q4km",
-        "memory_gb": 700.0,
-        "platforms": ["apple_silicon"],
-        "supports_images": false,
-        "supports_streaming": true,
-        "quantization": "Q4_K_M"
-      },
-      "ui": {
-        "panel_type": "llm_chat",
-        "icon": "chat"
-      }
-    },
-    {
       "id": "moxin-7b-vlm",
       "name": "Moxin-7B VLM",
       "description": "Vision-language model: DINOv2 + SigLIP vision encoder + Mistral-7B. Chat with images at 30 tok/s.",
