@@ -746,30 +746,92 @@
       }
     },
     {
-      "id": "wan2.2-5b",
-      "name": "Wan2.2 5B (Coming Soon)",
-      "description": "Wan2.2 5B video generation model \u2014 text-to-video on Apple Silicon. Available soon.",
-      "category": "video_gen",
-      "subfolder": "Coming Soon",
-      "tags": ["video-generation", "wan2", "text-to-video", "coming-soon"],
+      "id": "qwen3-tts-q4km",
+      "name": "Qwen3-TTS 1.7B (Q4_K_M)",
+      "description": "Qwen3-TTS 1.7B GGUF Q4_K_M (~1 GB). Fast on-device TTS via ggml backend. Runs on any Apple Silicon Mac.",
+      "category": "tts",
+      "subfolder": "Qwen3-TTS",
+      "tags": ["tts", "text-to-speech", "qwen3", "multilingual", "q4km", "gguf"],
       "source": {
-        "kind": "manual",
-        "repo_id": null,
+        "kind": "hugging_face",
+        "repo_id": "MoYoYoTech/qwen3-tts-1.7B-gguf",
         "revision": "main"
       },
       "storage": {
-        "local_path": "~/.OminiX/models/wan2.2-5b",
-        "size_bytes": 10737418240,
-        "size_display": "~10 GB"
+        "local_path": "~/.cache/huggingface/hub/models--MoYoYoTech--qwen3-tts-1.7B-gguf",
+        "size_bytes": 1073741824,
+        "size_display": "~1 GB"
+      },
+      "runtime": {
+        "api_type": "audio_speech",
+        "api_model_id": "qwen3-tts-q4km",
+        "memory_gb": 2.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": true,
+        "quantization": "Q4_K_M"
+      },
+      "ui": {
+        "panel_type": "tts_synthesis",
+        "icon": "voice"
+      }
+    },
+    {
+      "id": "qwen3-tts-q8",
+      "name": "Qwen3-TTS 1.7B (Q8)",
+      "description": "Qwen3-TTS 1.7B GGUF Q8 (~1.8 GB). Higher fidelity on-device TTS via ggml backend.",
+      "category": "tts",
+      "subfolder": "Qwen3-TTS",
+      "tags": ["tts", "text-to-speech", "qwen3", "multilingual", "q8", "gguf"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "MoYoYoTech/qwen3-tts-1.7B-gguf",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--MoYoYoTech--qwen3-tts-1.7B-gguf",
+        "size_bytes": 1932735283,
+        "size_display": "~1.8 GB"
+      },
+      "runtime": {
+        "api_type": "audio_speech",
+        "api_model_id": "qwen3-tts-q8",
+        "memory_gb": 3.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": true,
+        "quantization": "Q8"
+      },
+      "ui": {
+        "panel_type": "tts_synthesis",
+        "icon": "voice"
+      }
+    },
+    {
+      "id": "wan2.2-5b-q4km",
+      "name": "Wan2.2 5B (Q4_K_M)",
+      "description": "Wan2.2 5B text-to-video diffusion model, Q4_K_M GGUF (~5 GB). Generate high-quality videos from text prompts on Apple Silicon.",
+      "category": "video_gen",
+      "subfolder": "Wan2.2",
+      "tags": ["video-generation", "wan2", "text-to-video", "q4km", "gguf"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "Wan-AI/Wan2.2-T2V-5B-GGUF",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--Wan-AI--Wan2.2-T2V-5B-GGUF",
+        "size_bytes": 5368709120,
+        "size_display": "~5 GB"
       },
       "runtime": {
         "api_type": "video_generation",
-        "api_model_id": "wan2.2-5b",
-        "memory_gb": 12.0,
+        "api_model_id": "wan2.2-5b-q4km",
+        "memory_gb": 8.0,
         "platforms": ["apple_silicon"],
         "supports_images": false,
         "supports_streaming": false,
-        "quantization": null
+        "quantization": "Q4_K_M"
       },
       "ui": {
         "panel_type": "video_generation",
@@ -777,30 +839,278 @@
       }
     },
     {
-      "id": "nvidia-cosmos",
-      "name": "Nvidia Cosmos (Coming Soon)",
-      "description": "Nvidia Cosmos world-foundation video generation model. Available soon.",
+      "id": "wan2.2-5b-q8",
+      "name": "Wan2.2 5B (Q8)",
+      "description": "Wan2.2 5B text-to-video diffusion model, Q8 GGUF (~9 GB). Higher fidelity video generation on 16+ GB Apple Silicon.",
       "category": "video_gen",
-      "subfolder": "Coming Soon",
-      "tags": ["video-generation", "cosmos", "nvidia", "text-to-video", "coming-soon"],
+      "subfolder": "Wan2.2",
+      "tags": ["video-generation", "wan2", "text-to-video", "q8", "gguf"],
       "source": {
-        "kind": "manual",
-        "repo_id": null,
+        "kind": "hugging_face",
+        "repo_id": "Wan-AI/Wan2.2-T2V-5B-GGUF",
         "revision": "main"
       },
       "storage": {
-        "local_path": "~/.OminiX/models/nvidia-cosmos",
-        "size_bytes": 21474836480,
-        "size_display": "~20 GB"
+        "local_path": "~/.cache/huggingface/hub/models--Wan-AI--Wan2.2-T2V-5B-GGUF",
+        "size_bytes": 9663676416,
+        "size_display": "~9 GB"
       },
       "runtime": {
         "api_type": "video_generation",
-        "api_model_id": "nvidia-cosmos",
+        "api_model_id": "wan2.2-5b-q8",
+        "memory_gb": 14.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": false,
+        "quantization": "Q8"
+      },
+      "ui": {
+        "panel_type": "video_generation",
+        "icon": "video"
+      }
+    },
+    {
+      "id": "cosmos-diffusion-7b-q4km",
+      "name": "Cosmos-1.0 Diffusion 7B (Q4_K_M)",
+      "description": "NVIDIA Cosmos-1.0 Diffusion 7B Text2World, Q4_K_M GGUF (~5 GB). Physical-world video generation on 16 GB Apple Silicon.",
+      "category": "video_gen",
+      "subfolder": "Cosmos",
+      "tags": ["video-generation", "cosmos", "nvidia", "text-to-video", "diffusion", "world-model", "q4km", "gguf"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "nvidia/Cosmos-1.0-Diffusion-7B-Text2World",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--nvidia--Cosmos-1.0-Diffusion-7B-Text2World",
+        "size_bytes": 5368709120,
+        "size_display": "~5 GB"
+      },
+      "runtime": {
+        "api_type": "video_generation",
+        "api_model_id": "cosmos-diffusion-7b-q4km",
+        "memory_gb": 10.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": false,
+        "quantization": "Q4_K_M"
+      },
+      "ui": {
+        "panel_type": "video_generation",
+        "icon": "video"
+      }
+    },
+    {
+      "id": "cosmos-diffusion-7b-q8",
+      "name": "Cosmos-1.0 Diffusion 7B (Q8)",
+      "description": "NVIDIA Cosmos-1.0 Diffusion 7B Text2World, Q8 GGUF (~9 GB). Higher fidelity world-model video generation on 16+ GB Macs.",
+      "category": "video_gen",
+      "subfolder": "Cosmos",
+      "tags": ["video-generation", "cosmos", "nvidia", "text-to-video", "diffusion", "world-model", "q8", "gguf"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "nvidia/Cosmos-1.0-Diffusion-7B-Text2World",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--nvidia--Cosmos-1.0-Diffusion-7B-Text2World",
+        "size_bytes": 9663676416,
+        "size_display": "~9 GB"
+      },
+      "runtime": {
+        "api_type": "video_generation",
+        "api_model_id": "cosmos-diffusion-7b-q8",
+        "memory_gb": 16.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": false,
+        "quantization": "Q8"
+      },
+      "ui": {
+        "panel_type": "video_generation",
+        "icon": "video"
+      }
+    },
+    {
+      "id": "cosmos-diffusion-14b-q4km",
+      "name": "Cosmos-1.0 Diffusion 14B (Q4_K_M)",
+      "description": "NVIDIA Cosmos-1.0 Diffusion 14B Text2World, Q4_K_M GGUF (~9 GB). Flagship world-model quality for 32+ GB Macs.",
+      "category": "video_gen",
+      "subfolder": "Cosmos",
+      "tags": ["video-generation", "cosmos", "nvidia", "text-to-video", "diffusion", "world-model", "large", "q4km", "gguf"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "nvidia/Cosmos-1.0-Diffusion-14B-Text2World",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--nvidia--Cosmos-1.0-Diffusion-14B-Text2World",
+        "size_bytes": 9663676416,
+        "size_display": "~9 GB"
+      },
+      "runtime": {
+        "api_type": "video_generation",
+        "api_model_id": "cosmos-diffusion-14b-q4km",
+        "memory_gb": 18.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": false,
+        "quantization": "Q4_K_M"
+      },
+      "ui": {
+        "panel_type": "video_generation",
+        "icon": "video"
+      }
+    },
+    {
+      "id": "cosmos-diffusion-14b-q8",
+      "name": "Cosmos-1.0 Diffusion 14B (Q8)",
+      "description": "NVIDIA Cosmos-1.0 Diffusion 14B Text2World, Q8 GGUF (~17 GB). Highest quality world-model video generation. Requires 64 GB Mac.",
+      "category": "video_gen",
+      "subfolder": "Cosmos",
+      "tags": ["video-generation", "cosmos", "nvidia", "text-to-video", "diffusion", "world-model", "large", "q8", "gguf"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "nvidia/Cosmos-1.0-Diffusion-14B-Text2World",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--nvidia--Cosmos-1.0-Diffusion-14B-Text2World",
+        "size_bytes": 18253611008,
+        "size_display": "~17 GB"
+      },
+      "runtime": {
+        "api_type": "video_generation",
+        "api_model_id": "cosmos-diffusion-14b-q8",
+        "memory_gb": 32.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": false,
+        "quantization": "Q8"
+      },
+      "ui": {
+        "panel_type": "video_generation",
+        "icon": "video"
+      }
+    },
+    {
+      "id": "cosmos-ar-4b-q4km",
+      "name": "Cosmos-1.0 Autoregressive 4B (Q4_K_M)",
+      "description": "NVIDIA Cosmos-1.0 Autoregressive 4B world model, Q4_K_M GGUF (~3 GB). Fast token-based video generation on 8 GB Apple Silicon.",
+      "category": "video_gen",
+      "subfolder": "Cosmos",
+      "tags": ["video-generation", "cosmos", "nvidia", "text-to-video", "autoregressive", "world-model", "small", "q4km", "gguf"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "nvidia/Cosmos-1.0-Autoregressive-4B",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--nvidia--Cosmos-1.0-Autoregressive-4B",
+        "size_bytes": 3221225472,
+        "size_display": "~3 GB"
+      },
+      "runtime": {
+        "api_type": "video_generation",
+        "api_model_id": "cosmos-ar-4b-q4km",
+        "memory_gb": 6.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": false,
+        "quantization": "Q4_K_M"
+      },
+      "ui": {
+        "panel_type": "video_generation",
+        "icon": "video"
+      }
+    },
+    {
+      "id": "cosmos-ar-4b-q8",
+      "name": "Cosmos-1.0 Autoregressive 4B (Q8)",
+      "description": "NVIDIA Cosmos-1.0 Autoregressive 4B world model, Q8 GGUF (~5 GB). Higher quality token-based video generation on 8+ GB Macs.",
+      "category": "video_gen",
+      "subfolder": "Cosmos",
+      "tags": ["video-generation", "cosmos", "nvidia", "text-to-video", "autoregressive", "world-model", "small", "q8", "gguf"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "nvidia/Cosmos-1.0-Autoregressive-4B",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--nvidia--Cosmos-1.0-Autoregressive-4B",
+        "size_bytes": 5368709120,
+        "size_display": "~5 GB"
+      },
+      "runtime": {
+        "api_type": "video_generation",
+        "api_model_id": "cosmos-ar-4b-q8",
+        "memory_gb": 10.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": false,
+        "quantization": "Q8"
+      },
+      "ui": {
+        "panel_type": "video_generation",
+        "icon": "video"
+      }
+    },
+    {
+      "id": "cosmos-ar-12b-q4km",
+      "name": "Cosmos-1.0 Autoregressive 12B (Q4_K_M)",
+      "description": "NVIDIA Cosmos-1.0 Autoregressive 12B world model, Q4_K_M GGUF (~7 GB). Strong token-based video generation for 16+ GB Macs.",
+      "category": "video_gen",
+      "subfolder": "Cosmos",
+      "tags": ["video-generation", "cosmos", "nvidia", "text-to-video", "autoregressive", "world-model", "q4km", "gguf"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "nvidia/Cosmos-1.0-Autoregressive-12B",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--nvidia--Cosmos-1.0-Autoregressive-12B",
+        "size_bytes": 7516192768,
+        "size_display": "~7 GB"
+      },
+      "runtime": {
+        "api_type": "video_generation",
+        "api_model_id": "cosmos-ar-12b-q4km",
+        "memory_gb": 14.0,
+        "platforms": ["apple_silicon"],
+        "supports_images": false,
+        "supports_streaming": false,
+        "quantization": "Q4_K_M"
+      },
+      "ui": {
+        "panel_type": "video_generation",
+        "icon": "video"
+      }
+    },
+    {
+      "id": "cosmos-ar-12b-q8",
+      "name": "Cosmos-1.0 Autoregressive 12B (Q8)",
+      "description": "NVIDIA Cosmos-1.0 Autoregressive 12B world model, Q8 GGUF (~13 GB). Best autoregressive world-model quality for 32+ GB Macs.",
+      "category": "video_gen",
+      "subfolder": "Cosmos",
+      "tags": ["video-generation", "cosmos", "nvidia", "text-to-video", "autoregressive", "world-model", "q8", "gguf"],
+      "source": {
+        "kind": "hugging_face",
+        "repo_id": "nvidia/Cosmos-1.0-Autoregressive-12B",
+        "revision": "main"
+      },
+      "storage": {
+        "local_path": "~/.cache/huggingface/hub/models--nvidia--Cosmos-1.0-Autoregressive-12B",
+        "size_bytes": 13958643712,
+        "size_display": "~13 GB"
+      },
+      "runtime": {
+        "api_type": "video_generation",
+        "api_model_id": "cosmos-ar-12b-q8",
         "memory_gb": 24.0,
         "platforms": ["apple_silicon"],
         "supports_images": false,
         "supports_streaming": false,
-        "quantization": null
+        "quantization": "Q8"
       },
       "ui": {
         "panel_type": "video_generation",
