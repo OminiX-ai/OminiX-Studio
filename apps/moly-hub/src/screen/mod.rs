@@ -17,6 +17,24 @@ use std::sync::mpsc;
 use base64::Engine as _;
 use rfd::FileDialog;
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/// Strip GGUF quant suffixes to get a base model name for grouping.
+/// e.g. "Qwen3 4B (Q4_K_M)" → "Qwen3 4B", "Qwen3 4B (Q8)" → "Qwen3 4B"
+fn strip_quant_suffix(name: &str) -> String {
+    // Strip trailing " (Q4_K_M)", " (Q4_K_S)", " (Q8)", " (FP16)", etc.
+    if let Some(idx) = name.rfind(" (Q") {
+        return name[..idx].to_string();
+    }
+    if let Some(idx) = name.rfind(" (FP") {
+        return name[..idx].to_string();
+    }
+    if let Some(idx) = name.rfind(" (BF") {
+        return name[..idx].to_string();
+    }
+    name.to_string()
+}
+
 // ─── List row ────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Copy)]
@@ -102,7 +120,7 @@ fn combined_status_label(dl: ModelUiState, load: ModelLoadState) -> &'static str
 enum ActivePanel {
     #[default]
     None,
-    Llm, Vlm, Asr, Tts, Image, Video, Voice,
+    Llm, Vlm, Asr, Tts, Image, Video, Voice, Info,
 }
 
 // ─── Per-panel interaction state ─────────────────────────────────────────────
@@ -405,6 +423,40 @@ impl Widget for ModelHubApp {
             }
             _ => {}
         }
+
+        // ── VLM image drop zone (drag-and-drop from Finder) ─────────────────
+        let drop_zone_area = self.view.view(ids!(hub_vlm_panel.vlm_drop_zone)).area();
+        match event.drag_hits(cx, drop_zone_area) {
+            DragHit::Drag(e) => {
+                match e.state {
+                    DragState::In | DragState::Over => {
+                        *e.response.lock().unwrap() = DragResponse::Copy;
+                        self.view.view(ids!(hub_vlm_panel.vlm_drop_zone)).apply_over(cx, live! { draw_bg: { drag_over: (1.0) } });
+                        self.view.redraw(cx);
+                    }
+                    DragState::Out => {
+                        self.view.view(ids!(hub_vlm_panel.vlm_drop_zone)).apply_over(cx, live! { draw_bg: { drag_over: (0.0) } });
+                        self.view.redraw(cx);
+                    }
+                }
+            }
+            DragHit::Drop(e) => {
+                self.view.view(ids!(hub_vlm_panel.vlm_drop_zone)).apply_over(cx, live! { draw_bg: { drag_over: (0.0) } });
+                for item in e.items.iter() {
+                    if let DragItem::FilePath { path, .. } = item {
+                        let lower = path.to_lowercase();
+                        if lower.ends_with(".jpg") || lower.ends_with(".jpeg") || lower.ends_with(".png")
+                            || lower.ends_with(".bmp") || lower.ends_with(".gif") || lower.ends_with(".webp") {
+                            self.vlm_state.image_path = path.clone();
+                            self.view.text_input(ids!(hub_vlm_panel.vlm_image_path)).set_text(cx, path);
+                            self.view.redraw(cx);
+                            break;
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
@@ -466,7 +518,7 @@ impl ModelHubApp {
                     let dl_frac = self.download_states.get(model_id).map(|d| d.fraction());
 
                     let item = list.item(cx, item_id, live_id!(HubModelItem));
-                    item.label(ids!(model_name)).set_text(cx, name);
+                    item.label(ids!(model_name)).set_text(cx, &name);
                     item.view(ids!(model_status)).apply_over(cx, live! { draw_bg: { status: (dot) } });
                     item.apply_over(cx, live! { draw_bg: { selected: (if sel { 1.0_f64 } else { 0.0_f64 }) } });
                     if let Some(pct) = dl_frac {
@@ -606,7 +658,7 @@ impl ModelHubApp {
             if !single_category {
                 self.flat_list.push(ListRow::Header(cat));
             }
-            // Emit subfolder headers when the subfolder name changes
+            // Emit subfolder headers when the subfolder name changes.
             let mut last_subfolder = String::new();
             for gi in models {
                 let sf = registry.models[gi].subfolder.clone();
@@ -693,6 +745,7 @@ impl ModelHubApp {
 
         let dl       = self.model_states.get(model_id).copied().unwrap_or(ModelUiState::NotDownloaded);
         let load     = self.load_states.get(model_id).copied().unwrap_or_default();
+        ::log::info!("refresh_header_for: model={}, dl={:?}, load={:?}, panel={:?}", model_id, dl, load, self.active_panel);
         let is_dl    = dl == ModelUiState::Downloading;
         let is_done  = dl == ModelUiState::Downloaded;
         let is_manual = model.source.kind == SourceKind::Manual;
@@ -894,9 +947,10 @@ impl ModelHubApp {
                 self.view.label(ids!(hub_video_panel.hub_video_name)).set_text(cx, &name);
                 self.view.label(ids!(hub_video_panel.hub_video_desc)).set_text(cx, &desc);
             }
-            ActivePanel::Voice => {}
+            ActivePanel::Voice | ActivePanel::Info => {}
             ActivePanel::None => {}
         }
+        self.view.redraw(cx);
     }
 }
 
@@ -970,7 +1024,7 @@ impl ModelHubApp {
                 self.view.button(ids!(hub_image_panel.hub_panel_header.panel_cancel_btn)).clicked(actions),
                 self.view.button(ids!(hub_image_panel.hub_panel_header.panel_remove_btn)).clicked(actions),
             ),
-            ActivePanel::Video | ActivePanel::Voice | ActivePanel::None => return,
+            ActivePanel::Video | ActivePanel::Voice | ActivePanel::Info | ActivePanel::None => return,
         };
 
         if dl { self.start_download(cx, &sel); }
@@ -1020,7 +1074,7 @@ impl ModelHubApp {
                 self.view.button(ids!(hub_image_panel.hub_panel_header.panel_load_btn)).clicked(actions),
                 self.view.button(ids!(hub_image_panel.hub_panel_header.panel_unload_btn)).clicked(actions),
             ),
-            ActivePanel::Video | ActivePanel::Voice | ActivePanel::None => return,
+            ActivePanel::Video | ActivePanel::Voice | ActivePanel::Info | ActivePanel::None => return,
         };
 
         if load_clicked   { self.start_load(cx, &sel); }
@@ -1707,6 +1761,16 @@ impl ModelHubApp {
             if self.selected_id.as_deref() == Some(id.as_str()) {
                 self.refresh_header_for(cx, &id);
             }
+            // Notify shell so the top model selector bar updates
+            if let Some(registry) = &self.registry {
+                if let Some(model) = registry.models.iter().find(|m| m.id == id) {
+                    cx.action(StoreAction::HubModelLoaded {
+                        model_id: id.clone(),
+                        model_name: strip_quant_suffix(&model.name),
+                        category: model.category,
+                    });
+                }
+            }
             self.view.redraw(cx);
             ::log::info!("Model loaded: {}", id);
         }
@@ -1743,6 +1807,8 @@ impl ModelHubApp {
             if self.selected_id.as_deref() == Some(id.as_str()) {
                 self.refresh_header_for(cx, &id);
             }
+            // Notify shell so the top model selector bar clears
+            cx.action(StoreAction::HubModelUnloaded { model_id: id.clone() });
             self.view.redraw(cx);
             ::log::info!("Model unloaded: {}", id);
         }
@@ -2113,7 +2179,7 @@ impl ModelHubApp {
                             self.view.view(ids!(hub_image_panel.hub_panel_header.panel_progress_fill)).apply_over(cx, live! { draw_bg: { progress: (pct) } });
                             self.view.label(ids!(hub_image_panel.hub_panel_header.panel_progress_text)).set_text(cx, &txt);
                         }
-                        ActivePanel::Video | ActivePanel::Voice | ActivePanel::None => {}
+                        ActivePanel::Video | ActivePanel::Voice | ActivePanel::Info | ActivePanel::None => {}
                     }
                     self.view.redraw(cx);
                 }
@@ -2229,10 +2295,12 @@ fn scan_state(model: &RegistryModel) -> ModelUiState {
     let path = Path::new(&p);
     if !path.exists() { return ModelUiState::NotDownloaded; }
     // For models with a known size > 100 MB, require at least one weight file
-    // (.safetensors or .bin) to exist — prevents partial downloads (e.g. only
+    // (.safetensors, .bin, or .gguf) to exist — prevents partial downloads (e.g. only
     // config.json fetched by the HF library) from showing as "Downloaded".
+    // For GGUF models, also check file size against expected to avoid false positives
+    // when multiple quant variants share the same HuggingFace repo directory.
     if model.storage.size_bytes > 100 * 1024 * 1024 {
-        return if has_weight_files(path) { ModelUiState::Downloaded } else { ModelUiState::NotDownloaded };
+        return if has_weight_files(path, model.storage.size_bytes) { ModelUiState::Downloaded } else { ModelUiState::NotDownloaded };
     }
     let n = std::fs::read_dir(path)
         .map(|e| e.filter_map(|x| x.ok())
@@ -2241,18 +2309,29 @@ fn scan_state(model: &RegistryModel) -> ModelUiState {
     if n > 0 { ModelUiState::Downloaded } else { ModelUiState::NotDownloaded }
 }
 
-/// Recursively search for any `.safetensors` or `.bin` weight file under `dir`.
-/// Returns true as soon as one is found (early-exit, cheap for large trees).
-fn has_weight_files(dir: &Path) -> bool {
+/// Recursively search for weight files (.safetensors, .bin, .gguf) under `dir`.
+/// For .gguf files, compares actual size against `expected_size` (5% tolerance)
+/// to avoid false positives when multiple quant variants share a directory.
+fn has_weight_files(dir: &Path, expected_size: u64) -> bool {
     let Ok(entries) = std::fs::read_dir(dir) else { return false; };
     for entry in entries.filter_map(|e| e.ok()) {
         let p = entry.path();
         if p.is_file() {
             let name = p.file_name().unwrap_or_default().to_string_lossy();
-            if name.ends_with(".safetensors") || name.ends_with(".bin") {
+            if name.ends_with(".gguf") {
+                if expected_size > 0 {
+                    let actual = std::fs::metadata(&p).map(|m| m.len()).unwrap_or(0);
+                    let tolerance = expected_size / 20; // 5%
+                    if (actual as i64 - expected_size as i64).unsigned_abs() <= tolerance {
+                        return true;
+                    }
+                } else {
+                    return true;
+                }
+            } else if name.ends_with(".safetensors") || name.ends_with(".bin") {
                 return true;
             }
-        } else if p.is_dir() && has_weight_files(&p) {
+        } else if p.is_dir() && has_weight_files(&p, expected_size) {
             return true;
         }
     }

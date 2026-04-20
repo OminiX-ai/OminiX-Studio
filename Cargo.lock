@@ -3451,11 +3451,14 @@ dependencies = [
 name = "moly-chat"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "log",
  "makepad-widgets",
  "moly-data",
  "moly-kit",
  "moly-widgets",
+ "reqwest",
+ "serde_json",
 ]
 
 [[package]]

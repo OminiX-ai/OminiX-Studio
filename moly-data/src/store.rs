@@ -21,6 +21,10 @@ pub enum StoreAction {
     SetLocalModel(Option<String>),
     /// Open a new chat session pre-loaded with a specific model
     OpenChatWithModel { model_id: String, category: RegistryCategory },
+    /// Notify the shell that a model was loaded from the hub
+    HubModelLoaded { model_id: String, model_name: String, category: RegistryCategory },
+    /// Notify the shell that a model was unloaded from the hub
+    HubModelUnloaded { model_id: String },
     /// No action
     None,
 }
@@ -69,6 +73,10 @@ pub struct Store {
     /// Set when user clicks "Open in Chat" from Model Hub; cleared on model unload.
     pub active_local_model: Option<String>,
 
+    /// Category of the currently active local model (LLM, VLM, ASR, TTS, ImageGen).
+    /// Used by ChatApp to adapt its UI (e.g. image drop zone for VLM, audio controls for ASR).
+    pub active_local_model_category: Option<RegistryCategory>,
+
     /// Pending model to open in a new chat session.
     /// Set by StoreAction::OpenChatWithModel; cleared once consumed by ChatApp.
     pub pending_chat_model: Option<(String, RegistryCategory)>,
@@ -86,6 +94,7 @@ impl Default for Store {
             moly_client: MolyClient::new(),
             initialized: false,
             active_local_model: None,
+            active_local_model_category: None,
             pending_chat_model: None,
         }
     }
@@ -122,6 +131,7 @@ impl Store {
             moly_client,
             initialized: true,
             active_local_model: None,
+            active_local_model_category: None,
             pending_chat_model: None,
         }
     }
@@ -132,17 +142,32 @@ impl Store {
         self.providers_manager.configure_providers(&enabled_providers);
         // Re-inject local model if active (configure_providers clears all clients)
         if let Some(ref model_id) = self.active_local_model.clone() {
-            self.providers_manager.inject_local_model(model_id);
+            let is_vlm = self.active_local_model_category == Some(RegistryCategory::Vlm);
+            self.providers_manager.inject_local_model(model_id, is_vlm);
         }
     }
 
     /// Set the active local model for chat routing (injects provider at localhost:8080)
     pub fn set_active_local_model(&mut self, model_id: Option<String>) {
+        let is_vlm = self.active_local_model_category == Some(RegistryCategory::Vlm);
         match &model_id {
-            Some(id) => self.providers_manager.inject_local_model(id),
+            Some(id) => self.providers_manager.inject_local_model(id, is_vlm),
             None     => self.providers_manager.remove_local_model(),
         }
+        if model_id.is_none() {
+            self.active_local_model_category = None;
+        }
         self.active_local_model = model_id;
+    }
+
+    /// Set the category of the active local model
+    pub fn set_active_local_model_category(&mut self, category: Option<RegistryCategory>) {
+        self.active_local_model_category = category;
+    }
+
+    /// Get the category of the active local model
+    pub fn get_active_local_model_category(&self) -> Option<RegistryCategory> {
+        self.active_local_model_category
     }
 
     /// Get the currently active local model ID (api_model_id from registry)
@@ -208,6 +233,9 @@ impl Store {
             StoreAction::OpenChatWithModel { model_id, category } => {
                 self.set_active_local_model(Some(model_id.clone()));
                 self.set_pending_chat_model(model_id.clone(), *category);
+            }
+            StoreAction::HubModelLoaded { .. } | StoreAction::HubModelUnloaded { .. } => {
+                // Handled by the shell (app.rs), not the Store
             }
             StoreAction::None => {}
         }

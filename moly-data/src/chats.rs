@@ -20,7 +20,7 @@ pub struct ChatData {
 
 impl ChatData {
     pub fn new() -> Self {
-        Self::with_title("New Chat".to_string())
+        Self::with_title("New Session".to_string())
     }
 
     pub fn with_title(title: String) -> Self {
@@ -99,8 +99,8 @@ impl ChatData {
     pub fn maybe_update_title_from_messages(&mut self) {
         use moly_kit::aitk::protocol::EntityId;
 
-        // Only update if title starts with "New Chat"
-        if !self.title.starts_with("New Chat") || self.messages.is_empty() {
+        // Only update if title starts with "New Session"
+        if !self.title.starts_with("New Session") || self.messages.is_empty() {
             return;
         }
 
@@ -192,14 +192,14 @@ impl Chats {
         }
     }
 
-    /// Calculate the highest "New Chat X" number from existing chat titles
+    /// Calculate the highest "New Session X" number from existing session titles
     fn calculate_max_new_chat_number(&self) -> usize {
         let mut max_number = 0;
         for chat in &self.saved_chats {
-            // Check for "New Chat" (without number) and "New Chat X" patterns
-            if chat.title == "New Chat" {
+            // Check for "New Session" (without number) and "New Session X" patterns
+            if chat.title == "New Session" {
                 max_number = max_number.max(1);
-            } else if let Some(num_str) = chat.title.strip_prefix("New Chat ") {
+            } else if let Some(num_str) = chat.title.strip_prefix("New Session ") {
                 if let Ok(num) = num_str.parse::<usize>() {
                     max_number = max_number.max(num);
                 }
@@ -283,7 +283,7 @@ impl Chats {
     /// Create a new chat and save it to disk
     pub fn create_chat(&mut self, bot_id: Option<BotId>) -> ChatId {
         // Use a plain title — no incrementing number
-        let title = String::from("New Chat");
+        let title = String::from("New Session");
         let mut chat = ChatData::with_title(title);
 
         // Use provided bot_id or inherit from last chat
@@ -297,7 +297,7 @@ impl Chats {
         chat.save(&self.chats_dir);
         self.saved_chats.insert(0, chat); // Insert at front (most recent)
         self.current_chat_id = Some(id);
-        log::info!("Created new chat {} with title 'New Chat'", id);
+        log::info!("Created new session {} with title 'New Session'", id);
         id
     }
 

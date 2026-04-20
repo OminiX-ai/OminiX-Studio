@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use moly_kit::aitk::clients::openai::OpenAiClient;
 use moly_kit::aitk::clients::openai_realtime::OpenAiRealtimeClient;
-use moly_kit::aitk::protocol::{Bot, BotClient, BotId, EntityAvatar};
+use moly_kit::aitk::protocol::{Bot, BotCapabilities, BotCapability, BotClient, BotId, EntityAvatar};
 
 use crate::ominix_image_client::{OminiXImageClient, ImageGenerationConfig};
 use crate::providers::{ProviderPreferences, ProviderType};
@@ -248,21 +248,30 @@ impl ProvidersManager {
     ///
     /// This bypasses the normal configure_providers flow and directly registers
     /// an OpenAI-compatible client for the locally-running ominix-api server.
-    pub fn inject_local_model(&mut self, model_id: &str) {
+    /// When `is_vlm` is true, the bot gets `AttachmentInput` capability so the
+    /// built-in attach button shows in the PromptInput.
+    pub fn inject_local_model(&mut self, model_id: &str, is_vlm: bool) {
         let mut client = OpenAiClient::new("http://localhost:8080/v1".to_string());
         // Local server accepts any non-empty key string
         let _ = client.set_key("sk-local");
         self.clients.insert("ominix-local".to_string(), client);
 
+        let capabilities = if is_vlm {
+            BotCapabilities::new()
+                .with_capability(BotCapability::AttachmentInput)
+        } else {
+            BotCapabilities::default()
+        };
+
         let bot = Bot {
             id: BotId::new(model_id),
             name: model_id.to_string(),
             avatar: EntityAvatar::Text("AI".to_string()),
-            capabilities: Default::default(),
+            capabilities,
         };
         self.provider_bots.insert("ominix-local".to_string(), vec![bot]);
         self.rebuild_all_bots();
-        log::info!("Injected local model: {} at localhost:8080", model_id);
+        log::info!("Injected local model: {} (vlm={}) at localhost:8080", model_id, is_vlm);
     }
 
     /// Remove the injected local model provider

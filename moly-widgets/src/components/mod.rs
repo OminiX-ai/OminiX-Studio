@@ -50,7 +50,7 @@ live_design! {
             instance selected: 0.0
             fn pixel(self) -> vec4 {
                 let base = (WHITE);
-                let selected_color = (BLUE_100);
+                let selected_color = #eaecf0;
                 return mix(base, selected_color, self.selected);
             }
         }

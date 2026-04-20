@@ -84,15 +84,18 @@ live_design! {
     // ── Inline mini progress bar ──
 
     HubInlineProgress = <View> {
-        width: Fill, height: 3
-        margin: {top: 4}
+        width: 120, height: 3
+        margin: {top: 4, left: 22}
         show_bg: true
         draw_bg: {
             instance progress: 0.0
             fn pixel(self) -> vec4 {
+                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 1.5);
                 let bg   = #d1d5db;
                 let fill = #3b82f6;
-                return mix(bg, fill, step(self.pos.x, self.progress));
+                sdf.fill(mix(bg, fill, step(self.pos.x, self.progress)));
+                return sdf.result;
             }
         }
     }
@@ -102,6 +105,7 @@ live_design! {
     HubModelListItem = <View> {
         width: Fill, height: Fit
         padding: {left: 14, right: 8, top: 9, bottom: 9}
+        margin: {left: 4, right: 4}
         flow: Down
         cursor: Hand
         event_order: Down
@@ -110,10 +114,20 @@ live_design! {
             instance hover: 0.0
             instance selected: 0.0
             fn pixel(self) -> vec4 {
+                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                sdf.box(1.0, 1.0, self.rect_size.x - 2.0, self.rect_size.y - 2.0, 6.0);
                 let base = #ffffff;
-                let hov  = #f1f5f9;
-                let sel  = #dbeafe;
-                return mix(mix(base, hov, self.hover), sel, self.selected);
+                let gray = #eaecf0;
+                let strength = max(self.hover * 0.5, self.selected);
+                sdf.fill(mix(base, gray, strength));
+                return sdf.result;
+            }
+        }
+        animator: {
+            hover = {
+                default: off
+                off = { from: {all: Forward{duration: 0.12}}, apply: {draw_bg: {hover: 0.0}} }
+                on  = { from: {all: Forward{duration: 0.12}}, apply: {draw_bg: {hover: 1.0}} }
             }
         }
         item_row = <View> {
@@ -510,6 +524,7 @@ live_design! {
     HubTtsVoiceItem = <View> {
         width: Fill, height: 40
         padding: {left: 12, right: 12, top: 8, bottom: 8}
+        margin: {left: 4, right: 4}
         cursor: Hand
         event_order: Down
         flow: Right
@@ -519,9 +534,9 @@ live_design! {
             instance selected: 0.0
             fn pixel(self) -> vec4 {
                 let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 4.0);
+                sdf.box(1.0, 1.0, self.rect_size.x - 2.0, self.rect_size.y - 2.0, 6.0);
                 let normal  = #ffffff;
-                let sel_col = #dbeafe;
+                let sel_col = #eaecf0;
                 sdf.fill(mix(normal, sel_col, self.selected));
                 return sdf.result;
             }
@@ -571,6 +586,7 @@ live_design! {
     HubVoiceStudioItem = <View> {
         width: Fill, height: Fit
         padding: {left: 14, right: 8, top: 12, bottom: 12}
+        margin: {left: 4, right: 4}
         cursor: Hand
         event_order: Down
         show_bg: true
@@ -578,10 +594,20 @@ live_design! {
             instance hover: 0.0
             instance selected: 0.0
             fn pixel(self) -> vec4 {
+                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                sdf.box(1.0, 1.0, self.rect_size.x - 2.0, self.rect_size.y - 2.0, 6.0);
                 let base = #ffffff;
-                let hov  = #f1f5f9;
-                let sel  = #dbeafe;
-                return mix(mix(base, hov, self.hover), sel, self.selected);
+                let gray = #eaecf0;
+                let strength = max(self.hover * 0.5, self.selected);
+                sdf.fill(mix(base, gray, strength));
+                return sdf.result;
+            }
+        }
+        animator: {
+            hover = {
+                default: off
+                off = { from: {all: Forward{duration: 0.12}}, apply: {draw_bg: {hover: 0.0}} }
+                on  = { from: {all: Forward{duration: 0.12}}, apply: {draw_bg: {hover: 1.0}} }
             }
         }
         flow: Right
@@ -610,6 +636,7 @@ live_design! {
     HubVoiceListItem = <View> {
         width: Fill, height: 40
         padding: {left: 12, right: 12, top: 8, bottom: 8}
+        margin: {left: 4, right: 4}
         cursor: Hand
         event_order: Down
         flow: Right
@@ -619,9 +646,9 @@ live_design! {
             instance selected: 0.0
             fn pixel(self) -> vec4 {
                 let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 4.0);
+                sdf.box(1.0, 1.0, self.rect_size.x - 2.0, self.rect_size.y - 2.0, 6.0);
                 let normal   = #ffffff;
-                let sel_col  = #dbeafe;
+                let sel_col  = #eaecf0;
                 sdf.fill(mix(normal, sel_col, self.selected));
                 return sdf.result;
             }
@@ -726,6 +753,7 @@ live_design! {
                 HubSubfolderHeader  = <HubSubfolderGroupHeader> {}
                 HubVoiceStudioItem  = <HubVoiceStudioItem> {}
             }
+
         }
 
         // Vertical divider – 8 px wide for easy dragging, visually 1px center line
@@ -835,6 +863,36 @@ live_design! {
                     padding: {left: 28, right: 28, top: 16, bottom: 32}
 
                     <HubInputLabel> { text: "IMAGE FILE" }
+
+                    // Drag-and-drop zone for image files from Finder
+                    vlm_drop_zone = <View> {
+                        width: Fill, height: 64
+                        margin: {bottom: 6}
+                        show_bg: true
+                        draw_bg: {
+                            instance drag_over: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                let border = mix(#d1d5db, #6366f1, self.drag_over);
+                                let fill = mix(#f9fafb, #eef2ff, self.drag_over);
+                                sdf.box(2.0, 2.0, self.rect_size.x - 4.0, self.rect_size.y - 4.0, 8.0);
+                                sdf.fill(border);
+                                sdf.box(3.5, 3.5, self.rect_size.x - 7.0, self.rect_size.y - 7.0, 6.5);
+                                sdf.fill(fill);
+                                return sdf.result;
+                            }
+                        }
+                        align: {x: 0.5, y: 0.5}
+
+                        vlm_drop_label = <Label> {
+                            text: "Drop image here"
+                            draw_text: {
+                                color: #9ca3af
+                                text_style: { font_size: 12.0 }
+                            }
+                        }
+                    }
+
                     <View> {
                         width: Fill, height: Fit
                         flow: Right
