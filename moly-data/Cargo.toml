@@ -27,3 +27,6 @@ async-stream = "0.3"
 log.workspace = true
 chrono.workspace = true
 dirs = "5.0"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

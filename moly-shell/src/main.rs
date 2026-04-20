@@ -68,9 +68,29 @@ fn main() {
         }
     }
 
+    // Register atexit handler to kill ominix-api on exit.
+    // On macOS, [NSApplication terminate:] calls exit() directly, so app_main()
+    // never returns — atexit is the only reliable cleanup hook.
+    #[cfg(unix)]
+    unsafe {
+        libc::atexit(cleanup_on_exit);
+        libc::signal(libc::SIGINT, sigint_handler as libc::sighandler_t);
+        libc::signal(libc::SIGTERM, sigint_handler as libc::sighandler_t);
+    }
+
     app::app_main();
 
-    // app_main() returns when the user closes the window.
-    // Kill the ominix-api server if we launched it.
+    // Belt-and-suspenders: also call here in case app_main() does return.
     moly_data::kill_server_process();
+}
+
+#[cfg(unix)]
+extern "C" fn cleanup_on_exit() {
+    moly_data::kill_server_process();
+}
+
+#[cfg(unix)]
+extern "C" fn sigint_handler(_sig: libc::c_int) {
+    moly_data::kill_server_process();
+    std::process::exit(0);
 }

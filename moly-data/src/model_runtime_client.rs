@@ -8,18 +8,52 @@
 
 use serde::Deserialize;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicI32, Ordering};
 
 /// Handle to the ominix-api child process we launched (None if we didn't launch it).
 static SERVER_CHILD: Mutex<Option<std::process::Child>> = Mutex::new(None);
 
-/// Kill the ominix-api process if we started it.
-/// Called from the shell's main() after app_main() returns (i.e. on window close).
+/// PID of the ominix-api server (whether we spawned it or it was already running).
+/// Stored as AtomicI32 so it can be read safely from signal handlers.
+static SERVER_PID: AtomicI32 = AtomicI32::new(0);
+
+/// Record the PID of an externally-running ominix-api server.
+pub fn set_server_pid(pid: i32) {
+    SERVER_PID.store(pid, Ordering::Relaxed);
+}
+
+/// Kill the ominix-api process and all its children.
+/// Safe to call from signal handlers (uses only atomic reads + libc::kill).
 pub fn kill_server_process() {
-    if let Ok(mut guard) = SERVER_CHILD.lock() {
+    let pid = SERVER_PID.swap(0, Ordering::Relaxed);
+    if pid > 0 {
+        #[cfg(unix)]
+        unsafe {
+            // Kill child processes, then the server itself
+            libc::kill(-pid, libc::SIGKILL); // kill process group if it's a leader
+            libc::kill(pid, libc::SIGKILL);  // kill the process directly
+        }
+    }
+    // Also reap our child handle if we spawned it
+    if let Ok(mut guard) = SERVER_CHILD.try_lock() {
         if let Some(mut child) = guard.take() {
-            log::info!("Shutting down ominix-api (pid {})", child.id());
             let _ = child.kill();
             let _ = child.wait();
+        }
+    }
+}
+
+/// Detect the PID of an already-running ominix-api via `pgrep`.
+fn detect_and_store_server_pid() {
+    if let Ok(output) = std::process::Command::new("pgrep")
+        .args(["-f", "ominix-api"])
+        .output()
+    {
+        if let Ok(s) = std::str::from_utf8(&output.stdout) {
+            if let Some(pid) = s.lines().next().and_then(|l| l.trim().parse::<i32>().ok()) {
+                log::info!("Detected running ominix-api (pid {})", pid);
+                SERVER_PID.store(pid, Ordering::Relaxed);
+            }
         }
     }
 }
@@ -135,8 +169,11 @@ pub fn find_api_binary() -> Option<std::path::PathBuf> {
 pub fn ensure_server_running() -> Result<(), String> {
     let client = ModelRuntimeClient::localhost();
 
-    // Already up?
-    if client.is_alive() { return Ok(()); }
+    // Already up? Find its PID so we can kill it on exit.
+    if client.is_alive() {
+        detect_and_store_server_pid();
+        return Ok(());
+    }
 
     // Find the binary
     let binary = find_api_binary().ok_or_else(|| {
@@ -152,6 +189,8 @@ pub fn ensure_server_running() -> Result<(), String> {
         .map_err(|e| format!("Failed to launch ominix-api: {}", e))?;
 
     // Remember the child so we can kill it when the studio exits.
+    let pid = child.id() as i32;
+    SERVER_PID.store(pid, Ordering::Relaxed);
     if let Ok(mut guard) = SERVER_CHILD.lock() {
         *guard = Some(child);
     }
