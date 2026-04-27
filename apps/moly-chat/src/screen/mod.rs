@@ -15,6 +15,11 @@ use std::sync::{Arc, Mutex, mpsc};
 use moly_data::{ChatId, Store};
 use moly_data::model_registry::RegistryCategory;
 
+static TTS_VOICE_IDS: &[&str] = &[
+    "vivian", "serena", "ryan", "aiden", "english_man",
+    "uncle_fu", "chinese_woman", "chinese_man", "dialect",
+];
+
 /// Which mode the chat UI is in, based on the loaded model category.
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 enum ChatMode {
@@ -163,13 +168,14 @@ impl Widget for ChatHistoryPanel {
                     while let Some(item_id) = list.next_visible_item(cx) {
                         if item_id < self.chat_count {
                             // Get chat data
-                            let (chat_id, title, date_str, is_selected) = if let Some(store) = scope.data.get::<Store>() {
+                            let (chat_id, title, date_str, is_selected, category) = if let Some(store) = scope.data.get::<Store>() {
                                 if let Some(chat) = store.chats.saved_chats.get(item_id) {
                                     let id = chat.id;
                                     let title = chat.title.clone();
                                     let date = chat.accessed_at.format("%b %d").to_string();
                                     let selected = self.current_chat_id == Some(chat.id);
-                                    (id, title, date, selected)
+                                    let cat = chat.model_category;
+                                    (id, title, date, selected, cat)
                                 } else {
                                     continue;
                                 }
@@ -193,7 +199,22 @@ impl Widget for ChatHistoryPanel {
 
                             item_widget.label(ids!(content.title_label)).set_text(cx, &title);
 
-                            item_widget.label(ids!(content.date_label)).set_text(cx, &date_str);
+                            item_widget.label(ids!(content.category_row.date_label)).set_text(cx, &date_str);
+
+                            if let Some(cat) = category {
+                                let tag = item_widget.view(ids!(content.category_row.category_tag));
+                                tag.set_visible(cx, true);
+                                item_widget.label(ids!(content.category_row.category_tag.tag_label))
+                                    .set_text(cx, cat.label());
+                                let hex = cat.color().trim_start_matches('#');
+                                let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(0) as f64 / 255.0;
+                                let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(0) as f64 / 255.0;
+                                let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(0) as f64 / 255.0;
+                                tag.apply_over(cx, live! { draw_bg: { color: (vec4(r as f32, g as f32, b as f32, 1.0)) } });
+                            } else {
+                                item_widget.view(ids!(content.category_row.category_tag))
+                                    .set_visible(cx, false);
+                            }
 
                             item_widget.draw_all(cx, scope);
                         }
@@ -368,6 +389,47 @@ pub struct ChatApp {
     /// Whether a mode-specific operation is in progress
     #[rust]
     mode_busy: bool,
+
+    /// Image edit: base64-encoded reference image (set by file picker)
+    #[rust]
+    image_ref_b64: Option<String>,
+
+    /// Image edit: path of the selected reference image
+    #[rust]
+    image_ref_path: String,
+
+    /// TTS: selected voice index (maps to TTS_VOICE_IDS)
+    #[rust]
+    tts_voice_idx: usize,
+
+    /// TTS: path to the last generated audio file
+    #[rust]
+    tts_audio_path: Option<String>,
+
+    /// TTS: whether audio is currently playing
+    #[rust]
+    tts_playing: bool,
+
+    /// TTS: child process handle for afplay (so we can kill it on stop)
+    #[rust]
+    tts_play_process: Option<std::process::Child>,
+
+    /// TTS: audio duration in seconds
+    #[rust]
+    tts_duration_secs: f64,
+
+    /// TTS: playback start instant
+    #[rust]
+    tts_play_start: Option<std::time::Instant>,
+
+    /// Tracks the last message count we checked for mode-specific interception
+    #[rust]
+    last_mode_msg_count: usize,
+
+    /// Skip drawing the Chat widget for N frames after a client switch
+    /// to let the controller process mutations before draw
+    #[rust]
+    skip_chat_draw_frames: u32,
 }
 
 impl LiveHook for ChatApp {
@@ -512,6 +574,7 @@ impl ChatApp {
         self.last_synced_message_count = 0;
         self.had_writing_message = false;
         self.last_synced_content_len = 0;
+        self.last_mode_msg_count = 0;
     }
 
     /// Initialize the chat from persistence (load or create the current chat)
@@ -555,6 +618,7 @@ impl ChatApp {
             }
 
             self.last_synced_message_count = message_count;
+            self.last_mode_msg_count = message_count;
 
             // Also restore the bot_id if it was saved with the chat
             if let Some(ref bot_id) = chat.bot_id {
@@ -635,13 +699,19 @@ impl ChatApp {
             ctrl.state().bot_id.clone()
         };
 
-        // Update the chat's bot_id
+        // Update the chat's bot_id and model category
         if let Some(store) = scope.data.get_mut::<Store>() {
-            if let Some(chat) = store.chats.get_chat_by_id(chat_id) {
-                // Only update if different
-                if chat.bot_id != current_bot_id {
-                    store.chats.update_chat_bot(chat_id, current_bot_id);
-                }
+            let current_cat = store.get_active_local_model_category();
+            let (needs_bot_update, needs_cat_update) = if let Some(chat) = store.chats.get_chat_by_id(chat_id) {
+                (chat.bot_id != current_bot_id, chat.model_category != current_cat)
+            } else {
+                (false, false)
+            };
+            if needs_bot_update {
+                store.chats.update_chat_bot(chat_id, current_bot_id);
+            }
+            if needs_cat_update {
+                store.chats.update_chat_category(chat_id, current_cat);
             }
         }
     }
@@ -689,6 +759,7 @@ impl ChatApp {
         self.last_synced_message_count = 0;
         self.had_writing_message = false;
         self.last_synced_content_len = 0;
+        self.last_mode_msg_count = 0;
 
         // Mark as initialized to prevent maybe_initialize_chat from overwriting our state
         self.chat_initialized = true;
@@ -853,6 +924,7 @@ impl Widget for ChatApp {
                         enabled_bots.len(), all_bots.len());
 
                     self.force_reset_controller_on_widget(cx);
+                    self.skip_chat_draw_frames = 2;
                     // Re-dispatch filtered bots mutation so the new plugin sees them
                     self.chat_controller.lock().unwrap().dispatch_mutation(VecMutation::Set(enabled_bots));
                     self.view.redraw(cx);
@@ -878,7 +950,7 @@ impl Widget for ChatApp {
 
         // Poll mode-specific async results (ASR/TTS/Image)
         self.poll_mode_result(cx);
-        self.poll_file_picker(cx);
+        self.poll_file_picker(cx, scope);
 
         // Check and configure providers from Store
         self.maybe_configure_providers(cx, scope);
@@ -901,30 +973,18 @@ impl Widget for ChatApp {
         // Sync bot selection to current chat
         self.sync_bot_to_chat(scope);
 
-        // Handle events selectively based on welcome mode and chat mode
+        // Handle events: welcome overlay (LLM only) OR Chat widget + mode controls
         let pre_event_welcome_mode = self.in_welcome_mode;
         if self.in_welcome_mode {
-            match self.chat_mode {
-                ChatMode::Asr => {
-                    self.view.view(ids!(main_content.asr_welcome_overlay)).handle_event(cx, event, scope);
-                }
-                ChatMode::Tts => {
-                    self.view.view(ids!(main_content.tts_welcome_overlay)).handle_event(cx, event, scope);
-                }
-                ChatMode::ImageGen => {
-                    self.view.view(ids!(main_content.image_welcome_overlay)).handle_event(cx, event, scope);
-                }
-                _ => {
-                    // LLM / VLM: use the standard welcome overlay
-                    self.view.view(ids!(main_content.welcome_overlay)).handle_event(cx, event, scope);
-                }
-            }
-            self.view.view(ids!(header)).handle_event(cx, event, scope);
+            self.view.view(ids!(main_content.welcome_overlay)).handle_event(cx, event, scope);
         } else {
-            // Normal mode - pass events to Chat widget
             self.view.chat(ids!(main_content.chat)).handle_event(cx, event, scope);
-            self.view.view(ids!(header)).handle_event(cx, event, scope);
         }
+        self.view.view(ids!(header)).handle_event(cx, event, scope);
+        self.view.view(ids!(mode_controls)).handle_event(cx, event, scope);
+
+        // Detect new user messages from Chat widget for non-LLM modes
+        self.maybe_handle_mode_message(cx, scope);
 
         if matches!(event, Event::KeyDown(_) | Event::TextInput(_)) && pre_event_welcome_mode != self.in_welcome_mode {
             ::log::info!("handle_event AFTER selective handling: in_welcome_mode changed from {} to {}",
@@ -966,40 +1026,66 @@ impl Widget for ChatApp {
             }
         }
 
-        // Show/hide overlays based on welcome mode + chat mode
-        // For VLM mode, skip welcome overlay — go straight to Chat so the built-in
-        // attach button and DenseAttachmentList are available for image input.
-        let wm = if self.chat_mode == ChatMode::Vlm && self.in_welcome_mode {
+        // All non-LLM modes skip welcome overlay and go straight to Chat widget.
+        // Only LLM shows the welcome overlay (centered PromptInput) for the first message.
+        let wm = if self.chat_mode != ChatMode::Llm && self.in_welcome_mode {
             self.in_welcome_mode = false;
             false
         } else {
             self.in_welcome_mode
         };
-        let mode = self.chat_mode;
-        self.view.view(ids!(main_content.welcome_overlay)).set_visible(cx,
-            wm && mode == ChatMode::Llm);
-        self.view.view(ids!(main_content.asr_welcome_overlay)).set_visible(cx,
-            wm && mode == ChatMode::Asr);
-        self.view.view(ids!(main_content.tts_welcome_overlay)).set_visible(cx,
-            wm && mode == ChatMode::Tts);
-        self.view.view(ids!(main_content.image_welcome_overlay)).set_visible(cx,
-            wm && mode == ChatMode::ImageGen);
-        self.view.chat(ids!(main_content.chat)).set_visible(cx, !wm);
-
-        let has_local_model = if let Some(store) = scope.data.get::<Store>() {
-            store.active_local_model_category.is_some()
+        // After a controller reset (set_chat_controller None→Some), the Chat widget's
+        // internal Messages plugin needs one frame before it can safely draw.
+        // Keep Chat hidden for that frame to avoid a RefCell borrow conflict.
+        if self.skip_chat_draw_frames > 0 {
+            self.skip_chat_draw_frames -= 1;
+            self.view.view(ids!(main_content.welcome_overlay)).set_visible(cx, true);
+            self.view.chat(ids!(main_content.chat)).set_visible(cx, false);
+            self.view.redraw(cx);
         } else {
-            false
-        };
-        let status = self.view.label(ids!(status_label));
-        if has_local_model || self.providers_configured {
-            status.set_visible(cx, false);
-        } else {
-            status.set_visible(cx, true);
+            self.view.view(ids!(main_content.welcome_overlay)).set_visible(cx, wm);
+            self.view.chat(ids!(main_content.chat)).set_visible(cx, !wm);
         }
 
-        // Simply delegate to view's draw_walk - no step() pattern needed
-        // ChatHistoryPanel handles its own PortalList, Chat handles its own
+        // Show mode_controls bar for non-LLM/VLM modes
+        let show_controls = matches!(self.chat_mode, ChatMode::Tts | ChatMode::ImageGen | ChatMode::Asr);
+        self.view.view(ids!(mode_controls)).set_visible(cx, show_controls);
+        self.view.view(ids!(mode_controls.tts_controls)).set_visible(cx, self.chat_mode == ChatMode::Tts);
+        self.view.view(ids!(mode_controls.image_controls)).set_visible(cx, self.chat_mode == ChatMode::ImageGen);
+        self.view.view(ids!(mode_controls.asr_controls)).set_visible(cx, self.chat_mode == ChatMode::Asr);
+
+        // Show reference image section only for image editing models
+        if self.chat_mode == ChatMode::ImageGen {
+            let supports_images = if let Some(store) = scope.data.get::<Store>() {
+                store.active_local_model_supports_images
+            } else { false };
+            self.view.view(ids!(mode_controls.image_controls.image_ref_section))
+                .set_visible(cx, supports_images);
+        }
+
+        // Show TTS audio controls when there's a generated file
+        if self.chat_mode == ChatMode::Tts {
+            let has_audio = self.tts_audio_path.is_some();
+            self.view.view(ids!(mode_controls.tts_controls.tts_audio_controls))
+                .set_visible(cx, has_audio);
+            if has_audio {
+                let label = if self.tts_playing { "⏸ Stop" } else { "▶ Play" };
+                self.view.label(ids!(mode_controls.tts_controls.tts_audio_controls.tts_play_btn.tts_play_label))
+                    .set_text(cx, label);
+            }
+        }
+
+        // Check if afplay process finished
+        if self.tts_playing {
+            if let Some(ref mut proc) = self.tts_play_process {
+                if let Ok(Some(_)) = proc.try_wait() {
+                    self.tts_playing = false;
+                    self.tts_play_process = None;
+                    self.tts_play_start = None;
+                }
+            }
+        }
+
         self.view.draw_walk(cx, scope, walk)
     }
 }
@@ -1112,37 +1198,69 @@ impl WidgetMatchEvent for ChatApp {
             }
         }
 
-        // ── Mode-specific button handlers ──────────────────────────────────
+        // ── Mode controls bar handlers ────────────────────────────────────
 
-        // ASR: Browse button
-        if self.view.view(ids!(main_content.asr_welcome_overlay.asr_drop_zone.asr_browse_btn))
+        // ASR: Browse/upload audio button
+        if self.view.view(ids!(mode_controls.asr_controls.asr_browse_btn))
             .finger_down(&actions).is_some()
         {
             self.handle_asr_browse(cx);
         }
 
-        // ASR: Transcribe button
-        if self.view.view(ids!(main_content.asr_welcome_overlay.asr_transcribe_btn))
-            .finger_down(&actions).is_some()
-            && !self.asr_file_path.is_empty() && !self.mode_busy
-        {
-            self.start_asr_transcribe(cx, scope);
+        // TTS: Voice selection buttons (in mode_controls bar)
+        for i in 0..9usize {
+            let voice_id = match i {
+                0 => ids!(mode_controls.tts_controls.tts_voice_row.tts_voice_0),
+                1 => ids!(mode_controls.tts_controls.tts_voice_row.tts_voice_1),
+                2 => ids!(mode_controls.tts_controls.tts_voice_row.tts_voice_2),
+                3 => ids!(mode_controls.tts_controls.tts_voice_row.tts_voice_3),
+                4 => ids!(mode_controls.tts_controls.tts_voice_row.tts_voice_4),
+                5 => ids!(mode_controls.tts_controls.tts_voice_row_zh.tts_voice_5),
+                6 => ids!(mode_controls.tts_controls.tts_voice_row_zh.tts_voice_6),
+                7 => ids!(mode_controls.tts_controls.tts_voice_row_zh.tts_voice_7),
+                _ => ids!(mode_controls.tts_controls.tts_voice_row_zh.tts_voice_8),
+            };
+            if self.view.view(voice_id).finger_down(&actions).is_some() {
+                self.tts_voice_idx = i;
+                for j in 0..9usize {
+                    let vid = match j {
+                        0 => ids!(mode_controls.tts_controls.tts_voice_row.tts_voice_0),
+                        1 => ids!(mode_controls.tts_controls.tts_voice_row.tts_voice_1),
+                        2 => ids!(mode_controls.tts_controls.tts_voice_row.tts_voice_2),
+                        3 => ids!(mode_controls.tts_controls.tts_voice_row.tts_voice_3),
+                        4 => ids!(mode_controls.tts_controls.tts_voice_row.tts_voice_4),
+                        5 => ids!(mode_controls.tts_controls.tts_voice_row_zh.tts_voice_5),
+                        6 => ids!(mode_controls.tts_controls.tts_voice_row_zh.tts_voice_6),
+                        7 => ids!(mode_controls.tts_controls.tts_voice_row_zh.tts_voice_7),
+                        _ => ids!(mode_controls.tts_controls.tts_voice_row_zh.tts_voice_8),
+                    };
+                    let sel = if j == i { 1.0_f64 } else { 0.0_f64 };
+                    self.view.view(vid).apply_over(cx, live! { draw_bg: { selected: (sel) } });
+                }
+                self.view.redraw(cx);
+                break;
+            }
         }
 
-        // TTS: Generate button
-        if self.view.view(ids!(main_content.tts_welcome_overlay.tts_generate_btn))
+        // TTS: Play button
+        if self.view.view(ids!(mode_controls.tts_controls.tts_audio_controls.tts_play_btn))
             .finger_down(&actions).is_some()
-            && !self.mode_busy
         {
-            self.start_tts_generate(cx, scope);
+            self.handle_audio_play_toggle(cx);
         }
 
-        // Image: Generate button
-        if self.view.view(ids!(main_content.image_welcome_overlay.image_generate_btn))
+        // TTS: Save button
+        if self.view.view(ids!(mode_controls.tts_controls.tts_audio_controls.tts_save_btn))
             .finger_down(&actions).is_some()
-            && !self.mode_busy
         {
-            self.start_image_generate(cx, scope);
+            self.handle_audio_download(cx);
+        }
+
+        // Image: Browse reference image button
+        if self.view.view(ids!(mode_controls.image_controls.image_ref_section.image_ref_browse_btn))
+            .finger_down(&actions).is_some()
+        {
+            self.handle_image_ref_browse(cx);
         }
 
 
@@ -1154,16 +1272,34 @@ impl WidgetMatchEvent for ChatApp {
 }
 
 impl ChatApp {
-    /// Sync chat_mode from the Store's active model category
+    /// Sync chat_mode from the Store's active model category,
+    /// falling back to the current session's saved category for older sessions.
     fn sync_chat_mode(&mut self, scope: &mut Scope) {
         let new_mode = if let Some(store) = scope.data.get::<Store>() {
-            match store.get_active_local_model_category() {
-                Some(RegistryCategory::Vlm)      => ChatMode::Vlm,
-                Some(RegistryCategory::Asr)      => ChatMode::Asr,
-                Some(RegistryCategory::Tts)      => ChatMode::Tts,
-                Some(RegistryCategory::ImageGen) => ChatMode::ImageGen,
-                _                                => ChatMode::Llm,
-            }
+            // First try: use the active local model's category
+            let from_active = match store.get_active_local_model_category() {
+                Some(RegistryCategory::Vlm)      => Some(ChatMode::Vlm),
+                Some(RegistryCategory::Asr)      => Some(ChatMode::Asr),
+                Some(RegistryCategory::Tts)      => Some(ChatMode::Tts),
+                Some(RegistryCategory::ImageGen) => Some(ChatMode::ImageGen),
+                Some(RegistryCategory::Llm)      => Some(ChatMode::Llm),
+                _                                => None,
+            };
+            // If no active model, use the current session's saved category
+            from_active.unwrap_or_else(|| {
+                if let Some(chat_id) = self.current_chat_id {
+                    if let Some(chat) = store.chats.get_chat_by_id(chat_id) {
+                        match chat.model_category {
+                            Some(RegistryCategory::Vlm)      => return ChatMode::Vlm,
+                            Some(RegistryCategory::Asr)      => return ChatMode::Asr,
+                            Some(RegistryCategory::Tts)      => return ChatMode::Tts,
+                            Some(RegistryCategory::ImageGen) => return ChatMode::ImageGen,
+                            _ => {}
+                        }
+                    }
+                }
+                ChatMode::Llm
+            })
         } else {
             ChatMode::Llm
         };
@@ -1172,72 +1308,193 @@ impl ChatApp {
             self.chat_mode = new_mode;
             // Reset mode-specific state
             self.asr_file_path.clear();
+            self.image_ref_b64 = None;
+            self.image_ref_path.clear();
             self.mode_rx = None;
             self.mode_busy = false;
+            // Sync mode msg tracking to current message count
+            let ctrl = self.chat_controller.lock().unwrap();
+            self.last_mode_msg_count = ctrl.state().messages.len();
         }
     }
 
-    /// Poll the mode-specific async result channel
+    /// Poll the mode-specific async result channel and inject as assistant message
     fn poll_mode_result(&mut self, cx: &mut Cx) {
         let result = self.mode_rx.as_ref().and_then(|rx| rx.try_recv().ok());
         let Some(result) = result else { return };
         self.mode_rx = None;
         self.mode_busy = false;
 
-        match self.chat_mode {
+        use moly_kit::aitk::protocol::{EntityId, Message, MessageContent};
+
+        let response_text = match self.chat_mode {
             ChatMode::Asr => {
                 match result {
-                    Ok(text) => {
-                        self.view.label(ids!(main_content.asr_welcome_overlay.asr_result_label.label))
-                            .set_text(cx, &text);
-                        self.view.view(ids!(main_content.asr_welcome_overlay.asr_result_label))
-                            .set_visible(cx, true);
-                        self.view.label(ids!(main_content.asr_welcome_overlay.asr_file_label.label))
-                            .set_text(cx, "Transcription complete");
-                    }
-                    Err(e) => {
-                        self.view.label(ids!(main_content.asr_welcome_overlay.asr_result_label.label))
-                            .set_text(cx, &format!("Error: {}", e));
-                        self.view.view(ids!(main_content.asr_welcome_overlay.asr_result_label))
-                            .set_visible(cx, true);
-                    }
+                    Ok(text) => text,
+                    Err(e) => format!("Transcription error: {}", e),
                 }
             }
             ChatMode::Tts => {
-                let status = self.view.view(ids!(main_content.tts_welcome_overlay.tts_status_label));
-                status.set_visible(cx, true);
                 match result {
-                    Ok(_) => {
-                        self.view.label(ids!(main_content.tts_welcome_overlay.tts_status_label.label))
-                            .set_text(cx, "Audio generated and playing");
+                    Ok(path) => {
+                        self.tts_audio_path = Some(path.clone());
+                        self.tts_playing = false;
+                        self.tts_duration_secs = Self::get_wav_duration(&path);
+                        let voice = TTS_VOICE_IDS.get(self.tts_voice_idx)
+                            .copied().unwrap_or("vivian");
+                        let dur = self.tts_duration_secs;
+                        let mins = dur as u32 / 60;
+                        let secs = dur as u32 % 60;
+                        // Auto-play the generated audio
+                        if let Ok(child) = std::process::Command::new("afplay").arg(&path).spawn() {
+                            self.tts_play_process = Some(child);
+                            self.tts_playing = true;
+                            self.tts_play_start = Some(std::time::Instant::now());
+                        }
+                        format!("🔊 Voice: {} · {}:{:02}  [{}]", voice, mins, secs, path)
                     }
-                    Err(e) => {
-                        self.view.label(ids!(main_content.tts_welcome_overlay.tts_status_label.label))
-                            .set_text(cx, &format!("Error: {}", e));
-                    }
+                    Err(e) => format!("TTS error: {}", e),
                 }
             }
             ChatMode::ImageGen => {
-                let status = self.view.view(ids!(main_content.image_welcome_overlay.image_status_label));
-                status.set_visible(cx, true);
                 match result {
-                    Ok(path) => {
-                        self.view.label(ids!(main_content.image_welcome_overlay.image_status_label.label))
-                            .set_text(cx, "Image generated");
-                        // Load the generated image
-                        let img = self.view.image(ids!(main_content.image_welcome_overlay.image_result));
-                        img.set_visible(cx, true);
-                        let _ = img.load_image_file_by_path(cx, std::path::Path::new(&path));
-                    }
-                    Err(e) => {
-                        self.view.label(ids!(main_content.image_welcome_overlay.image_status_label.label))
-                            .set_text(cx, &format!("Error: {}", e));
-                    }
+                    Ok(path) => format!("Image saved to: {}", path),
+                    Err(e) => format!("Image generation error: {}", e),
                 }
+            }
+            _ => return,
+        };
+
+        // Push as assistant message
+        {
+            let mut ctrl = self.chat_controller.lock().unwrap();
+            let bot_id = ctrl.state().bot_id.clone();
+            ctrl.dispatch_mutation(VecMutation::Push(Message {
+                from: bot_id.map(EntityId::Bot).unwrap_or(EntityId::System),
+                content: MessageContent {
+                    text: response_text,
+                    ..Default::default()
+                },
+                ..Default::default()
+            }));
+            // Update our tracking so we don't re-trigger on our own message
+            self.last_mode_msg_count = ctrl.state().messages.len();
+        }
+
+        self.view.redraw(cx);
+    }
+
+    /// Detect new user messages from the Chat widget and trigger mode-specific operations.
+    /// For TTS/ASR/ImageGen, we intercept user messages and start our own API calls
+    /// instead of relying on ChatTask::Send (which would call the wrong endpoint).
+    /// Also strips error messages from the failed ChatTask::Send (no client set).
+    fn maybe_handle_mode_message(&mut self, cx: &mut Cx, scope: &mut Scope) {
+        if self.mode_busy { return; }
+        if !matches!(self.chat_mode, ChatMode::Tts | ChatMode::ImageGen) { return; }
+
+        use moly_kit::aitk::protocol::EntityId;
+
+        let (msg_count, user_text) = {
+            let ctrl = self.chat_controller.lock().unwrap();
+            let msgs = &ctrl.state().messages;
+            let count = msgs.len();
+            if count <= self.last_mode_msg_count {
+                return;
+            }
+            // Look for a new user message among messages added since last check
+            let mut user_text = None;
+            for msg in msgs[self.last_mode_msg_count..].iter() {
+                if matches!(msg.from, EntityId::User) {
+                    user_text = Some(msg.content.text.clone());
+                }
+            }
+            (count, user_text)
+        };
+
+        let Some(user_text) = user_text else {
+            self.last_mode_msg_count = msg_count;
+            return;
+        };
+
+        // Strip error/system messages added by the failed ChatTask::Send
+        {
+            let mut ctrl = self.chat_controller.lock().unwrap();
+            let msgs = ctrl.state().messages.clone();
+            let kept: Vec<_> = msgs.iter().enumerate().filter(|(i, m)| {
+                if *i < self.last_mode_msg_count { return true; }
+                matches!(m.from, EntityId::User)
+            }).map(|(_, m)| m.clone()).collect();
+            if kept.len() < msgs.len() {
+                ctrl.dispatch_mutation(VecMutation::Set(kept.clone()));
+            }
+            self.last_mode_msg_count = kept.len();
+        }
+
+        match self.chat_mode {
+            ChatMode::Tts => {
+                self.start_tts_generate(cx, scope, user_text);
+            }
+            ChatMode::ImageGen => {
+                self.start_image_generate(cx, scope, user_text);
             }
             _ => {}
         }
+    }
+
+    /// Audio player: toggle play/stop
+    fn handle_audio_play_toggle(&mut self, cx: &mut Cx) {
+        let Some(ref path) = self.tts_audio_path else { return };
+
+        if self.tts_playing {
+            if let Some(mut proc) = self.tts_play_process.take() {
+                proc.kill().ok();
+                proc.wait().ok();
+            }
+            self.tts_playing = false;
+            self.tts_play_start = None;
+        } else {
+            if let Ok(child) = std::process::Command::new("afplay").arg(path).spawn() {
+                self.tts_play_process = Some(child);
+                self.tts_playing = true;
+                self.tts_play_start = Some(std::time::Instant::now());
+            }
+        }
         self.view.redraw(cx);
+    }
+
+    /// Get WAV file duration in seconds from file header
+    fn get_wav_duration(path: &str) -> f64 {
+        let Ok(data) = std::fs::read(path) else { return 0.0 };
+        if data.len() < 44 { return 0.0; }
+        let sample_rate = u32::from_le_bytes([data[24], data[25], data[26], data[27]]) as f64;
+        let byte_rate = u32::from_le_bytes([data[28], data[29], data[30], data[31]]) as f64;
+        if byte_rate == 0.0 { return 0.0; }
+        let data_size = (data.len() - 44) as f64;
+        data_size / byte_rate
+    }
+
+    /// Audio player: save as MP3 via save dialog
+    fn handle_audio_download(&mut self, _cx: &mut Cx) {
+        let Some(ref wav_path) = self.tts_audio_path else { return };
+        let wav_path = wav_path.clone();
+
+        std::thread::spawn(move || {
+            let output = std::process::Command::new("osascript")
+                .args(["-e", "POSIX path of (choose file name with prompt \"Save audio as MP3\" default name \"speech.mp3\")"])
+                .output();
+            if let Ok(out) = output {
+                let save_path = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if save_path.is_empty() { return; }
+
+                if save_path.ends_with(".mp3") {
+                    let _ = std::process::Command::new("afconvert")
+                        .args(["-f", "mp4f", "-d", "aac", &wav_path, &save_path])
+                        .status();
+                } else {
+                    let _ = std::fs::copy(&wav_path, &save_path);
+                }
+            }
+        });
     }
 
     /// ASR: Open file browser dialog
@@ -1263,8 +1520,32 @@ impl ChatApp {
         self.file_picker_rx = Some(rx);
     }
 
+    /// Image Edit: Open file browser for reference image
+    fn handle_image_ref_browse(&mut self, _cx: &mut Cx) {
+        if self.file_picker_rx.is_some() { return; }
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let output = std::process::Command::new("osascript")
+                .args(["-e", "set f to choose file of type {\"public.image\"} with prompt \"Select reference image\""])
+                .args(["-e", "POSIX path of f"])
+                .output();
+            match output {
+                Ok(out) => {
+                    let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                    if !path.is_empty() {
+                        tx.send(Ok(path)).ok();
+                    } else {
+                        tx.send(Err("Cancelled".to_string())).ok();
+                    }
+                }
+                Err(e) => { tx.send(Err(e.to_string())).ok(); }
+            }
+        });
+        self.file_picker_rx = Some(rx);
+    }
+
     /// Poll for file picker result
-    fn poll_file_picker(&mut self, cx: &mut Cx) {
+    fn poll_file_picker(&mut self, cx: &mut Cx, scope: &mut Scope) {
         let result = self.file_picker_rx.as_ref().and_then(|rx| rx.try_recv().ok());
         let Some(result) = result else { return };
         self.file_picker_rx = None;
@@ -1274,20 +1555,34 @@ impl ChatApp {
                 .file_name()
                 .map(|f| f.to_string_lossy().to_string())
                 .unwrap_or_else(|| path.clone());
-            self.asr_file_path = path;
 
-            // Show file name and transcribe button
-            self.view.label(ids!(main_content.asr_welcome_overlay.asr_file_label.label))
-                .set_text(cx, &format!("Selected: {}", filename));
-            self.view.view(ids!(main_content.asr_welcome_overlay.asr_file_label))
-                .set_visible(cx, true);
-            self.view.view(ids!(main_content.asr_welcome_overlay.asr_transcribe_btn))
-                .set_visible(cx, true);
+            match self.chat_mode {
+                ChatMode::ImageGen => {
+                    if let Ok(bytes) = std::fs::read(&path) {
+                        use base64::Engine;
+                        let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                        self.image_ref_b64 = Some(b64);
+                        self.image_ref_path = path.clone();
+                        self.view.label(ids!(mode_controls.image_controls.image_ref_section.image_ref_file_label))
+                            .set_text(cx, &filename);
+                        let preview = self.view.image(ids!(mode_controls.image_controls.image_ref_section.image_ref_preview));
+                        preview.set_visible(cx, true);
+                        let _ = preview.load_image_file_by_path(cx, std::path::Path::new(&path));
+                    }
+                }
+                _ => {
+                    // ASR: auto-start transcription when file is selected
+                    self.asr_file_path = path;
+                    self.view.label(ids!(mode_controls.asr_controls.asr_file_label))
+                        .set_text(cx, &filename);
+                    self.start_asr_transcribe(cx, scope);
+                }
+            }
             self.view.redraw(cx);
         }
     }
 
-    /// ASR: Start transcription
+    /// ASR: Start transcription of the selected audio file, pushing a user message first
     fn start_asr_transcribe(&mut self, cx: &mut Cx, scope: &mut Scope) {
         let model_id = if let Some(store) = scope.data.get::<Store>() {
             store.get_active_local_model().unwrap_or("").to_string()
@@ -1296,8 +1591,31 @@ impl ChatApp {
         let file_path = self.asr_file_path.clone();
         if file_path.is_empty() { return; }
 
+        let filename = std::path::Path::new(&file_path)
+            .file_name()
+            .map(|f| f.to_string_lossy().to_string())
+            .unwrap_or_else(|| file_path.clone());
+
+        // Push a user message showing what we're transcribing
+        {
+            use moly_kit::aitk::protocol::{EntityId, Message, MessageContent};
+            let mut ctrl = self.chat_controller.lock().unwrap();
+            ctrl.dispatch_mutation(VecMutation::Push(Message {
+                from: EntityId::User,
+                content: MessageContent {
+                    text: format!("Transcribe: {}", filename),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }));
+            self.last_mode_msg_count = ctrl.state().messages.len();
+        }
+
+        // Exit welcome mode since we're now showing messages
+        self.in_welcome_mode = false;
+
         self.mode_busy = true;
-        self.view.label(ids!(main_content.asr_welcome_overlay.asr_file_label.label))
+        self.view.label(ids!(mode_controls.asr_controls.asr_file_label))
             .set_text(cx, "Transcribing...");
         self.view.redraw(cx);
 
@@ -1337,21 +1655,18 @@ impl ChatApp {
         self.mode_rx = Some(rx);
     }
 
-    /// TTS: Start speech generation
-    fn start_tts_generate(&mut self, cx: &mut Cx, scope: &mut Scope) {
+    /// TTS: Start speech generation from the given text
+    fn start_tts_generate(&mut self, _cx: &mut Cx, scope: &mut Scope, text: String) {
         let model_id = if let Some(store) = scope.data.get::<Store>() {
             store.get_active_local_model().unwrap_or("").to_string()
         } else { return };
 
-        let text = self.view.text_input(ids!(main_content.tts_welcome_overlay.tts_input)).text();
         if text.is_empty() { return; }
 
+        let voice = TTS_VOICE_IDS.get(self.tts_voice_idx)
+            .copied().unwrap_or("vivian").to_string();
+
         self.mode_busy = true;
-        let status = self.view.view(ids!(main_content.tts_welcome_overlay.tts_status_label));
-        status.set_visible(cx, true);
-        self.view.label(ids!(main_content.tts_welcome_overlay.tts_status_label.label))
-            .set_text(cx, "Generating speech...");
-        self.view.redraw(cx);
 
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
@@ -1360,7 +1675,7 @@ impl ChatApp {
                     .timeout(std::time::Duration::from_secs(300))
                     .build()
                     .map_err(|e| e.to_string())?;
-                let body = serde_json::json!({"model": model_id, "input": text, "voice": "default"});
+                let body = serde_json::json!({"model": model_id, "input": text, "voice": voice});
                 let resp = client.post("http://localhost:8080/v1/audio/speech")
                     .json(&body)
                     .send()
@@ -1368,32 +1683,24 @@ impl ChatApp {
                 let bytes = resp.bytes().map_err(|e| e.to_string())?;
                 let out_path = "/tmp/ominix-chat-tts.wav";
                 std::fs::write(out_path, &bytes).map_err(|e| e.to_string())?;
-                // Auto-play
-                std::process::Command::new("afplay").arg(out_path).spawn().ok();
-                Ok("Playing audio".to_string())
+                Ok(out_path.to_string())
             })();
             tx.send(result).ok();
         });
         self.mode_rx = Some(rx);
     }
 
-    /// Image: Start generation
-    fn start_image_generate(&mut self, cx: &mut Cx, scope: &mut Scope) {
+    /// Image: Start generation from the given prompt
+    fn start_image_generate(&mut self, _cx: &mut Cx, scope: &mut Scope, prompt: String) {
         let model_id = if let Some(store) = scope.data.get::<Store>() {
             store.get_active_local_model().unwrap_or("").to_string()
         } else { return };
 
-        let prompt = self.view.text_input(ids!(main_content.image_welcome_overlay.image_prompt_input)).text();
         if prompt.is_empty() { return; }
-        let neg_prompt = self.view.text_input(ids!(main_content.image_welcome_overlay.image_neg_prompt_input)).text();
+        let neg_prompt = self.view.text_input(ids!(mode_controls.image_controls.image_neg_row.image_neg_prompt_input)).text();
+        let ref_image_b64 = self.image_ref_b64.clone();
 
         self.mode_busy = true;
-        let status = self.view.view(ids!(main_content.image_welcome_overlay.image_status_label));
-        status.set_visible(cx, true);
-        self.view.label(ids!(main_content.image_welcome_overlay.image_status_label.label))
-            .set_text(cx, "Generating image...");
-        self.view.image(ids!(main_content.image_welcome_overlay.image_result)).set_visible(cx, false);
-        self.view.redraw(cx);
 
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
@@ -1412,11 +1719,20 @@ impl ChatApp {
                 if !neg_prompt.is_empty() {
                     body["negative_prompt"] = serde_json::Value::String(neg_prompt);
                 }
+                if let Some(ref_b64) = ref_image_b64 {
+                    body["image"] = serde_json::Value::String(ref_b64);
+                }
                 let resp = client.post("http://localhost:8080/v1/images/generations")
                     .json(&body)
                     .send()
                     .map_err(|e| e.to_string())?;
-                let json: serde_json::Value = resp.json().map_err(|e| e.to_string())?;
+                let status = resp.status();
+                let resp_text = resp.text().map_err(|e| format!("reading response: {}", e))?;
+                if !status.is_success() {
+                    return Err(format!("API error {}: {}", status, &resp_text[..resp_text.len().min(500)]));
+                }
+                let json: serde_json::Value = serde_json::from_str(&resp_text)
+                    .map_err(|e| format!("parsing JSON: {} (first 200 chars: {})", e, &resp_text[..resp_text.len().min(200)]))?;
                 let b64 = json["data"][0]["b64_json"].as_str()
                     .ok_or_else(|| format!("Unexpected response: {}", json))?;
                 use base64::Engine;
@@ -1556,6 +1872,7 @@ impl ChatApp {
 
             let mut ctrl = self.chat_controller.lock().unwrap();
             ctrl.set_client(Some(Box::new(a2ui_client)));
+            self.skip_chat_draw_frames = 2;
 
             // Don't set a default bot_id here - we'll restore the saved model
             // or select first available after models are loaded
@@ -1744,27 +2061,26 @@ impl ChatApp {
             if self.current_provider_id.as_deref() != Some(provider_id) {
                 // Use get_bot_client to support all client types (text, realtime, image)
                 if let Some(client) = store.providers_manager.get_bot_client(provider_id) {
-                    // Get filtered bots before switching (set_client clears them)
                     let all_bots = store.providers_manager.get_all_bots();
                     let enabled_bots = Self::filter_enabled_bots(all_bots, store);
 
-                    {
-                        // Create A2UI wrapper around the client
-                        let a2ui_client = A2uiClient::new(client);
-                        self.a2ui_client = Some(a2ui_client.clone());
+                    let a2ui_client = A2uiClient::new(client);
+                    self.a2ui_client = Some(a2ui_client.clone());
 
+                    {
                         let mut ctrl = self.chat_controller.lock().unwrap();
+                        // Preserve bot_id — set_client clears all state
+                        let saved_bot_id = ctrl.state().bot_id.clone();
                         ctrl.set_client(Some(Box::new(a2ui_client)));
+                        // Restore bots + bot_id atomically so draw never sees empty state
+                        ctrl.dispatch_mutation(VecMutation::Set(enabled_bots));
+                        if let Some(bid) = saved_bot_id {
+                            ctrl.dispatch_mutation(ChatStateMutation::SetBotId(Some(bid)));
+                        }
                     }
 
                     self.current_provider_id = Some(provider_id.to_string());
                     ::log::info!("Switched to provider: {} for model", provider_id);
-
-                    // Re-set the filtered bots after set_client cleared them
-                    {
-                        let mut ctrl = self.chat_controller.lock().unwrap();
-                        ctrl.dispatch_mutation(VecMutation::Set(enabled_bots));
-                    }
                 }
             }
         } else {
@@ -1950,10 +2266,6 @@ impl ChatApp {
         };
 
         if let Some(client) = client {
-            let a2ui_client = A2uiClient::new(client);
-            self.a2ui_client = Some(a2ui_client.clone());
-
-            // get_all_bots / filter before switching (set_client clears bots in controller)
             let (all_bots, enabled_bots) = {
                 let Some(store) = scope.data.get::<Store>() else { return };
                 let all = store.providers_manager.get_all_bots().to_vec();
@@ -1961,21 +2273,32 @@ impl ChatApp {
                 (all, enabled)
             };
 
-            {
-                let mut ctrl = self.chat_controller.lock().unwrap();
-                ctrl.set_client(Some(Box::new(a2ui_client)));
-            }
-            self.current_provider_id = Some("ominix-local".to_string());
-
-            // Force re-set controller widget to propagate new client
-            self.force_reset_controller_on_widget(cx);
-
-            // Re-dispatch bots (set_client cleared them inside the controller)
-            {
+            // Only call set_client if the provider actually changed.
+            let provider_changed = self.current_provider_id.as_deref() != Some("ominix-local");
+            if provider_changed {
+                let a2ui_client = A2uiClient::new(client);
+                self.a2ui_client = Some(a2ui_client.clone());
+                {
+                    let mut ctrl = self.chat_controller.lock().unwrap();
+                    let saved_bot_id = ctrl.state().bot_id.clone();
+                    ctrl.set_client(Some(Box::new(a2ui_client)));
+                    ctrl.dispatch_mutation(VecMutation::Set(enabled_bots));
+                    if let Some(bid) = saved_bot_id {
+                        ctrl.dispatch_mutation(ChatStateMutation::SetBotId(Some(bid)));
+                    }
+                }
+                self.current_provider_id = Some("ominix-local".to_string());
+                self.force_reset_controller_on_widget(cx);
+                self.skip_chat_draw_frames = 2;
+            } else {
+                // Same provider — just update bots list without touching the client
                 let mut ctrl = self.chat_controller.lock().unwrap();
                 ctrl.dispatch_mutation(VecMutation::Set(enabled_bots));
             }
-            let _ = all_bots; // used above for filter
+            let _ = all_bots;
+
+            self.view.redraw(cx);
+            self.view.chat(ids!(main_content.chat)).redraw(cx);
         }
 
         // Select the local model bot

@@ -77,6 +77,9 @@ pub struct Store {
     /// Used by ChatApp to adapt its UI (e.g. image drop zone for VLM, audio controls for ASR).
     pub active_local_model_category: Option<RegistryCategory>,
 
+    /// Whether the active local model supports input images (e.g. image editing models).
+    pub active_local_model_supports_images: bool,
+
     /// Pending model to open in a new chat session.
     /// Set by StoreAction::OpenChatWithModel; cleared once consumed by ChatApp.
     pub pending_chat_model: Option<(String, RegistryCategory)>,
@@ -95,6 +98,7 @@ impl Default for Store {
             initialized: false,
             active_local_model: None,
             active_local_model_category: None,
+            active_local_model_supports_images: false,
             pending_chat_model: None,
         }
     }
@@ -132,6 +136,7 @@ impl Store {
             initialized: true,
             active_local_model: None,
             active_local_model_category: None,
+            active_local_model_supports_images: false,
             pending_chat_model: None,
         }
     }
@@ -156,6 +161,7 @@ impl Store {
         }
         if model_id.is_none() {
             self.active_local_model_category = None;
+            self.active_local_model_supports_images = false;
         }
         self.active_local_model = model_id;
     }
@@ -163,6 +169,11 @@ impl Store {
     /// Set the category of the active local model
     pub fn set_active_local_model_category(&mut self, category: Option<RegistryCategory>) {
         self.active_local_model_category = category;
+    }
+
+    /// Set whether the active local model supports input images
+    pub fn set_active_local_model_supports_images(&mut self, supports: bool) {
+        self.active_local_model_supports_images = supports;
     }
 
     /// Get the category of the active local model

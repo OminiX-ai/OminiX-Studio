@@ -85,6 +85,8 @@ pub enum PanelType {
     AsrTranscription,
     TtsSynthesis,
     ImageGeneration,
+    /// Image editing: takes a reference image + text prompt → edited image
+    ImageEdit,
     VideoGeneration,
 }
 
@@ -195,6 +197,16 @@ fn default_icon() -> String {
     "app".to_string()
 }
 
+// ─── Extra Sources ────────────────────────────────────────────────────────────
+
+/// An additional model file needed alongside the primary source.
+/// Used for multi-component models (e.g. separate VAE, vision encoder, LLM files).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtraModelSource {
+    pub source: RegistrySource,
+    pub storage: RegistryStorage,
+}
+
 // ─── Registry Model ───────────────────────────────────────────────────────────
 
 /// A single model entry in the registry.
@@ -223,6 +235,10 @@ pub struct RegistryModel {
     /// Sub-group label within a category (e.g. "Qwen3", "GLM", "Qwen3.5")
     #[serde(default)]
     pub subfolder: String,
+    /// Additional model files from separate sources (e.g. VAE, vision encoder).
+    /// Downloaded sequentially after the primary source.
+    #[serde(default)]
+    pub extra_sources: Vec<ExtraModelSource>,
 }
 
 impl RegistryModel {

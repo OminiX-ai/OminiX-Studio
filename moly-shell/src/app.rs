@@ -78,7 +78,24 @@ live_design! {
             }
         }
         <View> { width: Fill, height: Fill }
-        date_label = <Label> { draw_text: { color: (TEXT_MUTED), text_style: { font_size: 10.0 } } }
+        footer = <View> {
+            width: Fill, height: Fit
+            flow: Right
+            align: {y: 1.0}
+            spacing: 8
+            category_tag = <RoundedView> {
+                width: Fit, height: Fit
+                padding: {left: 6, right: 6, top: 2, bottom: 2}
+                show_bg: true
+                draw_bg: { border_radius: 4.0, color: #6366f1 }
+                visible: false
+                tag_label = <Label> {
+                    draw_text: { color: #ffffff, text_style: <FONT_MEDIUM>{ font_size: 8.5 } }
+                    text: "LLM"
+                }
+            }
+            date_label = <Label> { draw_text: { color: (TEXT_MUTED), text_style: { font_size: 10.0 } } }
+        }
     }
 
     // Row of 4 chat tiles for grid layout
@@ -1320,13 +1337,14 @@ enum ShellModelLoadState {
 
 #[derive(Clone, Debug)]
 struct DownloadedModelEntry {
-    registry_id:   String,
-    name:          String,
-    api_model_id:  String,
-    category:      RegistryCategory,
-    model_type_str: &'static str,
-    size_display:  String,
-    local_path:    String,
+    registry_id:      String,
+    name:             String,
+    api_model_id:     String,
+    category:         RegistryCategory,
+    model_type_str:   &'static str,
+    size_display:     String,
+    local_path:       String,
+    supports_images:  bool,
 }
 
 fn category_to_model_type(cat: RegistryCategory) -> &'static str {
@@ -1473,6 +1491,9 @@ pub struct App {
     /// Category of the loaded model
     #[rust]
     loaded_model_category: Option<RegistryCategory>,
+    /// Whether the loaded model supports input images (image editing)
+    #[rust]
+    loaded_model_supports_images: bool,
     /// Load state for the shell-level model selector
     #[rust]
     shell_load_state: ShellModelLoadState,
@@ -2040,13 +2061,14 @@ impl App {
         self.downloaded_models = registry.models.iter()
             .filter(|m| shell_is_model_downloaded(m))
             .map(|m| DownloadedModelEntry {
-                registry_id:    m.id.clone(),
-                name:           m.name.clone(),
-                api_model_id:   m.runtime.api_model_id.clone(),
-                category:       m.category,
-                model_type_str: category_to_model_type(m.category),
-                size_display:   m.storage.size_display.clone(),
-                local_path:     m.storage.expanded_path(),
+                registry_id:     m.id.clone(),
+                name:            m.name.clone(),
+                api_model_id:    m.runtime.api_model_id.clone(),
+                category:        m.category,
+                model_type_str:  category_to_model_type(m.category),
+                size_display:    m.storage.size_display.clone(),
+                local_path:      m.storage.expanded_path(),
+                supports_images: m.runtime.supports_images,
             })
             .collect();
         ::log::info!("Model selector: {} downloaded models", self.downloaded_models.len());
@@ -2313,6 +2335,7 @@ impl App {
         self.loaded_model_id     = entry.registry_id.clone();
         self.loaded_model_name   = entry.name.clone();
         self.loaded_model_category = Some(entry.category);
+        self.loaded_model_supports_images = entry.supports_images;
 
         let api_model_id  = entry.api_model_id.clone();
         let model_type    = entry.model_type_str.to_string();
@@ -2364,8 +2387,9 @@ impl App {
             Ok(()) => {
                 self.shell_load_state = ShellModelLoadState::Loaded;
 
-                // Set category BEFORE injecting model (capabilities depend on category)
+                // Set category + capabilities BEFORE injecting model
                 self.store.set_active_local_model_category(self.loaded_model_category);
+                self.store.set_active_local_model_supports_images(self.loaded_model_supports_images);
                 let model_id = self.loaded_model_id.clone();
                 self.store.set_active_local_model(Some(model_id));
 
@@ -2682,6 +2706,14 @@ impl App {
     }
 
     /// Update the chat history tiles with data from Store
+    fn hex_to_vec4(hex: &str) -> Vec4 {
+        let hex = hex.trim_start_matches('#');
+        let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(0) as f32 / 255.0;
+        let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(0) as f32 / 255.0;
+        let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(0) as f32 / 255.0;
+        Vec4 { x: r, y: g, z: b, w: 1.0 }
+    }
+
     fn update_chat_tiles(&mut self, cx: &mut Cx) {
         // Only show chats that have messages (filter out empty chats)
         // Also filter by search query if present
@@ -2732,8 +2764,20 @@ impl App {
                     self.ui.label(ids!(body.body_layout.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.header.title))
                         .set_text(cx, &chat.title);
                     let date_str = chat.accessed_at.format("%b %d, %Y").to_string();
-                    self.ui.label(ids!(body.body_layout.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.date_label))
+                    self.ui.label(ids!(body.body_layout.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.footer.date_label))
                         .set_text(cx, &date_str);
+
+                    // Set category tag
+                    let tag_view = self.ui.view(ids!(body.body_layout.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.footer.category_tag));
+                    if let Some(cat) = chat.model_category {
+                        tag_view.set_visible(cx, true);
+                        self.ui.label(ids!(body.body_layout.content.main_content.chat_history_page.chat_tiles_scroll.chat_tiles_container.$row.$tile.footer.category_tag.tag_label))
+                            .set_text(cx, cat.label());
+                        let color = Self::hex_to_vec4(cat.color());
+                        tag_view.apply_over(cx, live! { draw_bg: { color: (color) } });
+                    } else {
+                        tag_view.set_visible(cx, false);
+                    }
                 }
             };
         }

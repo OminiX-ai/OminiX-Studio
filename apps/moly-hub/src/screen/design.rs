@@ -145,6 +145,28 @@ live_design! {
                     wrap: Ellipsis
                 }
             }
+            downloaded_badge = <View> {
+                width: Fit, height: Fit
+                padding: {left: 6, right: 6, top: 2, bottom: 2}
+                margin: {left: 6}
+                visible: false
+                show_bg: true
+                draw_bg: {
+                    fn pixel(self) -> vec4 {
+                        let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                        sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 3.0);
+                        sdf.fill(#d1fae5);
+                        return sdf.result;
+                    }
+                }
+                <Label> {
+                    text: "Downloaded"
+                    draw_text: {
+                        fn get_color(self) -> vec4 { return #047857; }
+                        text_style: <FONT_MEDIUM>{ font_size: 9.0 }
+                    }
+                }
+            }
         }
         inline_progress = <HubInlineProgress> { visible: false }
     }
@@ -287,6 +309,7 @@ live_design! {
     HubPanelInput = <TextInput> {
         width: Fill, height: 36
         margin: {bottom: 4}
+        cursor: Text
         draw_bg: {
             fn pixel(self) -> vec4 {
                 let sdf = Sdf2d::viewport(self.pos * self.rect_size);
@@ -300,6 +323,15 @@ live_design! {
             color: #374151
             color_empty: #9ca3af
             text_style: { font_size: 12.0 }
+        }
+        draw_cursor: {
+            uniform border_radius: 0.5
+            fn pixel(self) -> vec4 {
+                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, self.border_radius);
+                sdf.fill(mix(#00000000, #1f2937, (1.0 - self.blink) * self.focus));
+                return sdf.result;
+            }
         }
     }
 
@@ -727,6 +759,7 @@ live_design! {
                 search_input = <TextInput> {
                     width: Fill, height: 32
                     empty_text: "Search models..."
+                    cursor: Text
                     draw_bg: {
                         fn pixel(self) -> vec4 {
                             let sdf = Sdf2d::viewport(self.pos * self.rect_size);
@@ -740,6 +773,15 @@ live_design! {
                         color: #374151
                         color_empty: #9ca3af
                         text_style: { font_size: 12.0 }
+                    }
+                    draw_cursor: {
+                        uniform border_radius: 0.5
+                        fn pixel(self) -> vec4 {
+                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                            sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, self.border_radius);
+                            sdf.fill(mix(#00000000, #1f2937, (1.0 - self.blink) * self.focus));
+                            return sdf.result;
+                        }
                     }
                 }
             }
@@ -1108,47 +1150,180 @@ live_design! {
                 }
             }
 
-            // ── Video Generation Panel (Coming Soon) ───────────────────────────
-            hub_video_panel = <View> {
+            // ── Image Edit Panel ────────────────────────────────────────────────
+            hub_image_edit_panel = <ScrollYView> {
                 width: Fill, height: Fill
                 visible: false
                 flow: Down
-                align: {x: 0.5, y: 0.35}
-                spacing: 16.0
-                padding: 40.0
 
-                <Label> {
-                    text: "Coming Soon"
-                    draw_text: {
-                        fn get_color(self) -> vec4 { return #38bdf8; }
-                        text_style: <FONT_SEMIBOLD>{ font_size: 22.0 }
+                hub_panel_header = <HubPanelHeader> {}
+
+                <View> {
+                    width: Fill, height: 1
+                    show_bg: true
+                    draw_bg: { fn pixel(self) -> vec4 { return #f1f5f9; } }
+                }
+
+                <View> {
+                    width: Fill, height: Fit
+                    flow: Down
+                    padding: {left: 28, right: 28, top: 16, bottom: 32}
+
+                    <HubInputLabel> { text: "REFERENCE IMAGE" }
+
+                    // Drag-and-drop zone for reference image
+                    img_edit_drop_zone = <View> {
+                        width: Fill, height: 64
+                        margin: {bottom: 6}
+                        show_bg: true
+                        draw_bg: {
+                            instance drag_over: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                let border = mix(#d1d5db, #ec4899, self.drag_over);
+                                let fill = mix(#f9fafb, #fdf2f8, self.drag_over);
+                                sdf.box(2.0, 2.0, self.rect_size.x - 4.0, self.rect_size.y - 4.0, 8.0);
+                                sdf.fill(border);
+                                sdf.box(3.5, 3.5, self.rect_size.x - 7.0, self.rect_size.y - 7.0, 6.5);
+                                sdf.fill(fill);
+                                return sdf.result;
+                            }
+                        }
+                        align: {x: 0.5, y: 0.5}
+
+                        img_edit_drop_label = <Label> {
+                            text: "Drop reference image here"
+                            draw_text: {
+                                color: #9ca3af
+                                text_style: { font_size: 12.0 }
+                            }
+                        }
+                    }
+
+                    <View> {
+                        width: Fill, height: Fit
+                        flow: Right
+                        align: {y: 0.5}
+                        margin: {bottom: 12}
+                        img_edit_image_path = <HubPanelInput> {
+                            width: Fill, height: 36
+                            margin: {right: 6, bottom: 0}
+                        }
+                        img_edit_browse_btn = <HubActionButton> { text: "Browse..." margin: {right: 0} }
+                    }
+
+                    <HubInputLabel> { text: "EDIT INSTRUCTION" }
+                    img_edit_prompt = <HubPanelInput> {
+                        height: 72
+                        empty_text: "Change the background to a sunny beach..."
+                    }
+
+                    <View> {
+                        width: Fill, height: Fit
+                        flow: Right
+                        margin: {top: 10, bottom: 16}
+                        img_edit_btn = <HubActionButton> { text: "Edit Image" }
+                    }
+
+                    img_edit_status = <HubPanelStatus> {}
+
+                    // Preview of the edited result (hidden until generated)
+                    img_edit_preview = <Image> {
+                        width: Fill, height: 400
+                        visible: false
+                        margin: {top: 16, bottom: 8}
+                        fit: Biggest
+                    }
+
+                    // File path + Finder button row (hidden until generated)
+                    img_edit_result_row = <View> {
+                        width: Fill, height: Fit
+                        flow: Right
+                        align: {y: 0.5}
+                        margin: {bottom: 8}
+                        visible: false
+                        spacing: 8
+
+                        img_edit_output_path = <Label> {
+                            width: Fill, height: Fit
+                            draw_text: {
+                                fn get_color(self) -> vec4 { return #374151; }
+                                text_style: { font_size: 11.0 }
+                                wrap: Word
+                            }
+                        }
+
+                        img_edit_open_finder_btn = <HubActionButton> {
+                            text: "Show in Finder"
+                            width: Fit
+                        }
+                    }
+                }
+            }
+
+            // ── Video Generation Panel ─────────────────────────────────────────
+            hub_video_panel = <ScrollYView> {
+                width: Fill, height: Fill
+                visible: false
+                flow: Down
+
+                hub_panel_header = <HubPanelHeader> {}
+
+                hub_video_divider = <View> {
+                    width: Fill, height: 1
+                    show_bg: true
+                    draw_bg: {
+                        fn pixel(self) -> vec4 { return #f1f5f9; }
                     }
                 }
 
-                hub_video_name = <Label> {
-                    text: ""
-                    draw_text: {
-                        fn get_color(self) -> vec4 { return #1f2937; }
-                        text_style: <FONT_SEMIBOLD>{ font_size: 16.0 }
-                    }
-                }
+                <View> {
+                    width: Fill, height: Fit
+                    flow: Down
+                    padding: {left: 28, right: 28, top: 16, bottom: 32}
 
-                hub_video_desc = <Label> {
-                    width: 480.0
-                    text: ""
-                    draw_text: {
-                        fn get_color(self) -> vec4 { return #6b7280; }
-                        text_style: { font_size: 13.0 }
-                        wrap: Word
+                    <HubInputLabel> { text: "PROMPT" }
+                    vid_prompt = <HubPanelInput> {
+                        height: 72
+                        empty_text: "A cat walking on the beach at sunset..."
                     }
-                }
 
-                <Label> {
-                    text: "Video generation support is under development.\nCheck back in a future update."
-                    draw_text: {
-                        fn get_color(self) -> vec4 { return #9ca3af; }
-                        text_style: { font_size: 12.0 }
-                        wrap: Word
+                    <View> {
+                        width: Fill, height: Fit
+                        flow: Right
+                        margin: {top: 10, bottom: 16}
+                        vid_generate_btn = <HubActionButton> { text: "Generate Video" }
+                    }
+
+                    vid_status = <HubPanelStatus> {}
+
+                    // File path + action buttons (hidden until generated)
+                    vid_result_row = <View> {
+                        width: Fill, height: Fit
+                        flow: Right
+                        align: {y: 0.5}
+                        margin: {top: 8, bottom: 8}
+                        visible: false
+                        spacing: 8
+
+                        vid_output_path = <Label> {
+                            width: Fill, height: Fit
+                            draw_text: {
+                                fn get_color(self) -> vec4 { return #374151; }
+                                text_style: { font_size: 11.0 }
+                                wrap: Word
+                            }
+                        }
+
+                        vid_play_btn = <HubActionButton> {
+                            text: "Play"
+                            width: Fit
+                        }
+
+                        vid_open_finder_btn = <HubActionButton> {
+                            text: "Show in Finder"
+                            width: Fit
+                        }
                     }
                 }
             }

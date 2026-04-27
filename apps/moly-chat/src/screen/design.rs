@@ -102,13 +102,29 @@ live_design! {
                 text: "New Session"
             }
 
-            date_label = <Label> {
-                width: Fill
-                draw_text: {
-                    color: #6b7280
-                    text_style: { font_size: 10.0 }
+            category_row = <View> {
+                width: Fit, height: Fit
+                flow: Right
+                spacing: 4
+                category_tag = <RoundedView> {
+                    width: Fit, height: Fit
+                    padding: {left: 4, right: 4, top: 1, bottom: 1}
+                    show_bg: true
+                    draw_bg: { border_radius: 3.0, color: #6366f1 }
+                    visible: false
+                    tag_label = <Label> {
+                        draw_text: { color: #ffffff, text_style: <FONT_MEDIUM>{ font_size: 7.5 } }
+                        text: ""
+                    }
                 }
-                text: ""
+                date_label = <Label> {
+                    width: Fit
+                    draw_text: {
+                        color: #6b7280
+                        text_style: { font_size: 10.0 }
+                    }
+                    text: ""
+                }
             }
         }
 
@@ -254,11 +270,367 @@ live_design! {
                 }
             }
 
-            status_label = <Label> {
-                text: "No provider configured - Go to Settings to add an API key"
-                draw_text: {
-                    color: #f59e0b
-                    text_style: <FONT_REGULAR>{ font_size: 11.0 }
+        }
+
+        // Mode-specific controls bar (TTS voice, Image settings, ASR upload)
+        mode_controls = <View> {
+            width: Fill, height: Fit
+            flow: Down
+            padding: {left: 16, right: 16, bottom: 8}
+            visible: false
+
+            // ── TTS voice selector ─────────────────────────────────────
+            tts_controls = <View> {
+                width: Fill, height: Fit
+                flow: Down
+                spacing: 6
+                visible: false
+
+                <Label> {
+                    width: Fit, height: Fit
+                    text: "Voice"
+                    draw_text: { color: #374151, text_style: <FONT_SEMIBOLD>{ font_size: 12.0 } }
+                }
+                tts_voice_row = <View> {
+                    width: Fill, height: Fit
+                    flow: Right
+                    spacing: 6
+                    margin: {bottom: 4}
+
+                    tts_voice_0 = <View> {
+                        width: Fit, height: 28, padding: {left: 10, right: 10}, cursor: Hand
+                        align: {x: 0.5, y: 0.5}, show_bg: true
+                        draw_bg: { instance selected: 1.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.fill(mix(#f3f4f6, #fef3c7, self.selected));
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.stroke(mix(#d1d5db, #f59e0b, self.selected), 1.0);
+                                return sdf.result;
+                            }
+                        }
+                        <Label> { text: "Vivian", draw_text: { color: #374151, text_style: <FONT_MEDIUM>{ font_size: 11.0 } } }
+                    }
+                    tts_voice_1 = <View> {
+                        width: Fit, height: 28, padding: {left: 10, right: 10}, cursor: Hand
+                        align: {x: 0.5, y: 0.5}, show_bg: true
+                        draw_bg: { instance selected: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.fill(mix(#f3f4f6, #fef3c7, self.selected));
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.stroke(mix(#d1d5db, #f59e0b, self.selected), 1.0);
+                                return sdf.result;
+                            }
+                        }
+                        <Label> { text: "Serena", draw_text: { color: #374151, text_style: <FONT_MEDIUM>{ font_size: 11.0 } } }
+                    }
+                    tts_voice_2 = <View> {
+                        width: Fit, height: 28, padding: {left: 10, right: 10}, cursor: Hand
+                        align: {x: 0.5, y: 0.5}, show_bg: true
+                        draw_bg: { instance selected: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.fill(mix(#f3f4f6, #fef3c7, self.selected));
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.stroke(mix(#d1d5db, #f59e0b, self.selected), 1.0);
+                                return sdf.result;
+                            }
+                        }
+                        <Label> { text: "Ryan", draw_text: { color: #374151, text_style: <FONT_MEDIUM>{ font_size: 11.0 } } }
+                    }
+                    tts_voice_3 = <View> {
+                        width: Fit, height: 28, padding: {left: 10, right: 10}, cursor: Hand
+                        align: {x: 0.5, y: 0.5}, show_bg: true
+                        draw_bg: { instance selected: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.fill(mix(#f3f4f6, #fef3c7, self.selected));
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.stroke(mix(#d1d5db, #f59e0b, self.selected), 1.0);
+                                return sdf.result;
+                            }
+                        }
+                        <Label> { text: "Aiden", draw_text: { color: #374151, text_style: <FONT_MEDIUM>{ font_size: 11.0 } } }
+                    }
+                    tts_voice_4 = <View> {
+                        width: Fit, height: 28, padding: {left: 10, right: 10}, cursor: Hand
+                        align: {x: 0.5, y: 0.5}, show_bg: true
+                        draw_bg: { instance selected: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.fill(mix(#f3f4f6, #fef3c7, self.selected));
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.stroke(mix(#d1d5db, #f59e0b, self.selected), 1.0);
+                                return sdf.result;
+                            }
+                        }
+                        <Label> { text: "English Male", draw_text: { color: #374151, text_style: <FONT_MEDIUM>{ font_size: 11.0 } } }
+                    }
+                }
+                tts_voice_row_zh = <View> {
+                    width: Fill, height: Fit
+                    flow: Right
+                    spacing: 6
+
+                    tts_voice_5 = <View> {
+                        width: Fit, height: 28, padding: {left: 10, right: 10}, cursor: Hand
+                        align: {x: 0.5, y: 0.5}, show_bg: true
+                        draw_bg: { instance selected: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.fill(mix(#f3f4f6, #fef3c7, self.selected));
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.stroke(mix(#d1d5db, #f59e0b, self.selected), 1.0);
+                                return sdf.result;
+                            }
+                        }
+                        <Label> { text: "Uncle Fu", draw_text: { color: #374151, text_style: <FONT_MEDIUM>{ font_size: 11.0 } } }
+                    }
+                    tts_voice_6 = <View> {
+                        width: Fit, height: 28, padding: {left: 10, right: 10}, cursor: Hand
+                        align: {x: 0.5, y: 0.5}, show_bg: true
+                        draw_bg: { instance selected: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.fill(mix(#f3f4f6, #fef3c7, self.selected));
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.stroke(mix(#d1d5db, #f59e0b, self.selected), 1.0);
+                                return sdf.result;
+                            }
+                        }
+                        <Label> { text: "Chinese Female", draw_text: { color: #374151, text_style: <FONT_MEDIUM>{ font_size: 11.0 } } }
+                    }
+                    tts_voice_7 = <View> {
+                        width: Fit, height: 28, padding: {left: 10, right: 10}, cursor: Hand
+                        align: {x: 0.5, y: 0.5}, show_bg: true
+                        draw_bg: { instance selected: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.fill(mix(#f3f4f6, #fef3c7, self.selected));
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.stroke(mix(#d1d5db, #f59e0b, self.selected), 1.0);
+                                return sdf.result;
+                            }
+                        }
+                        <Label> { text: "Chinese Male", draw_text: { color: #374151, text_style: <FONT_MEDIUM>{ font_size: 11.0 } } }
+                    }
+                    tts_voice_8 = <View> {
+                        width: Fit, height: 28, padding: {left: 10, right: 10}, cursor: Hand
+                        align: {x: 0.5, y: 0.5}, show_bg: true
+                        draw_bg: { instance selected: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.fill(mix(#f3f4f6, #fef3c7, self.selected));
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.stroke(mix(#d1d5db, #f59e0b, self.selected), 1.0);
+                                return sdf.result;
+                            }
+                        }
+                        <Label> { text: "Dialect", draw_text: { color: #374151, text_style: <FONT_MEDIUM>{ font_size: 11.0 } } }
+                    }
+                }
+
+                // Play/Save controls for latest audio
+                tts_audio_controls = <View> {
+                    width: Fill, height: Fit
+                    flow: Right
+                    spacing: 8
+                    margin: {top: 4}
+                    visible: false
+
+                    tts_play_btn = <View> {
+                        width: Fit, height: 26, padding: {left: 10, right: 10}
+                        cursor: Hand, align: {x: 0.5, y: 0.5}
+                        show_bg: true
+                        draw_bg: {
+                            instance hover: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.fill(mix(#3b82f6, #2563db, self.hover));
+                                return sdf.result;
+                            }
+                        }
+                        animator: { hover = {
+                            default: off
+                            off = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 0.0}} }
+                            on  = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 1.0}} }
+                        }}
+                        tts_play_label = <Label> {
+                            text: "▶ Play"
+                            draw_text: { color: #ffffff, text_style: <FONT_MEDIUM>{ font_size: 10.5 } }
+                        }
+                    }
+                    tts_save_btn = <View> {
+                        width: Fit, height: 26, padding: {left: 10, right: 10}
+                        cursor: Hand, align: {x: 0.5, y: 0.5}
+                        show_bg: true
+                        draw_bg: {
+                            instance hover: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.fill(mix(#10b981, #059669, self.hover));
+                                return sdf.result;
+                            }
+                        }
+                        animator: { hover = {
+                            default: off
+                            off = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 0.0}} }
+                            on  = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 1.0}} }
+                        }}
+                        <Label> {
+                            text: "⬇ Save"
+                            draw_text: { color: #ffffff, text_style: <FONT_MEDIUM>{ font_size: 10.5 } }
+                        }
+                    }
+                    tts_audio_info = <Label> {
+                        width: Fit, height: Fit
+                        text: ""
+                        draw_text: { color: #6b7280, text_style: <FONT_REGULAR>{ font_size: 10.0 } }
+                    }
+                }
+            }
+
+            // ── Image gen controls ─────────────────────────────────────
+            image_controls = <View> {
+                width: Fill, height: Fit
+                flow: Down
+                spacing: 8
+                visible: false
+
+                image_ref_section = <View> {
+                    width: Fill, height: Fit
+                    flow: Right
+                    spacing: 12
+                    align: {y: 0.5}
+                    visible: false
+
+                    <Label> {
+                        width: Fit, height: Fit
+                        text: "Ref Image:"
+                        draw_text: { color: #374151, text_style: <FONT_SEMIBOLD>{ font_size: 12.0 } }
+                    }
+                    image_ref_browse_btn = <View> {
+                        width: Fit, height: 28, cursor: Hand
+                        align: {x: 0.5, y: 0.5}
+                        padding: {left: 12, right: 12}
+                        show_bg: true
+                        draw_bg: {
+                            instance hover: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.fill(mix(#f3f4f6, #e5e7eb, self.hover));
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.stroke(#d1d5db, 1.0);
+                                return sdf.result;
+                            }
+                        }
+                        animator: {
+                            hover = {
+                                default: off
+                                off = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 0.0}} }
+                                on  = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 1.0}} }
+                            }
+                        }
+                        <Label> { text: "Browse...", draw_text: { color: #374151, text_style: <FONT_REGULAR>{ font_size: 12.0 } } }
+                    }
+                    image_ref_file_label = <Label> {
+                        width: Fit, height: Fit
+                        text: "No image selected"
+                        draw_text: { color: #9ca3af, text_style: <FONT_REGULAR>{ font_size: 11.0 } }
+                    }
+                    image_ref_preview = <Image> {
+                        width: 48, height: 48
+                        visible: false
+                    }
+                }
+
+                image_neg_row = <View> {
+                    width: Fill, height: Fit
+                    flow: Right
+                    spacing: 8
+                    align: {y: 0.5}
+
+                    <Label> {
+                        width: Fit, height: Fit
+                        text: "Negative:"
+                        draw_text: { color: #374151, text_style: <FONT_SEMIBOLD>{ font_size: 12.0 } }
+                    }
+                    image_neg_prompt_input = <TextInput> {
+                        width: Fill, height: 28
+                        empty_text: "Negative prompt (optional)"
+                        draw_bg: {
+                            color: #ffffff
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.fill(self.color);
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.stroke(#d1d5db, 1.0);
+                                return sdf.result;
+                            }
+                        }
+                        draw_text: { color: #1f2937, text_style: <FONT_REGULAR>{ font_size: 12.0 }, wrap: Ellipsis }
+                        draw_cursor: {
+                            uniform border_radius: 0.5
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, self.border_radius);
+                                sdf.fill(mix(#00000000, #1f2937, (1.0 - self.blink) * self.focus));
+                                return sdf.result;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── ASR file upload ────────────────────────────────────────
+            asr_controls = <View> {
+                width: Fill, height: Fit
+                flow: Right
+                spacing: 12
+                align: {y: 0.5}
+                visible: false
+
+                asr_browse_btn = <View> {
+                    width: Fit, height: 28, cursor: Hand
+                    align: {x: 0.5, y: 0.5}
+                    padding: {left: 12, right: 12}
+                    show_bg: true
+                    draw_bg: {
+                        instance hover: 0.0
+                        fn pixel(self) -> vec4 {
+                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                            sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                            sdf.fill(mix(#3b82f6, #2563db, self.hover));
+                            return sdf.result;
+                        }
+                    }
+                    animator: {
+                        hover = {
+                            default: off
+                            off = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 0.0}} }
+                            on  = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 1.0}} }
+                        }
+                    }
+                    <Label> { text: "Upload Audio", draw_text: { color: #ffffff, text_style: <FONT_MEDIUM>{ font_size: 12.0 } } }
+                }
+                asr_file_label = <Label> {
+                    width: Fit, height: Fit
+                    text: ""
+                    draw_text: { color: #6b7280, text_style: <FONT_REGULAR>{ font_size: 11.0 } }
                 }
             }
         }
@@ -298,336 +670,7 @@ live_design! {
                 }
             }
 
-            // ── ASR welcome overlay ────────────────────────────────────────
-            asr_welcome_overlay = <View> {
-                width: Fill, height: Fill
-                flow: Down
-                align: {x: 0.5, y: 0.3}
-                spacing: 24
-                padding: {left: 64, right: 64}
-                visible: false
-
-                <Label> {
-                    width: Fit, height: Fit
-                    text: "Speech Recognition"
-                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 28.0 } }
-                }
-                <Label> {
-                    width: Fit, height: Fit
-                    text: "Drop an audio file or click Browse to transcribe"
-                    draw_text: { color: #6b7280, text_style: <FONT_REGULAR>{ font_size: 14.0 } }
-                }
-
-                // Drop zone
-                asr_drop_zone = <View> {
-                    width: 480, height: 160
-                    align: {x: 0.5, y: 0.5}
-                    flow: Down
-                    spacing: 12
-                    show_bg: true
-                    draw_bg: {
-                        instance hover: 0.0
-                        fn pixel(self) -> vec4 {
-                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                            sdf.box(1.0, 1.0, self.rect_size.x - 2.0, self.rect_size.y - 2.0, 12.0);
-                            sdf.fill(mix(#f9fafb, #f0f9ff, self.hover));
-                            // Dashed border effect
-                            let bw = 1.5;
-                            sdf.box(bw, bw, self.rect_size.x - 2.0*bw, self.rect_size.y - 2.0*bw, 12.0);
-                            sdf.stroke(mix(#d1d5db, #3b82f6, self.hover), 1.5);
-                            return sdf.result;
-                        }
-                    }
-
-                    <Label> {
-                        width: Fit, height: Fit
-                        margin: {top: 40}
-                        text: "Drop audio file here"
-                        draw_text: { color: #9ca3af, text_style: <FONT_MEDIUM>{ font_size: 14.0 } }
-                        align: {x: 0.5}
-                    }
-                    <Label> {
-                        width: Fit, height: Fit
-                        text: "MP3, WAV, M4A, FLAC"
-                        draw_text: { color: #d1d5db, text_style: { font_size: 11.0 } }
-                        align: {x: 0.5}
-                    }
-
-                    asr_browse_btn = <View> {
-                        width: Fit, height: 36
-                        cursor: Hand
-                        align: {x: 0.5, y: 0.5}
-                        padding: {left: 20, right: 20}
-                        show_bg: true
-                        draw_bg: {
-                            instance hover: 0.0
-                            fn pixel(self) -> vec4 {
-                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                                sdf.box(1.0, 1.0, self.rect_size.x - 2.0, self.rect_size.y - 2.0, 8.0);
-                                sdf.fill(mix(#3b82f6, #2563db, self.hover));
-                                return sdf.result;
-                            }
-                        }
-                        animator: {
-                            hover = {
-                                default: off
-                                off = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 0.0}} }
-                                on  = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 1.0}} }
-                            }
-                        }
-                        <Label> {
-                            text: "Browse Files"
-                            draw_text: { color: #ffffff, text_style: <FONT_MEDIUM>{ font_size: 13.0 } }
-                        }
-                    }
-                }
-
-                // File name display (after selection)
-                asr_file_label = <View> {
-                    width: Fit, height: Fit
-                    visible: false
-                    label = <Label> {
-                        width: Fit, height: Fit
-                        text: ""
-                        draw_text: { color: #374151, text_style: <FONT_MEDIUM>{ font_size: 13.0 } }
-                    }
-                }
-
-                // Transcribe button
-                asr_transcribe_btn = <View> {
-                    width: Fit, height: 44
-                    cursor: Hand
-                    visible: false
-                    align: {x: 0.5, y: 0.5}
-                    padding: {left: 28, right: 28}
-                    show_bg: true
-                    draw_bg: {
-                        instance hover: 0.0
-                        fn pixel(self) -> vec4 {
-                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                            sdf.box(1.0, 1.0, self.rect_size.x - 2.0, self.rect_size.y - 2.0, 10.0);
-                            sdf.fill(mix(#10b981, #059669, self.hover));
-                            return sdf.result;
-                        }
-                    }
-                    animator: {
-                        hover = {
-                            default: off
-                            off = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 0.0}} }
-                            on  = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 1.0}} }
-                        }
-                    }
-                    <Label> {
-                        text: "Transcribe"
-                        draw_text: { color: #ffffff, text_style: <FONT_SEMIBOLD>{ font_size: 14.0 } }
-                    }
-                }
-
-                // Result area
-                asr_result_label = <View> {
-                    width: Fill, height: Fit
-                    visible: false
-                    label = <Label> {
-                        width: Fill, height: Fit
-                        text: ""
-                        draw_text: { color: #1f2937, text_style: <FONT_REGULAR>{ font_size: 14.0 }, wrap: Word }
-                    }
-                }
-            }
-
-            // ── TTS welcome overlay ────────────────────────────────────────
-            tts_welcome_overlay = <View> {
-                width: Fill, height: Fill
-                flow: Down
-                align: {x: 0.5, y: 0.3}
-                spacing: 24
-                padding: {left: 64, right: 64}
-                visible: false
-
-                <Label> {
-                    width: Fit, height: Fit
-                    text: "Text to Speech"
-                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 28.0 } }
-                }
-                <Label> {
-                    width: Fit, height: Fit
-                    text: "Enter text to convert to speech"
-                    draw_text: { color: #6b7280, text_style: <FONT_REGULAR>{ font_size: 14.0 } }
-                }
-
-                // Text input area
-                tts_input = <TextInput> {
-                    width: 520, height: 120
-                    empty_text: "Type your text here..."
-                    draw_bg: {
-                        color: #ffffff
-                        fn pixel(self) -> vec4 {
-                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                            sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 10.0);
-                            sdf.fill(self.color);
-                            sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 10.0);
-                            sdf.stroke(#d1d5db, 1.0);
-                            return sdf.result;
-                        }
-                    }
-                    draw_text: {
-                        color: #1f2937
-                        text_style: <FONT_REGULAR>{ font_size: 14.0 }
-                        wrap: Word
-                    }
-                }
-
-                // Generate button
-                tts_generate_btn = <View> {
-                    width: Fit, height: 44
-                    cursor: Hand
-                    align: {x: 0.5, y: 0.5}
-                    padding: {left: 28, right: 28}
-                    show_bg: true
-                    draw_bg: {
-                        instance hover: 0.0
-                        fn pixel(self) -> vec4 {
-                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                            sdf.box(1.0, 1.0, self.rect_size.x - 2.0, self.rect_size.y - 2.0, 10.0);
-                            sdf.fill(mix(#f59e0b, #d97706, self.hover));
-                            return sdf.result;
-                        }
-                    }
-                    animator: {
-                        hover = {
-                            default: off
-                            off = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 0.0}} }
-                            on  = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 1.0}} }
-                        }
-                    }
-                    <Label> {
-                        text: "Generate Speech"
-                        draw_text: { color: #ffffff, text_style: <FONT_SEMIBOLD>{ font_size: 14.0 } }
-                    }
-                }
-
-                // Status label
-                tts_status_label = <View> {
-                    width: Fit, height: Fit
-                    visible: false
-                    label = <Label> {
-                        width: Fit, height: Fit
-                        text: ""
-                        draw_text: { color: #6b7280, text_style: <FONT_REGULAR>{ font_size: 13.0 } }
-                    }
-                }
-            }
-
-            // ── Image Gen welcome overlay ──────────────────────────────────
-            image_welcome_overlay = <View> {
-                width: Fill, height: Fill
-                flow: Down
-                align: {x: 0.5, y: 0.25}
-                spacing: 20
-                padding: {left: 64, right: 64}
-                visible: false
-
-                <Label> {
-                    width: Fit, height: Fit
-                    text: "Image Generation"
-                    draw_text: { color: #1f2937, text_style: <FONT_SEMIBOLD>{ font_size: 28.0 } }
-                }
-                <Label> {
-                    width: Fit, height: Fit
-                    text: "Describe the image you want to create"
-                    draw_text: { color: #6b7280, text_style: <FONT_REGULAR>{ font_size: 14.0 } }
-                }
-
-                // Prompt input
-                image_prompt_input = <TextInput> {
-                    width: 520, height: 80
-                    empty_text: "A photorealistic landscape of..."
-                    draw_bg: {
-                        color: #ffffff
-                        fn pixel(self) -> vec4 {
-                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                            sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 10.0);
-                            sdf.fill(self.color);
-                            sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 10.0);
-                            sdf.stroke(#d1d5db, 1.0);
-                            return sdf.result;
-                        }
-                    }
-                    draw_text: {
-                        color: #1f2937
-                        text_style: <FONT_REGULAR>{ font_size: 14.0 }
-                        wrap: Word
-                    }
-                }
-
-                // Negative prompt (optional)
-                image_neg_prompt_input = <TextInput> {
-                    width: 520, height: 48
-                    empty_text: "Negative prompt (optional)"
-                    draw_bg: {
-                        color: #ffffff
-                        fn pixel(self) -> vec4 {
-                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                            sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 10.0);
-                            sdf.fill(self.color);
-                            sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 10.0);
-                            sdf.stroke(#d1d5db, 1.0);
-                            return sdf.result;
-                        }
-                    }
-                    draw_text: {
-                        color: #1f2937
-                        text_style: <FONT_REGULAR>{ font_size: 13.0 }
-                        wrap: Word
-                    }
-                }
-
-                // Generate button
-                image_generate_btn = <View> {
-                    width: Fit, height: 44
-                    cursor: Hand
-                    align: {x: 0.5, y: 0.5}
-                    padding: {left: 28, right: 28}
-                    show_bg: true
-                    draw_bg: {
-                        instance hover: 0.0
-                        fn pixel(self) -> vec4 {
-                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                            sdf.box(1.0, 1.0, self.rect_size.x - 2.0, self.rect_size.y - 2.0, 10.0);
-                            sdf.fill(mix(#8b5cf6, #7c3aed, self.hover));
-                            return sdf.result;
-                        }
-                    }
-                    animator: {
-                        hover = {
-                            default: off
-                            off = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 0.0}} }
-                            on  = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 1.0}} }
-                        }
-                    }
-                    <Label> {
-                        text: "Generate Image"
-                        draw_text: { color: #ffffff, text_style: <FONT_SEMIBOLD>{ font_size: 14.0 } }
-                    }
-                }
-
-                // Status label
-                image_status_label = <View> {
-                    width: Fit, height: Fit
-                    visible: false
-                    label = <Label> {
-                        width: Fit, height: Fit
-                        text: ""
-                        draw_text: { color: #6b7280, text_style: <FONT_REGULAR>{ font_size: 13.0 } }
-                    }
-                }
-
-                // Result image display
-                image_result = <Image> {
-                    width: 512, height: 512
-                    visible: false
-                }
-            }
         }
+
     }
 }

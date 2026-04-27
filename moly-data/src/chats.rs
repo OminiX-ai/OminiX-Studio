@@ -3,6 +3,8 @@ use moly_kit::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+use crate::model_registry::RegistryCategory;
+
 pub type ChatId = u128;
 
 const CHATS_DIR: &str = "chats";
@@ -13,6 +15,8 @@ pub struct ChatData {
     pub id: ChatId,
     pub title: String,
     pub bot_id: Option<BotId>,
+    #[serde(default)]
+    pub model_category: Option<RegistryCategory>,
     pub messages: Vec<Message>,
     pub created_at: DateTime<Utc>,
     pub accessed_at: DateTime<Utc>,
@@ -29,6 +33,7 @@ impl ChatData {
             id: now.timestamp_millis() as u128,
             title,
             bot_id: None,
+            model_category: None,
             messages: Vec::new(),
             created_at: now,
             accessed_at: now,
@@ -365,6 +370,15 @@ impl Chats {
         let chats_dir = self.chats_dir.clone();
         if let Some(chat) = self.get_chat_by_id_mut(chat_id) {
             chat.bot_id = bot_id;
+            chat.save(&chats_dir);
+        }
+    }
+
+    /// Update a chat's model category and save
+    pub fn update_chat_category(&mut self, chat_id: ChatId, category: Option<RegistryCategory>) {
+        let chats_dir = self.chats_dir.clone();
+        if let Some(chat) = self.get_chat_by_id_mut(chat_id) {
+            chat.model_category = category;
             chat.save(&chats_dir);
         }
     }

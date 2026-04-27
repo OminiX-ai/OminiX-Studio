@@ -2,7 +2,7 @@ pub mod design;
 
 use makepad_widgets::*;
 use moly_data::{
-    ModelRegistry, RegistryModel, RegistryCategory, SourceKind,
+    ModelRegistry, RegistryModel, RegistryCategory, SourceKind, PanelType,
     ModelRuntimeClient, ServerModelInfo, ServerModelStatus,
     StoreAction,
     ensure_server_running,
@@ -120,7 +120,7 @@ fn combined_status_label(dl: ModelUiState, load: ModelLoadState) -> &'static str
 enum ActivePanel {
     #[default]
     None,
-    Llm, Vlm, Asr, Tts, Image, Video, Voice, Info,
+    Llm, Vlm, Asr, Tts, Image, ImageEdit, Video, Voice, Info,
 }
 
 // ─── Per-panel interaction state ─────────────────────────────────────────────
@@ -174,6 +174,20 @@ static TTS_PRESET_VOICES: &[TtsVoiceEntry] = &[
 #[derive(Default)]
 struct ImageState {
     prompt: String, neg_prompt: String, output_path: String,
+    is_running: bool,
+    rx: Option<mpsc::Receiver<Result<String, String>>>,
+}
+
+#[derive(Default)]
+struct ImageEditState {
+    image_path: String, prompt: String, output_path: String,
+    is_running: bool,
+    rx: Option<mpsc::Receiver<Result<String, String>>>,
+}
+
+#[derive(Default)]
+struct VideoState {
+    prompt: String, output_path: String,
     is_running: bool,
     rx: Option<mpsc::Receiver<Result<String, String>>>,
 }
@@ -350,6 +364,8 @@ pub struct ModelHubApp {
     #[rust] tts_state:    TtsState,
     #[rust] selected_tts_voice_idx: usize,
     #[rust] image_state:  ImageState,
+    #[rust] image_edit_state: ImageEditState,
+    #[rust] video_state:  VideoState,
 
     // ── Resizable split pane ─────────────────────────────────────────────────
     /// Width of the left panel in pixels; 0.0 means not yet initialized
@@ -389,6 +405,8 @@ impl Widget for ModelHubApp {
         self.handle_asr_actions(cx, &actions);
         self.handle_tts_actions(cx, &actions);
         self.handle_image_actions(cx, &actions);
+        self.handle_image_edit_actions(cx, &actions);
+        self.handle_video_actions(cx, &actions);
         self.handle_voice_actions(cx, &actions);
 
         self.poll_downloads(cx);
@@ -449,6 +467,40 @@ impl Widget for ModelHubApp {
                             || lower.ends_with(".bmp") || lower.ends_with(".gif") || lower.ends_with(".webp") {
                             self.vlm_state.image_path = path.clone();
                             self.view.text_input(ids!(hub_vlm_panel.vlm_image_path)).set_text(cx, path);
+                            self.view.redraw(cx);
+                            break;
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        // ── Image Edit reference image drop zone ─────────────────────────────
+        let edit_drop_area = self.view.view(ids!(hub_image_edit_panel.img_edit_drop_zone)).area();
+        match event.drag_hits(cx, edit_drop_area) {
+            DragHit::Drag(e) => {
+                match e.state {
+                    DragState::In | DragState::Over => {
+                        *e.response.lock().unwrap() = DragResponse::Copy;
+                        self.view.view(ids!(hub_image_edit_panel.img_edit_drop_zone)).apply_over(cx, live! { draw_bg: { drag_over: (1.0) } });
+                        self.view.redraw(cx);
+                    }
+                    DragState::Out => {
+                        self.view.view(ids!(hub_image_edit_panel.img_edit_drop_zone)).apply_over(cx, live! { draw_bg: { drag_over: (0.0) } });
+                        self.view.redraw(cx);
+                    }
+                }
+            }
+            DragHit::Drop(e) => {
+                self.view.view(ids!(hub_image_edit_panel.img_edit_drop_zone)).apply_over(cx, live! { draw_bg: { drag_over: (0.0) } });
+                for item in e.items.iter() {
+                    if let DragItem::FilePath { path, .. } = item {
+                        let lower = path.to_lowercase();
+                        if lower.ends_with(".jpg") || lower.ends_with(".jpeg") || lower.ends_with(".png")
+                            || lower.ends_with(".bmp") || lower.ends_with(".gif") || lower.ends_with(".webp") {
+                            self.image_edit_state.image_path = path.clone();
+                            self.view.text_input(ids!(hub_image_edit_panel.img_edit_image_path)).set_text(cx, path);
                             self.view.redraw(cx);
                             break;
                         }
@@ -521,6 +573,9 @@ impl ModelHubApp {
                     item.label(ids!(model_name)).set_text(cx, &name);
                     item.view(ids!(model_status)).apply_over(cx, live! { draw_bg: { status: (dot) } });
                     item.apply_over(cx, live! { draw_bg: { selected: (if sel { 1.0_f64 } else { 0.0_f64 }) } });
+                    // Show "Downloaded" badge for downloaded or loaded models
+                    let show_badge = dl == ModelUiState::Downloaded || load != ModelLoadState::Unloaded;
+                    item.view(ids!(downloaded_badge)).set_visible(cx, show_badge);
                     if let Some(pct) = dl_frac {
                         item.view(ids!(inline_progress)).set_visible(cx, true);
                         item.view(ids!(inline_progress)).apply_over(cx, live! { draw_bg: { progress: (pct) } });
@@ -621,6 +676,7 @@ impl ModelHubApp {
         self.view.widget(ids!(hub_asr_panel.hub_panel_header.panel_loading_label)).set_visible(cx, false);
         self.view.widget(ids!(hub_tts_panel.hub_panel_header.panel_loading_label)).set_visible(cx, false);
         self.view.widget(ids!(hub_image_panel.hub_panel_header.panel_loading_label)).set_visible(cx, false);
+        self.view.widget(ids!(hub_image_edit_panel.hub_panel_header.panel_loading_label)).set_visible(cx, false);
         self.view.widget(ids!(hub_voice_panel)).set_visible(cx, false);
         // Init voice defaults
         self.voice_quality  = "standard".to_string();
@@ -688,6 +744,7 @@ impl ModelHubApp {
         self.view.widget(ids!(hub_asr_panel)).set_visible(cx, panel == ActivePanel::Asr);
         self.view.widget(ids!(hub_tts_panel)).set_visible(cx, panel == ActivePanel::Tts);
         self.view.widget(ids!(hub_image_panel)).set_visible(cx, panel == ActivePanel::Image);
+        self.view.widget(ids!(hub_image_edit_panel)).set_visible(cx, panel == ActivePanel::ImageEdit);
         self.view.widget(ids!(hub_video_panel)).set_visible(cx, panel == ActivePanel::Video);
         self.view.widget(ids!(hub_voice_panel)).set_visible(cx, panel == ActivePanel::Voice);
     }
@@ -704,18 +761,25 @@ impl ModelHubApp {
     }
 
     fn on_model_selected(&mut self, cx: &mut Cx, model_id: &str) {
-        let cat = self.registry.as_ref()
+        let model = self.registry.as_ref()
             .and_then(|r| r.models.iter().find(|m| m.id == model_id))
-            .map(|m| m.category);
+            .cloned();
+        let Some(model) = model else { return };
 
-        let panel = match cat {
-            Some(RegistryCategory::Llm)      => ActivePanel::Llm,
-            Some(RegistryCategory::Vlm)      => ActivePanel::Vlm,
-            Some(RegistryCategory::Asr)      => ActivePanel::Asr,
-            Some(RegistryCategory::Tts)      => ActivePanel::Tts,
-            Some(RegistryCategory::ImageGen) => ActivePanel::Image,
-            Some(RegistryCategory::VideoGen) => ActivePanel::Video,
-            None => return,
+        let panel = match model.category {
+            RegistryCategory::Llm      => ActivePanel::Llm,
+            RegistryCategory::Vlm      => ActivePanel::Vlm,
+            RegistryCategory::Asr      => ActivePanel::Asr,
+            RegistryCategory::Tts      => ActivePanel::Tts,
+            RegistryCategory::ImageGen => {
+                // Use panel_type to distinguish image gen vs image edit
+                if model.ui.panel_type == PanelType::ImageEdit {
+                    ActivePanel::ImageEdit
+                } else {
+                    ActivePanel::Image
+                }
+            }
+            RegistryCategory::VideoGen => ActivePanel::Video,
         };
 
         self.show_panel(cx, panel);
@@ -756,10 +820,11 @@ impl ModelHubApp {
         let show_rm   = is_done;
         let show_prog = is_dl;
 
-        // Load / Unload buttons
-        let show_load    = is_done && load == ModelLoadState::Unloaded;
-        let show_unload  = is_done && load == ModelLoadState::Loaded;
-        let show_loading = is_done && load == ModelLoadState::Loading;
+        // Load / Unload buttons (not applicable to ImageEdit — sd.cpp runs directly)
+        let is_image_edit = self.active_panel == ActivePanel::ImageEdit;
+        let show_load    = is_done && load == ModelLoadState::Unloaded && !is_image_edit;
+        let show_unload  = is_done && load == ModelLoadState::Loaded && !is_image_edit;
+        let show_loading = is_done && load == ModelLoadState::Loading && !is_image_edit;
 
         let dot      = combined_dot_value(dl, load);
         let st_label = combined_status_label(dl, load);
@@ -775,6 +840,8 @@ impl ModelHubApp {
             "Load failed. Check logs — ominix-api may be missing or model files incomplete.".to_string()
         } else if show_load {
             "Downloaded. Press Load to bring into memory.".to_string()
+        } else if is_image_edit && is_done {
+            "Downloaded. Select an image and prompt, then click Edit Image.".to_string()
         } else {
             String::new()
         };
@@ -942,10 +1009,58 @@ impl ModelHubApp {
                     }
                 }
             }
+            ActivePanel::ImageEdit => {
+                self.view.label(ids!(hub_image_edit_panel.hub_panel_header.panel_model_name)).set_text(cx, &name);
+                self.view.label(ids!(hub_image_edit_panel.hub_panel_header.panel_model_desc)).set_text(cx, &desc);
+                self.view.view(ids!(hub_image_edit_panel.hub_panel_header.panel_status_dot))
+                    .apply_over(cx, live! { draw_bg: { status: (dot) } });
+                self.view.label(ids!(hub_image_edit_panel.hub_panel_header.panel_status_text)).set_text(cx, st_label);
+                self.view.label(ids!(hub_image_edit_panel.hub_panel_header.panel_size_text)).set_text(cx, &size);
+                self.view.label(ids!(hub_image_edit_panel.hub_panel_header.panel_mem_text)).set_text(cx, &mem);
+                self.view.widget(ids!(hub_image_edit_panel.hub_panel_header.panel_download_btn)).set_visible(cx, show_dl);
+                self.view.widget(ids!(hub_image_edit_panel.hub_panel_header.panel_cancel_btn)).set_visible(cx, show_can);
+                self.view.widget(ids!(hub_image_edit_panel.hub_panel_header.panel_remove_btn)).set_visible(cx, show_rm);
+                self.view.widget(ids!(hub_image_edit_panel.hub_panel_header.panel_progress_section)).set_visible(cx, show_prog);
+                self.view.widget(ids!(hub_image_edit_panel.hub_panel_header.panel_load_btn)).set_visible(cx, show_load);
+                self.view.widget(ids!(hub_image_edit_panel.hub_panel_header.panel_unload_btn)).set_visible(cx, show_unload);
+                self.view.widget(ids!(hub_image_edit_panel.hub_panel_header.panel_loading_label)).set_visible(cx, show_loading);
+                self.view.label(ids!(hub_image_edit_panel.hub_panel_header.panel_status_msg)).set_text(cx, &msg);
+                if show_prog {
+                    if let Some(p) = pct {
+                        self.view.view(ids!(hub_image_edit_panel.hub_panel_header.panel_progress_fill))
+                            .apply_over(cx, live! { draw_bg: { progress: (p) } });
+                    }
+                    if let Some(ref t) = txt {
+                        self.view.label(ids!(hub_image_edit_panel.hub_panel_header.panel_progress_text)).set_text(cx, t);
+                    }
+                }
+            }
             ActivePanel::Video => {
-                // Video models are "Coming Soon" — just show name/desc, no actions
-                self.view.label(ids!(hub_video_panel.hub_video_name)).set_text(cx, &name);
-                self.view.label(ids!(hub_video_panel.hub_video_desc)).set_text(cx, &desc);
+                self.view.label(ids!(hub_video_panel.hub_panel_header.panel_model_name)).set_text(cx, &name);
+                self.view.label(ids!(hub_video_panel.hub_panel_header.panel_model_desc)).set_text(cx, &desc);
+                self.view.view(ids!(hub_video_panel.hub_panel_header.panel_status_dot))
+                    .apply_over(cx, live! { draw_bg: { status: (dot) } });
+                self.view.label(ids!(hub_video_panel.hub_panel_header.panel_status_text)).set_text(cx, st_label);
+                self.view.label(ids!(hub_video_panel.hub_panel_header.panel_size_text)).set_text(cx, &size);
+                self.view.label(ids!(hub_video_panel.hub_panel_header.panel_mem_text)).set_text(cx, &mem);
+                self.view.widget(ids!(hub_video_panel.hub_panel_header.panel_download_btn)).set_visible(cx, show_dl);
+                self.view.widget(ids!(hub_video_panel.hub_panel_header.panel_cancel_btn)).set_visible(cx, show_can);
+                self.view.widget(ids!(hub_video_panel.hub_panel_header.panel_remove_btn)).set_visible(cx, show_rm);
+                self.view.widget(ids!(hub_video_panel.hub_panel_header.panel_progress_section)).set_visible(cx, show_prog);
+                self.view.widget(ids!(hub_video_panel.hub_panel_header.panel_load_btn)).set_visible(cx, show_load);
+                self.view.widget(ids!(hub_video_panel.hub_panel_header.panel_unload_btn)).set_visible(cx, show_unload);
+                self.view.widget(ids!(hub_video_panel.hub_panel_header.panel_loading_label)).set_visible(cx, show_loading);
+                self.view.widget(ids!(hub_video_panel.hub_panel_header.panel_chat_btn)).set_visible(cx, false);
+                self.view.label(ids!(hub_video_panel.hub_panel_header.panel_status_msg)).set_text(cx, &msg);
+                if show_prog {
+                    if let Some(p) = pct {
+                        self.view.view(ids!(hub_video_panel.hub_panel_header.panel_progress_fill))
+                            .apply_over(cx, live! { draw_bg: { progress: (p) } });
+                    }
+                    if let Some(ref t) = txt {
+                        self.view.label(ids!(hub_video_panel.hub_panel_header.panel_progress_text)).set_text(cx, t);
+                    }
+                }
             }
             ActivePanel::Voice | ActivePanel::Info => {}
             ActivePanel::None => {}
@@ -1024,7 +1139,17 @@ impl ModelHubApp {
                 self.view.button(ids!(hub_image_panel.hub_panel_header.panel_cancel_btn)).clicked(actions),
                 self.view.button(ids!(hub_image_panel.hub_panel_header.panel_remove_btn)).clicked(actions),
             ),
-            ActivePanel::Video | ActivePanel::Voice | ActivePanel::Info | ActivePanel::None => return,
+            ActivePanel::ImageEdit => (
+                self.view.button(ids!(hub_image_edit_panel.hub_panel_header.panel_download_btn)).clicked(actions),
+                self.view.button(ids!(hub_image_edit_panel.hub_panel_header.panel_cancel_btn)).clicked(actions),
+                self.view.button(ids!(hub_image_edit_panel.hub_panel_header.panel_remove_btn)).clicked(actions),
+            ),
+            ActivePanel::Video => (
+                self.view.button(ids!(hub_video_panel.hub_panel_header.panel_download_btn)).clicked(actions),
+                self.view.button(ids!(hub_video_panel.hub_panel_header.panel_cancel_btn)).clicked(actions),
+                self.view.button(ids!(hub_video_panel.hub_panel_header.panel_remove_btn)).clicked(actions),
+            ),
+            ActivePanel::Voice | ActivePanel::Info | ActivePanel::None => return,
         };
 
         if dl { self.start_download(cx, &sel); }
@@ -1074,7 +1199,15 @@ impl ModelHubApp {
                 self.view.button(ids!(hub_image_panel.hub_panel_header.panel_load_btn)).clicked(actions),
                 self.view.button(ids!(hub_image_panel.hub_panel_header.panel_unload_btn)).clicked(actions),
             ),
-            ActivePanel::Video | ActivePanel::Voice | ActivePanel::Info | ActivePanel::None => return,
+            ActivePanel::ImageEdit => (
+                self.view.button(ids!(hub_image_edit_panel.hub_panel_header.panel_load_btn)).clicked(actions),
+                self.view.button(ids!(hub_image_edit_panel.hub_panel_header.panel_unload_btn)).clicked(actions),
+            ),
+            ActivePanel::Video => (
+                self.view.button(ids!(hub_video_panel.hub_panel_header.panel_load_btn)).clicked(actions),
+                self.view.button(ids!(hub_video_panel.hub_panel_header.panel_unload_btn)).clicked(actions),
+            ),
+            ActivePanel::Voice | ActivePanel::Info | ActivePanel::None => return,
         };
 
         if load_clicked   { self.start_load(cx, &sel); }
@@ -1118,6 +1251,9 @@ impl ModelHubApp {
         if let Some(t) = self.view.text_input(ids!(hub_tts_panel.tts_text_input)).changed(actions)   { self.tts_state.text = t.to_string(); }
         if let Some(t) = self.view.text_input(ids!(hub_image_panel.img_prompt)).changed(actions)     { self.image_state.prompt = t.to_string(); }
         if let Some(t) = self.view.text_input(ids!(hub_image_panel.img_neg_prompt)).changed(actions) { self.image_state.neg_prompt = t.to_string(); }
+        if let Some(t) = self.view.text_input(ids!(hub_image_edit_panel.img_edit_image_path)).changed(actions) { self.image_edit_state.image_path = t.to_string(); }
+        if let Some(t) = self.view.text_input(ids!(hub_image_edit_panel.img_edit_prompt)).changed(actions)     { self.image_edit_state.prompt = t.to_string(); }
+        if let Some(t) = self.view.text_input(ids!(hub_video_panel.vid_prompt)).changed(actions)               { self.video_state.prompt = t.to_string(); }
     }
 
     fn handle_llm_actions(&mut self, cx: &mut Cx, actions: &Actions) {
@@ -1252,6 +1388,71 @@ impl ModelHubApp {
 
         if self.view.button(ids!(hub_image_panel.img_result_row.img_open_finder_btn)).clicked(actions) {
             let path = self.image_state.output_path.clone();
+            if !path.is_empty() {
+                let _ = std::process::Command::new("open").args(["-R", &path]).spawn();
+            }
+        }
+    }
+
+    fn handle_image_edit_actions(&mut self, cx: &mut Cx, actions: &Actions) {
+        // Browse reference image
+        if self.view.button(ids!(hub_image_edit_panel.img_edit_browse_btn)).clicked(actions) {
+            if let Some(path) = FileDialog::new()
+                .add_filter("Image", &["jpg", "jpeg", "png", "bmp", "gif", "webp"])
+                .pick_file()
+            {
+                let s = path.to_string_lossy().to_string();
+                self.image_edit_state.image_path = s.clone();
+                self.view.text_input(ids!(hub_image_edit_panel.img_edit_image_path)).set_text(cx, &s);
+                self.view.redraw(cx);
+            }
+        }
+
+        // Edit button — sd.cpp models don't need API loading, just download
+        if self.view.button(ids!(hub_image_edit_panel.img_edit_btn)).clicked(actions) {
+            if let Some(sel) = self.selected_id.clone() {
+                let dl = self.model_states.get(&sel).copied().unwrap_or(ModelUiState::NotDownloaded);
+                if dl != ModelUiState::Downloaded {
+                    self.view.label(ids!(hub_image_edit_panel.img_edit_status)).set_text(cx, "Model not downloaded yet — click Download first.");
+                    return;
+                }
+                let image_path = self.image_edit_state.image_path.clone();
+                let prompt     = self.image_edit_state.prompt.clone();
+                self.call_image_edit(cx, sel, image_path, prompt);
+            }
+        }
+
+        // Show in Finder button
+        if self.view.button(ids!(hub_image_edit_panel.img_edit_result_row.img_edit_open_finder_btn)).clicked(actions) {
+            let path = self.image_edit_state.output_path.clone();
+            if !path.is_empty() {
+                let _ = std::process::Command::new("open").args(["-R", &path]).spawn();
+            }
+        }
+    }
+
+    fn handle_video_actions(&mut self, cx: &mut Cx, actions: &Actions) {
+        if self.view.button(ids!(hub_video_panel.vid_generate_btn)).clicked(actions) {
+            if let Some(sel) = self.selected_id.clone() {
+                let load = self.load_states.get(&sel).copied().unwrap_or_default();
+                if load != ModelLoadState::Loaded {
+                    self.view.label(ids!(hub_video_panel.vid_status)).set_text(cx, "Model not loaded — click Load first.");
+                    return;
+                }
+                let prompt = self.video_state.prompt.clone();
+                self.call_video(cx, sel, prompt);
+            }
+        }
+
+        if self.view.button(ids!(hub_video_panel.vid_result_row.vid_play_btn)).clicked(actions) {
+            let path = self.video_state.output_path.clone();
+            if !path.is_empty() {
+                let _ = std::process::Command::new("open").arg(&path).spawn();
+            }
+        }
+
+        if self.view.button(ids!(hub_video_panel.vid_result_row.vid_open_finder_btn)).clicked(actions) {
+            let path = self.video_state.output_path.clone();
             if !path.is_empty() {
                 let _ = std::process::Command::new("open").args(["-R", &path]).spawn();
             }
@@ -2055,6 +2256,138 @@ impl ModelHubApp {
         cx.new_next_frame();
     }
 
+    fn call_image_edit(&mut self, cx: &mut Cx, model_id: String, image_path: String, prompt: String) {
+        if self.image_edit_state.is_running { return; }
+        if prompt.is_empty() {
+            self.view.label(ids!(hub_image_edit_panel.img_edit_status)).set_text(cx, "Enter an edit instruction.");
+            return;
+        }
+        if image_path.is_empty() {
+            self.view.label(ids!(hub_image_edit_panel.img_edit_status)).set_text(cx, "Select a reference image.");
+            return;
+        }
+        self.image_edit_state.is_running = true;
+        self.view.label(ids!(hub_image_edit_panel.img_edit_status)).set_text(cx, "Starting server & editing image...");
+        self.view.view(ids!(hub_image_edit_panel.img_edit_result_row)).set_visible(cx, false);
+        self.view.image(ids!(hub_image_edit_panel.img_edit_preview)).set_visible(cx, false);
+        self.view.redraw(cx);
+
+        let slug: String = prompt.chars().take(40)
+            .map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+            .collect::<String>().trim_matches('-').to_string();
+        let slug = if slug.is_empty() { "edit".to_string() } else { slug };
+        let slug = slug.split('-').filter(|s| !s.is_empty()).collect::<Vec<_>>().join("-");
+        let out_path = format!("/tmp/ominix-edit-{}.png", slug);
+
+        let (tx, rx) = mpsc::channel();
+        self.image_edit_state.rx = Some(rx);
+        std::thread::spawn(move || {
+            // Ensure ominix-api is running (sd.cpp models don't go through load_model)
+            if let Err(e) = ensure_server_running() {
+                let _ = tx.send(Err(format!("Failed to start server: {}", e)));
+                return;
+            }
+
+            // Read reference image and encode as base64
+            let image_b64 = match std::fs::read(&image_path) {
+                Ok(bytes) => base64::engine::general_purpose::STANDARD.encode(&bytes),
+                Err(e) => { let _ = tx.send(Err(format!("Failed to read image: {}", e))); return; }
+            };
+
+            let client = reqwest::blocking::Client::builder()
+                .timeout(std::time::Duration::from_secs(600)).build().unwrap();
+            let body = serde_json::json!({
+                "model": model_id,
+                "prompt": prompt,
+                "image": image_b64,
+                "n": 1, "size": "512x512", "response_format": "b64_json"
+            });
+            let result = client.post("http://localhost:8080/v1/images/generations")
+                .json(&body).send()
+                .map_err(|e| e.to_string())
+                .and_then(|r| {
+                    let status = r.status();
+                    let text = r.text().map_err(|e| e.to_string())?;
+                    if !status.is_success() {
+                        return Err(format!("HTTP {}: {}", status, text));
+                    }
+                    serde_json::from_str::<serde_json::Value>(&text).map_err(|e| e.to_string())
+                })
+                .and_then(|v| {
+                    // Check for API error response
+                    if let Some(err) = v.get("error") {
+                        return Err(format!("API error: {}", err));
+                    }
+                    let b64 = v["data"][0]["b64_json"].as_str()
+                        .ok_or_else(|| format!("No image data in response: {}", v))?;
+                    let bytes = base64::engine::general_purpose::STANDARD.decode(b64)
+                        .map_err(|e| e.to_string())?;
+                    std::fs::write(&out_path, &bytes).map_err(|e| e.to_string())?;
+                    Ok(out_path)
+                });
+            let _ = tx.send(result);
+        });
+        cx.new_next_frame();
+    }
+
+    fn call_video(&mut self, cx: &mut Cx, model_id: String, prompt: String) {
+        if self.video_state.is_running { return; }
+        if prompt.is_empty() {
+            self.view.label(ids!(hub_video_panel.vid_status)).set_text(cx, "Enter a prompt.");
+            return;
+        }
+        self.video_state.is_running = true;
+        self.view.label(ids!(hub_video_panel.vid_status)).set_text(cx, "Generating video — this may take a few minutes...");
+        self.view.view(ids!(hub_video_panel.vid_result_row)).set_visible(cx, false);
+        self.view.redraw(cx);
+
+        let slug: String = prompt.chars()
+            .take(40)
+            .map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+            .collect::<String>()
+            .trim_matches('-')
+            .to_string();
+        let slug = if slug.is_empty() { "video".to_string() } else { slug };
+        let slug = slug.split('-').filter(|s| !s.is_empty()).collect::<Vec<_>>().join("-");
+        let out_path = format!("/tmp/ominix-{}.mp4", slug);
+
+        let (tx, rx) = mpsc::channel();
+        self.video_state.rx = Some(rx);
+        std::thread::spawn(move || {
+            let client = reqwest::blocking::Client::builder()
+                .timeout(std::time::Duration::from_secs(600)).build().unwrap();
+            let body = serde_json::json!({
+                "model": model_id,
+                "prompt": prompt,
+                "response_format": "b64_json"
+            });
+            let result = client.post("http://localhost:8080/v1/videos/generations")
+                .json(&body).send()
+                .map_err(|e| e.to_string())
+                .and_then(|r| {
+                    let status = r.status();
+                    let text = r.text().map_err(|e| e.to_string())?;
+                    if !status.is_success() {
+                        return Err(format!("HTTP {}: {}", status, text));
+                    }
+                    serde_json::from_str::<serde_json::Value>(&text).map_err(|e| e.to_string())
+                })
+                .and_then(|v| {
+                    if let Some(err) = v.get("error") {
+                        return Err(format!("API error: {}", err));
+                    }
+                    let b64 = v["data"][0]["b64_json"].as_str()
+                        .ok_or_else(|| format!("No video data in response: {}", v))?;
+                    let bytes = base64::engine::general_purpose::STANDARD.decode(b64)
+                        .map_err(|e| e.to_string())?;
+                    std::fs::write(&out_path, &bytes).map_err(|e| e.to_string())?;
+                    Ok(out_path)
+                });
+            let _ = tx.send(result);
+        });
+        cx.new_next_frame();
+    }
+
     fn load_tts_voices(&mut self) {
         let (tx, rx) = mpsc::channel();
         self.tts_state.voices_rx = Some(rx);
@@ -2093,8 +2426,17 @@ impl ModelHubApp {
         let model_id_owned = model_id.to_string();
         let local_path     = expand_tilde(&model.storage.local_path);
         let source_kind    = model.source.kind;
+        let source_url     = model.source.url.clone().unwrap_or_default();
         let repo_id        = model.source.repo_id.clone().unwrap_or_default();
         let revision       = model.source.revision.clone();
+        // Collect extra sources for multi-file models
+        let extra_sources: Vec<(String, String)> = model.extra_sources.iter()
+            .filter_map(|es| {
+                es.source.url.as_ref().map(|url| {
+                    (url.clone(), expand_tilde(&es.storage.local_path))
+                })
+            })
+            .collect();
 
         std::thread::spawn(move || {
             let client = match reqwest::blocking::Client::builder()
@@ -2108,15 +2450,30 @@ impl ModelHubApp {
                     return;
                 }
             };
+            // Download primary source
             let result = match source_kind {
                 SourceKind::HuggingFace => download_hf(&client, &repo_id, &revision, &local_path, &ds),
                 SourceKind::ModelScope  => download_ms(&client, &repo_id, &revision, &local_path, &ds),
+                SourceKind::DirectUrl   => download_direct_url(&client, &source_url, &local_path, &ds),
                 _                       => Err("Source not supported".to_string()),
             };
-            match result {
-                Ok(_)  => ds.completed.store(true, Ordering::SeqCst),
-                Err(e) => { *ds.error_msg.lock().unwrap() = e; ds.failed.store(true, Ordering::SeqCst); }
+            if let Err(e) = result {
+                *ds.error_msg.lock().unwrap() = e;
+                ds.failed.store(true, Ordering::SeqCst);
+                ds.is_downloading.store(false, Ordering::SeqCst);
+                return;
             }
+            // Download extra sources sequentially
+            for (url, dir) in extra_sources {
+                if ds.cancel_requested.load(Ordering::SeqCst) { break; }
+                if let Err(e) = download_direct_url(&client, &url, &dir, &ds) {
+                    *ds.error_msg.lock().unwrap() = e;
+                    ds.failed.store(true, Ordering::SeqCst);
+                    ds.is_downloading.store(false, Ordering::SeqCst);
+                    return;
+                }
+            }
+            ds.completed.store(true, Ordering::SeqCst);
             ds.is_downloading.store(false, Ordering::SeqCst);
             ::log::info!("Download finished: {}", model_id_owned);
         });
@@ -2179,7 +2536,15 @@ impl ModelHubApp {
                             self.view.view(ids!(hub_image_panel.hub_panel_header.panel_progress_fill)).apply_over(cx, live! { draw_bg: { progress: (pct) } });
                             self.view.label(ids!(hub_image_panel.hub_panel_header.panel_progress_text)).set_text(cx, &txt);
                         }
-                        ActivePanel::Video | ActivePanel::Voice | ActivePanel::Info | ActivePanel::None => {}
+                        ActivePanel::ImageEdit => {
+                            self.view.view(ids!(hub_image_edit_panel.hub_panel_header.panel_progress_fill)).apply_over(cx, live! { draw_bg: { progress: (pct) } });
+                            self.view.label(ids!(hub_image_edit_panel.hub_panel_header.panel_progress_text)).set_text(cx, &txt);
+                        }
+                        ActivePanel::Video => {
+                            self.view.view(ids!(hub_video_panel.hub_panel_header.panel_progress_fill)).apply_over(cx, live! { draw_bg: { progress: (pct) } });
+                            self.view.label(ids!(hub_video_panel.hub_panel_header.panel_progress_text)).set_text(cx, &txt);
+                        }
+                        ActivePanel::Voice | ActivePanel::Info | ActivePanel::None => {}
                     }
                     self.view.redraw(cx);
                 }
@@ -2222,7 +2587,7 @@ impl ModelHubApp {
         poll_string_rx!(self.asr_state,
             ids!(hub_asr_panel.asr_transcript.output_label),
             ids!(hub_asr_panel.asr_status));
-        // Image: custom poll so we can show preview + result row
+        // Image gen: custom poll so we can show preview + result row
         if self.image_state.is_running {
             if let Some(rx) = &self.image_state.rx {
                 if let Ok(result) = rx.try_recv() {
@@ -2244,6 +2609,53 @@ impl ModelHubApp {
                     }
                     self.image_state.is_running = false;
                     self.image_state.rx = None;
+                    redraw = true;
+                } else { cx.new_next_frame(); }
+            }
+        }
+        // Image edit: custom poll so we can show preview + result row
+        if self.image_edit_state.is_running {
+            if let Some(rx) = &self.image_edit_state.rx {
+                if let Ok(result) = rx.try_recv() {
+                    match result {
+                        Ok(path) => {
+                            self.view.label(ids!(hub_image_edit_panel.img_edit_status)).set_text(cx, "Done.");
+                            self.view.label(ids!(hub_image_edit_panel.img_edit_output_path)).set_text(cx, &path);
+                            self.view.view(ids!(hub_image_edit_panel.img_edit_result_row)).set_visible(cx, true);
+                            let img_ref = self.view.image(ids!(hub_image_edit_panel.img_edit_preview));
+                            if img_ref.load_image_file_by_path(cx, std::path::Path::new(&path)).is_ok() {
+                                img_ref.set_visible(cx, true);
+                            }
+                            self.image_edit_state.output_path = path;
+                        }
+                        Err(e) => {
+                            self.view.label(ids!(hub_image_edit_panel.img_edit_status)).set_text(cx, &format!("Error: {}", e));
+                        }
+                    }
+                    self.image_edit_state.is_running = false;
+                    self.image_edit_state.rx = None;
+                    redraw = true;
+                } else { cx.new_next_frame(); }
+            }
+        }
+
+        // Video gen: show result row on success
+        if self.video_state.is_running {
+            if let Some(rx) = &self.video_state.rx {
+                if let Ok(result) = rx.try_recv() {
+                    match result {
+                        Ok(path) => {
+                            self.view.label(ids!(hub_video_panel.vid_status)).set_text(cx, "Done.");
+                            self.view.label(ids!(hub_video_panel.vid_output_path)).set_text(cx, &path);
+                            self.view.view(ids!(hub_video_panel.vid_result_row)).set_visible(cx, true);
+                            self.video_state.output_path = path;
+                        }
+                        Err(e) => {
+                            self.view.label(ids!(hub_video_panel.vid_status)).set_text(cx, &format!("Error: {}", e));
+                        }
+                    }
+                    self.video_state.is_running = false;
+                    self.video_state.rx = None;
                     redraw = true;
                 } else { cx.new_next_frame(); }
             }
@@ -2294,6 +2706,29 @@ fn scan_state(model: &RegistryModel) -> ModelUiState {
     let p = expand_tilde(&model.storage.local_path);
     let path = Path::new(&p);
     if !path.exists() { return ModelUiState::NotDownloaded; }
+
+    // For multi-source models, verify all required files are present
+    if !model.extra_sources.is_empty() {
+        // Check primary file from URL
+        if let Some(url) = &model.source.url {
+            let filename = url.split('/').last().and_then(|f| f.split('?').next()).unwrap_or("");
+            if !filename.is_empty() && !path.join(filename).exists() {
+                return ModelUiState::NotDownloaded;
+            }
+        }
+        // Check each extra source file
+        for extra in &model.extra_sources {
+            if let Some(url) = &extra.source.url {
+                let filename = url.split('/').last().and_then(|f| f.split('?').next()).unwrap_or("");
+                let dir = expand_tilde(&extra.storage.local_path);
+                if !filename.is_empty() && !Path::new(&dir).join(filename).exists() {
+                    return ModelUiState::NotDownloaded;
+                }
+            }
+        }
+        return ModelUiState::Downloaded;
+    }
+
     // For models with a known size > 100 MB, require at least one weight file
     // (.safetensors, .bin, or .gguf) to exist — prevents partial downloads (e.g. only
     // config.json fetched by the HF library) from showing as "Downloaded".
@@ -2398,6 +2833,42 @@ fn download_hf(
         *ds.current_file.lock().unwrap() = path.clone();
         done += stream_download(client, &file_url, &dest, &ds.cancel_requested, &ds.progress_bytes, done)?;
     }
+    Ok(())
+}
+
+// ─── Direct URL download (single file) ────────────────────────────────────────
+
+/// Download a single file from `url` into `local_dir`, using the URL filename.
+fn download_direct_url(
+    client: &reqwest::blocking::Client,
+    url: &str,
+    local_dir: &str,
+    ds: &ModelDownloadState,
+) -> Result<(), String> {
+    let filename = url.split('/').last()
+        .filter(|s| !s.is_empty())
+        .unwrap_or("file");
+    // Strip query params if any
+    let filename = filename.split('?').next().unwrap_or(filename);
+    let dest = PathBuf::from(local_dir).join(filename);
+    if let Some(p) = dest.parent() {
+        std::fs::create_dir_all(p).map_err(|e| e.to_string())?;
+    }
+    *ds.current_file.lock().unwrap() = filename.to_string();
+    // HEAD request to get Content-Length for progress tracking
+    let mut req = client.head(url);
+    if let Some(tok) = hf_token() { req = req.header("Authorization", format!("Bearer {}", tok)); }
+    if let Ok(resp) = req.send() {
+        if let Some(len) = resp.headers().get("content-length")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok())
+        {
+            let current_total = ds.total_bytes.load(Ordering::SeqCst);
+            ds.total_bytes.store(current_total + len, Ordering::SeqCst);
+        }
+    }
+    let done_before = ds.progress_bytes.load(Ordering::SeqCst);
+    stream_download(client, url, &dest, &ds.cancel_requested, &ds.progress_bytes, done_before)?;
     Ok(())
 }
 

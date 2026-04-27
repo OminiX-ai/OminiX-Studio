@@ -51,6 +51,16 @@ fn main() {
     env_logger::init();
     log::info!("Starting Moly");
 
+    // Install panic hook that appends ALL panics to /tmp/studio_panic.log
+    use std::io::Write;
+    std::panic::set_hook(Box::new(|info| {
+        let msg = format!("=== PANIC ===\n{}\n\nBacktrace:\n{:?}\n\n", info, std::backtrace::Backtrace::force_capture());
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/studio_panic.log") {
+            let _ = f.write_all(msg.as_bytes());
+        }
+        eprintln!("PANIC: {}", msg);
+    }));
+
     // Set Dock icon after the run loop starts (needed for cargo run)
     #[cfg(target_os = "macos")]
     set_dock_icon();
