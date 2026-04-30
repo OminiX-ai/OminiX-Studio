@@ -29,6 +29,7 @@ enum ChatMode {
     Asr,
     Tts,
     ImageGen,
+    VideoGen,
 }
 
 // Actions emitted by ChatHistoryPanel
@@ -390,6 +391,14 @@ pub struct ChatApp {
     #[rust]
     mode_busy: bool,
 
+    /// VLM: path to the selected image file
+    #[rust]
+    vlm_image_path: String,
+
+    /// VLM: base64-encoded image (ready for API)
+    #[rust]
+    vlm_image_b64: Option<String>,
+
     /// Image edit: base64-encoded reference image (set by file picker)
     #[rust]
     image_ref_b64: Option<String>,
@@ -699,18 +708,19 @@ impl ChatApp {
             ctrl.state().bot_id.clone()
         };
 
-        // Update the chat's bot_id and model category
+        // Update the chat's bot_id; only set category if not already set
+        // (category is assigned at session creation and should not change)
         if let Some(store) = scope.data.get_mut::<Store>() {
             let current_cat = store.get_active_local_model_category();
-            let (needs_bot_update, needs_cat_update) = if let Some(chat) = store.chats.get_chat_by_id(chat_id) {
-                (chat.bot_id != current_bot_id, chat.model_category != current_cat)
+            let (needs_bot_update, needs_cat_set) = if let Some(chat) = store.chats.get_chat_by_id(chat_id) {
+                (chat.bot_id != current_bot_id, chat.model_category.is_none() && current_cat.is_some())
             } else {
                 (false, false)
             };
             if needs_bot_update {
                 store.chats.update_chat_bot(chat_id, current_bot_id);
             }
-            if needs_cat_update {
+            if needs_cat_set {
                 store.chats.update_chat_category(chat_id, current_cat);
             }
         }
@@ -737,11 +747,15 @@ impl ChatApp {
             (ctrl.state().bot_id.clone(), ctrl.state().bots.clone())
         };
 
-        // Create new chat in store
+        // Create new chat in store with the current model category
         let chat_id = store.chats.create_chat(current_bot_id.clone());
+        let current_cat = store.get_active_local_model_category();
+        if current_cat.is_some() {
+            store.chats.update_chat_category(chat_id, current_cat);
+        }
         self.current_chat_id = Some(chat_id);
 
-        ::log::info!("=== NEW CHAT CREATED: {} ===", chat_id);
+        ::log::info!("=== NEW CHAT CREATED: {} (category: {:?}) ===", chat_id, current_cat);
 
         // Clear messages in controller - this triggers the Chat widget's plugin to redraw
         {
@@ -952,6 +966,18 @@ impl Widget for ChatApp {
         self.poll_mode_result(cx);
         self.poll_file_picker(cx, scope);
 
+        // Strip stale error messages from ChatTask::Send in non-chat modes.
+        // The Chat widget dispatches ChatTask::Send async; the error arrives after
+        // our interception, so we clean it up on every frame.
+        self.strip_mode_errors(cx);
+
+        // Keep requesting frames while a mode operation is in progress
+        // so we can poll the result and keep the typing animation running.
+        if self.mode_busy {
+            cx.new_next_frame();
+            self.view.redraw(cx);
+        }
+
         // Check and configure providers from Store
         self.maybe_configure_providers(cx, scope);
 
@@ -982,6 +1008,103 @@ impl Widget for ChatApp {
         }
         self.view.view(ids!(header)).handle_event(cx, event, scope);
         self.view.view(ids!(mode_controls)).handle_event(cx, event, scope);
+
+        // ── VLM image drag-and-drop ──────────────────────────────────────────
+        if self.chat_mode == ChatMode::Vlm {
+            let drop_zone_area = self.view.view(ids!(mode_controls.vlm_controls.vlm_drop_zone)).area();
+            match event.drag_hits(cx, drop_zone_area) {
+                DragHit::Drag(e) => {
+                    match e.state {
+                        DragState::In | DragState::Over => {
+                            *e.response.lock().unwrap() = DragResponse::Copy;
+                            self.view.view(ids!(mode_controls.vlm_controls.vlm_drop_zone))
+                                .apply_over(cx, live! { draw_bg: { hover: (1.0) } });
+                            self.view.redraw(cx);
+                        }
+                        DragState::Out => {
+                            self.view.view(ids!(mode_controls.vlm_controls.vlm_drop_zone))
+                                .apply_over(cx, live! { draw_bg: { hover: (0.0) } });
+                            self.view.redraw(cx);
+                        }
+                    }
+                }
+                DragHit::Drop(e) => {
+                    self.view.view(ids!(mode_controls.vlm_controls.vlm_drop_zone))
+                        .apply_over(cx, live! { draw_bg: { hover: (0.0) } });
+                    for item in e.items.iter() {
+                        if let DragItem::FilePath { path, .. } = item {
+                            let lower = path.to_lowercase();
+                            if lower.ends_with(".jpg") || lower.ends_with(".jpeg") || lower.ends_with(".png")
+                                || lower.ends_with(".bmp") || lower.ends_with(".gif") || lower.ends_with(".webp") {
+                                if let Ok(bytes) = std::fs::read(path) {
+                                    use base64::Engine;
+                                    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                                    self.vlm_image_b64 = Some(b64);
+                                    self.vlm_image_path = path.clone();
+                                    let filename = std::path::Path::new(path)
+                                        .file_name()
+                                        .map(|f| f.to_string_lossy().to_string())
+                                        .unwrap_or_else(|| path.clone());
+                                    self.view.label(ids!(mode_controls.vlm_controls.vlm_file_row.vlm_file_label))
+                                        .set_text(cx, &filename);
+                                    let preview = self.view.image(ids!(mode_controls.vlm_controls.vlm_file_row.vlm_preview));
+                                    preview.set_visible(cx, true);
+                                    let _ = preview.load_image_file_by_path(cx, std::path::Path::new(path));
+                                    self.view.redraw(cx);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // ── ASR audio drag-and-drop ──────────────────────────────────────────
+        if self.chat_mode == ChatMode::Asr {
+            let drop_zone_area = self.view.view(ids!(mode_controls.asr_controls.asr_drop_zone)).area();
+            match event.drag_hits(cx, drop_zone_area) {
+                DragHit::Drag(e) => {
+                    match e.state {
+                        DragState::In | DragState::Over => {
+                            *e.response.lock().unwrap() = DragResponse::Copy;
+                            self.view.view(ids!(mode_controls.asr_controls.asr_drop_zone))
+                                .apply_over(cx, live! { draw_bg: { hover: (1.0) } });
+                            self.view.redraw(cx);
+                        }
+                        DragState::Out => {
+                            self.view.view(ids!(mode_controls.asr_controls.asr_drop_zone))
+                                .apply_over(cx, live! { draw_bg: { hover: (0.0) } });
+                            self.view.redraw(cx);
+                        }
+                    }
+                }
+                DragHit::Drop(e) => {
+                    self.view.view(ids!(mode_controls.asr_controls.asr_drop_zone))
+                        .apply_over(cx, live! { draw_bg: { hover: (0.0) } });
+                    for item in e.items.iter() {
+                        if let DragItem::FilePath { path, .. } = item {
+                            let lower = path.to_lowercase();
+                            if lower.ends_with(".wav") || lower.ends_with(".mp3") || lower.ends_with(".m4a")
+                                || lower.ends_with(".flac") || lower.ends_with(".ogg") || lower.ends_with(".aac") {
+                                self.asr_file_path = path.clone();
+                                let filename = std::path::Path::new(path)
+                                    .file_name()
+                                    .map(|f| f.to_string_lossy().to_string())
+                                    .unwrap_or_else(|| path.clone());
+                                self.view.label(ids!(mode_controls.asr_controls.asr_file_row.asr_file_label))
+                                    .set_text(cx, &filename);
+                                self.start_asr_transcribe(cx, scope);
+                                self.view.redraw(cx);
+                                break;
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
 
         // Detect new user messages from Chat widget for non-LLM modes
         self.maybe_handle_mode_message(cx, scope);
@@ -1047,12 +1170,43 @@ impl Widget for ChatApp {
             self.view.chat(ids!(main_content.chat)).set_visible(cx, !wm);
         }
 
-        // Show mode_controls bar for non-LLM/VLM modes
-        let show_controls = matches!(self.chat_mode, ChatMode::Tts | ChatMode::ImageGen | ChatMode::Asr);
+        // Show mode_controls bar for non-LLM modes
+        let show_controls = matches!(self.chat_mode, ChatMode::Vlm | ChatMode::Tts | ChatMode::ImageGen | ChatMode::Asr | ChatMode::VideoGen);
         self.view.view(ids!(mode_controls)).set_visible(cx, show_controls);
+        self.view.view(ids!(mode_controls.vlm_controls)).set_visible(cx, self.chat_mode == ChatMode::Vlm);
         self.view.view(ids!(mode_controls.tts_controls)).set_visible(cx, self.chat_mode == ChatMode::Tts);
         self.view.view(ids!(mode_controls.image_controls)).set_visible(cx, self.chat_mode == ChatMode::ImageGen);
         self.view.view(ids!(mode_controls.asr_controls)).set_visible(cx, self.chat_mode == ChatMode::Asr);
+
+        // Show VLM image preview/clear when an image is selected
+        if self.chat_mode == ChatMode::Vlm {
+            let has_image = self.vlm_image_b64.is_some();
+            self.view.view(ids!(mode_controls.vlm_controls.vlm_file_row.vlm_preview))
+                .set_visible(cx, has_image);
+            self.view.view(ids!(mode_controls.vlm_controls.vlm_file_row.vlm_clear_btn))
+                .set_visible(cx, has_image);
+            if has_image {
+                self.view.view(ids!(mode_controls.vlm_controls.vlm_drop_zone))
+                    .set_visible(cx, false);
+            } else {
+                self.view.view(ids!(mode_controls.vlm_controls.vlm_drop_zone))
+                    .set_visible(cx, true);
+            }
+        }
+
+        // Show ASR clear button when audio file is selected
+        if self.chat_mode == ChatMode::Asr {
+            let has_audio = !self.asr_file_path.is_empty();
+            self.view.view(ids!(mode_controls.asr_controls.asr_file_row.asr_clear_btn))
+                .set_visible(cx, has_audio);
+            if has_audio {
+                self.view.view(ids!(mode_controls.asr_controls.asr_drop_zone))
+                    .set_visible(cx, false);
+            } else {
+                self.view.view(ids!(mode_controls.asr_controls.asr_drop_zone))
+                    .set_visible(cx, true);
+            }
+        }
 
         // Show reference image section only for image editing models
         if self.chat_mode == ChatMode::ImageGen {
@@ -1200,11 +1354,49 @@ impl WidgetMatchEvent for ChatApp {
 
         // ── Mode controls bar handlers ────────────────────────────────────
 
+        // VLM: Browse image button
+        if self.view.view(ids!(mode_controls.vlm_controls.vlm_file_row.vlm_browse_btn))
+            .finger_down(&actions).is_some()
+        {
+            self.handle_vlm_browse(cx);
+        }
+
+        // VLM: Clear image button
+        if self.view.view(ids!(mode_controls.vlm_controls.vlm_file_row.vlm_clear_btn))
+            .finger_down(&actions).is_some()
+        {
+            self.vlm_image_path.clear();
+            self.vlm_image_b64 = None;
+            self.view.label(ids!(mode_controls.vlm_controls.vlm_file_row.vlm_file_label))
+                .set_text(cx, "");
+            self.view.image(ids!(mode_controls.vlm_controls.vlm_file_row.vlm_preview))
+                .set_visible(cx, false);
+            self.view.view(ids!(mode_controls.vlm_controls.vlm_file_row.vlm_clear_btn))
+                .set_visible(cx, false);
+            self.view.view(ids!(mode_controls.vlm_controls.vlm_drop_zone))
+                .set_visible(cx, true);
+            self.view.redraw(cx);
+        }
+
         // ASR: Browse/upload audio button
-        if self.view.view(ids!(mode_controls.asr_controls.asr_browse_btn))
+        if self.view.view(ids!(mode_controls.asr_controls.asr_file_row.asr_browse_btn))
             .finger_down(&actions).is_some()
         {
             self.handle_asr_browse(cx);
+        }
+
+        // ASR: Clear audio button
+        if self.view.view(ids!(mode_controls.asr_controls.asr_file_row.asr_clear_btn))
+            .finger_down(&actions).is_some()
+        {
+            self.asr_file_path.clear();
+            self.view.label(ids!(mode_controls.asr_controls.asr_file_row.asr_file_label))
+                .set_text(cx, "");
+            self.view.view(ids!(mode_controls.asr_controls.asr_file_row.asr_clear_btn))
+                .set_visible(cx, false);
+            self.view.view(ids!(mode_controls.asr_controls.asr_drop_zone))
+                .set_visible(cx, true);
+            self.view.redraw(cx);
         }
 
         // TTS: Voice selection buttons (in mode_controls bar)
@@ -1282,6 +1474,7 @@ impl ChatApp {
                 Some(RegistryCategory::Asr)      => Some(ChatMode::Asr),
                 Some(RegistryCategory::Tts)      => Some(ChatMode::Tts),
                 Some(RegistryCategory::ImageGen) => Some(ChatMode::ImageGen),
+                Some(RegistryCategory::VideoGen) => Some(ChatMode::VideoGen),
                 Some(RegistryCategory::Llm)      => Some(ChatMode::Llm),
                 _                                => None,
             };
@@ -1294,6 +1487,7 @@ impl ChatApp {
                             Some(RegistryCategory::Asr)      => return ChatMode::Asr,
                             Some(RegistryCategory::Tts)      => return ChatMode::Tts,
                             Some(RegistryCategory::ImageGen) => return ChatMode::ImageGen,
+                            Some(RegistryCategory::VideoGen) => return ChatMode::VideoGen,
                             _ => {}
                         }
                     }
@@ -1308,6 +1502,8 @@ impl ChatApp {
             self.chat_mode = new_mode;
             // Reset mode-specific state
             self.asr_file_path.clear();
+            self.vlm_image_path.clear();
+            self.vlm_image_b64 = None;
             self.image_ref_b64 = None;
             self.image_ref_path.clear();
             self.mode_rx = None;
@@ -1318,6 +1514,32 @@ impl ChatApp {
         }
     }
 
+    /// Remove error/system messages injected by ChatTask::Send in non-chat modes.
+    /// The Chat widget fires ChatTask::Send automatically, which hits the wrong
+    /// endpoint for TTS/ImageGen/VideoGen/ASR and returns an error. This method
+    /// strips those stale errors every frame so they don't clutter the chat.
+    fn strip_mode_errors(&mut self, cx: &mut Cx) {
+        if !matches!(self.chat_mode, ChatMode::Vlm | ChatMode::Tts | ChatMode::ImageGen | ChatMode::VideoGen | ChatMode::Asr) {
+            return;
+        }
+        use moly_kit::aitk::protocol::EntityId;
+        let mut ctrl = self.chat_controller.lock().unwrap();
+        let msgs = &ctrl.state().messages;
+        let has_error = msgs.iter().any(|m| {
+            matches!(m.from, EntityId::App | EntityId::System) && !m.metadata.is_writing
+        });
+        if has_error {
+            let kept: Vec<_> = msgs.iter()
+                .filter(|m| m.metadata.is_writing || !matches!(m.from, EntityId::App | EntityId::System))
+                .cloned()
+                .collect();
+            ctrl.dispatch_mutation(VecMutation::Set(kept.clone()));
+            self.last_mode_msg_count = kept.len();
+            drop(ctrl);
+            self.view.redraw(cx);
+        }
+    }
+
     /// Poll the mode-specific async result channel and inject as assistant message
     fn poll_mode_result(&mut self, cx: &mut Cx) {
         let result = self.mode_rx.as_ref().and_then(|rx| rx.try_recv().ok());
@@ -1325,13 +1547,19 @@ impl ChatApp {
         self.mode_rx = None;
         self.mode_busy = false;
 
-        use moly_kit::aitk::protocol::{EntityId, Message, MessageContent};
+        use moly_kit::aitk::protocol::{Attachment, EntityId, Message, MessageContent};
 
-        let response_text = match self.chat_mode {
+        let (response_text, response_attachments) = match self.chat_mode {
+            ChatMode::Vlm => {
+                match result {
+                    Ok(text) => (text, vec![]),
+                    Err(e) => (format!("VLM error: {}", e), vec![]),
+                }
+            }
             ChatMode::Asr => {
                 match result {
-                    Ok(text) => text,
-                    Err(e) => format!("Transcription error: {}", e),
+                    Ok(text) => (text, vec![]),
+                    Err(e) => (format!("Transcription error: {}", e), vec![]),
                 }
             }
             ChatMode::Tts => {
@@ -1345,39 +1573,65 @@ impl ChatApp {
                         let dur = self.tts_duration_secs;
                         let mins = dur as u32 / 60;
                         let secs = dur as u32 % 60;
-                        // Auto-play the generated audio
                         if let Ok(child) = std::process::Command::new("afplay").arg(&path).spawn() {
                             self.tts_play_process = Some(child);
                             self.tts_playing = true;
                             self.tts_play_start = Some(std::time::Instant::now());
                         }
-                        format!("🔊 Voice: {} · {}:{:02}  [{}]", voice, mins, secs, path)
+                        (format!("Voice: {} | Duration: {}:{:02}", voice, mins, secs), vec![])
                     }
-                    Err(e) => format!("TTS error: {}", e),
+                    Err(e) => (format!("TTS error: {}", e), vec![]),
                 }
             }
             ChatMode::ImageGen => {
                 match result {
-                    Ok(path) => format!("Image saved to: {}", path),
-                    Err(e) => format!("Image generation error: {}", e),
+                    Ok(path) => {
+                        if let Ok(bytes) = std::fs::read(&path) {
+                            let attachment = Attachment::from_bytes(
+                                "generated_image.png".to_string(),
+                                Some("image/png".to_string()),
+                                &bytes,
+                            );
+                            ("".to_string(), vec![attachment])
+                        } else {
+                            (format!("Image saved to: {}", path), vec![])
+                        }
+                    }
+                    Err(e) => (format!("Image generation error: {}", e), vec![]),
+                }
+            }
+            ChatMode::VideoGen => {
+                match result {
+                    Ok(path) => {
+                        (format!("Video generated: {}", path), vec![])
+                    }
+                    Err(e) => (format!("Video generation error: {}", e), vec![]),
                 }
             }
             _ => return,
         };
 
-        // Push as assistant message
+        // Replace the "writing" indicator with the real response
         {
             let mut ctrl = self.chat_controller.lock().unwrap();
             let bot_id = ctrl.state().bot_id.clone();
-            ctrl.dispatch_mutation(VecMutation::Push(Message {
-                from: bot_id.map(EntityId::Bot).unwrap_or(EntityId::System),
+            let from = bot_id.map(EntityId::Bot).unwrap_or(EntityId::System);
+            let response_msg = Message {
+                from,
                 content: MessageContent {
                     text: response_text,
+                    attachments: response_attachments,
                     ..Default::default()
                 },
                 ..Default::default()
-            }));
-            // Update our tracking so we don't re-trigger on our own message
+            };
+            let mut msgs = ctrl.state().messages.clone();
+            if let Some(pos) = msgs.iter().rposition(|m| m.metadata.is_writing) {
+                msgs[pos] = response_msg;
+                ctrl.dispatch_mutation(VecMutation::Set(msgs));
+            } else {
+                ctrl.dispatch_mutation(VecMutation::Push(response_msg));
+            }
             self.last_mode_msg_count = ctrl.state().messages.len();
         }
 
@@ -1385,12 +1639,12 @@ impl ChatApp {
     }
 
     /// Detect new user messages from the Chat widget and trigger mode-specific operations.
-    /// For TTS/ASR/ImageGen, we intercept user messages and start our own API calls
-    /// instead of relying on ChatTask::Send (which would call the wrong endpoint).
-    /// Also strips error messages from the failed ChatTask::Send (no client set).
+    /// For all non-LLM modes, we intercept user messages and make our own API calls
+    /// instead of relying on ChatTask::Send (which would call the wrong endpoint or
+    /// format content parts in the wrong order for VLM).
     fn maybe_handle_mode_message(&mut self, cx: &mut Cx, scope: &mut Scope) {
         if self.mode_busy { return; }
-        if !matches!(self.chat_mode, ChatMode::Tts | ChatMode::ImageGen) { return; }
+        if !matches!(self.chat_mode, ChatMode::Vlm | ChatMode::Tts | ChatMode::ImageGen | ChatMode::VideoGen) { return; }
 
         use moly_kit::aitk::protocol::EntityId;
 
@@ -1401,7 +1655,6 @@ impl ChatApp {
             if count <= self.last_mode_msg_count {
                 return;
             }
-            // Look for a new user message among messages added since last check
             let mut user_text = None;
             for msg in msgs[self.last_mode_msg_count..].iter() {
                 if matches!(msg.from, EntityId::User) {
@@ -1416,8 +1669,9 @@ impl ChatApp {
             return;
         };
 
-        // Strip error/system messages added by the failed ChatTask::Send
+        // Strip error/system messages from the failed ChatTask::Send
         {
+            use moly_kit::aitk::protocol::{Message, MessageContent, MessageMetadata};
             let mut ctrl = self.chat_controller.lock().unwrap();
             let msgs = ctrl.state().messages.clone();
             let kept: Vec<_> = msgs.iter().enumerate().filter(|(i, m)| {
@@ -1427,15 +1681,37 @@ impl ChatApp {
             if kept.len() < msgs.len() {
                 ctrl.dispatch_mutation(VecMutation::Set(kept.clone()));
             }
-            self.last_mode_msg_count = kept.len();
+            // Inject a "writing" indicator message so users see the model is working
+            let bot_id = ctrl.state().bot_id.clone();
+            ctrl.dispatch_mutation(VecMutation::Push(Message {
+                from: bot_id.map(EntityId::Bot).unwrap_or(EntityId::System),
+                content: MessageContent {
+                    text: String::new(),
+                    ..Default::default()
+                },
+                metadata: MessageMetadata {
+                    is_writing: true,
+                    ..MessageMetadata::default()
+                },
+                ..Default::default()
+            }));
+            self.last_mode_msg_count = ctrl.state().messages.len();
         }
 
+        self.view.redraw(cx);
+
         match self.chat_mode {
+            ChatMode::Vlm => {
+                self.start_vlm_generate(cx, scope, user_text);
+            }
             ChatMode::Tts => {
                 self.start_tts_generate(cx, scope, user_text);
             }
             ChatMode::ImageGen => {
                 self.start_image_generate(cx, scope, user_text);
+            }
+            ChatMode::VideoGen => {
+                self.start_video_generate(cx, scope, user_text);
             }
             _ => {}
         }
@@ -1495,6 +1771,29 @@ impl ChatApp {
                 }
             }
         });
+    }
+
+    /// VLM: Open image file browser dialog
+    fn handle_vlm_browse(&mut self, _cx: &mut Cx) {
+        if self.file_picker_rx.is_some() { return; }
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let output = std::process::Command::new("osascript")
+                .args(["-e", "POSIX path of (choose file of type {\"public.image\"} with prompt \"Select image\")"])
+                .output();
+            match output {
+                Ok(out) => {
+                    let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                    if !path.is_empty() {
+                        tx.send(Ok(path)).ok();
+                    } else {
+                        tx.send(Err("Cancelled".to_string())).ok();
+                    }
+                }
+                Err(e) => { tx.send(Err(e.to_string())).ok(); }
+            }
+        });
+        self.file_picker_rx = Some(rx);
     }
 
     /// ASR: Open file browser dialog
@@ -1557,6 +1856,19 @@ impl ChatApp {
                 .unwrap_or_else(|| path.clone());
 
             match self.chat_mode {
+                ChatMode::Vlm => {
+                    if let Ok(bytes) = std::fs::read(&path) {
+                        use base64::Engine;
+                        let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                        self.vlm_image_b64 = Some(b64);
+                        self.vlm_image_path = path.clone();
+                        self.view.label(ids!(mode_controls.vlm_controls.vlm_file_row.vlm_file_label))
+                            .set_text(cx, &filename);
+                        let preview = self.view.image(ids!(mode_controls.vlm_controls.vlm_file_row.vlm_preview));
+                        preview.set_visible(cx, true);
+                        let _ = preview.load_image_file_by_path(cx, std::path::Path::new(&path));
+                    }
+                }
                 ChatMode::ImageGen => {
                     if let Ok(bytes) = std::fs::read(&path) {
                         use base64::Engine;
@@ -1570,13 +1882,13 @@ impl ChatApp {
                         let _ = preview.load_image_file_by_path(cx, std::path::Path::new(&path));
                     }
                 }
-                _ => {
-                    // ASR: auto-start transcription when file is selected
+                ChatMode::Asr => {
                     self.asr_file_path = path;
-                    self.view.label(ids!(mode_controls.asr_controls.asr_file_label))
+                    self.view.label(ids!(mode_controls.asr_controls.asr_file_row.asr_file_label))
                         .set_text(cx, &filename);
                     self.start_asr_transcribe(cx, scope);
                 }
+                _ => {}
             }
             self.view.redraw(cx);
         }
@@ -1596,15 +1908,28 @@ impl ChatApp {
             .map(|f| f.to_string_lossy().to_string())
             .unwrap_or_else(|| file_path.clone());
 
-        // Push a user message showing what we're transcribing
+        // Push a user message showing what we're transcribing, then a writing indicator
         {
-            use moly_kit::aitk::protocol::{EntityId, Message, MessageContent};
+            use moly_kit::aitk::protocol::{EntityId, Message, MessageContent, MessageMetadata};
             let mut ctrl = self.chat_controller.lock().unwrap();
             ctrl.dispatch_mutation(VecMutation::Push(Message {
                 from: EntityId::User,
                 content: MessageContent {
                     text: format!("Transcribe: {}", filename),
                     ..Default::default()
+                },
+                ..Default::default()
+            }));
+            let bot_id = ctrl.state().bot_id.clone();
+            ctrl.dispatch_mutation(VecMutation::Push(Message {
+                from: bot_id.map(EntityId::Bot).unwrap_or(EntityId::System),
+                content: MessageContent {
+                    text: String::new(),
+                    ..Default::default()
+                },
+                metadata: MessageMetadata {
+                    is_writing: true,
+                    ..MessageMetadata::default()
                 },
                 ..Default::default()
             }));
@@ -1615,7 +1940,7 @@ impl ChatApp {
         self.in_welcome_mode = false;
 
         self.mode_busy = true;
-        self.view.label(ids!(mode_controls.asr_controls.asr_file_label))
+        self.view.label(ids!(mode_controls.asr_controls.asr_file_row.asr_file_label))
             .set_text(cx, "Transcribing...");
         self.view.redraw(cx);
 
@@ -1656,6 +1981,55 @@ impl ChatApp {
     }
 
     /// TTS: Start speech generation from the given text
+    /// VLM: Make a direct API call with text + image (matching hub format)
+    fn start_vlm_generate(&mut self, _cx: &mut Cx, scope: &mut Scope, user_text: String) {
+        let model_id = if let Some(store) = scope.data.get::<Store>() {
+            store.get_active_local_model().unwrap_or("").to_string()
+        } else { return };
+
+        if user_text.is_empty() { return; }
+
+        let image_b64 = self.vlm_image_b64.clone();
+        self.mode_busy = true;
+
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let result = (|| -> Result<String, String> {
+                let client = reqwest::blocking::Client::builder()
+                    .timeout(std::time::Duration::from_secs(120))
+                    .build()
+                    .map_err(|e| e.to_string())?;
+                let mut content = vec![serde_json::json!({"type": "text", "text": user_text})];
+                if let Some(b64) = image_b64 {
+                    content.push(serde_json::json!({
+                        "type": "image_url",
+                        "image_url": {"url": format!("data:image/jpeg;base64,{}", b64)}
+                    }));
+                }
+                let body = serde_json::json!({
+                    "model": model_id,
+                    "messages": [{"role": "user", "content": content}]
+                });
+                let resp = client.post("http://localhost:8080/v1/chat/completions")
+                    .json(&body)
+                    .send()
+                    .map_err(|e| e.to_string())?;
+                let status = resp.status();
+                let json: serde_json::Value = resp.json().map_err(|e| e.to_string())?;
+                if !status.is_success() {
+                    let err_msg = json["error"]["message"].as_str().unwrap_or("Unknown error");
+                    return Err(format!("API error {}: {}", status, err_msg));
+                }
+                json["choices"][0]["message"]["content"]
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| "No content in response".to_string())
+            })();
+            tx.send(result).ok();
+        });
+        self.mode_rx = Some(rx);
+    }
+
     fn start_tts_generate(&mut self, _cx: &mut Cx, scope: &mut Scope, text: String) {
         let model_id = if let Some(store) = scope.data.get::<Store>() {
             store.get_active_local_model().unwrap_or("").to_string()
@@ -1740,6 +2114,55 @@ impl ChatApp {
                     .map_err(|e| e.to_string())?;
                 let slug = model_id.replace('/', "-").replace(' ', "_");
                 let path = format!("/tmp/ominix-chat-{}.png", slug);
+                std::fs::write(&path, &bytes).map_err(|e| e.to_string())?;
+                Ok(path)
+            })();
+            tx.send(result).ok();
+        });
+        self.mode_rx = Some(rx);
+    }
+
+    /// Video: Start generation from the given prompt
+    fn start_video_generate(&mut self, _cx: &mut Cx, scope: &mut Scope, prompt: String) {
+        let model_id = if let Some(store) = scope.data.get::<Store>() {
+            store.get_active_local_model().unwrap_or("").to_string()
+        } else { return };
+
+        if prompt.is_empty() { return; }
+
+        self.mode_busy = true;
+
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let result = (|| -> Result<String, String> {
+                let client = reqwest::blocking::Client::builder()
+                    .timeout(std::time::Duration::from_secs(1800))
+                    .build()
+                    .map_err(|e| e.to_string())?;
+                let body = serde_json::json!({
+                    "model": model_id,
+                    "prompt": prompt,
+                    "n": 1,
+                    "response_format": "b64_json"
+                });
+                let resp = client.post("http://localhost:8080/v1/videos/generations")
+                    .json(&body)
+                    .send()
+                    .map_err(|e| e.to_string())?;
+                let status = resp.status();
+                let resp_text = resp.text().map_err(|e| format!("reading response: {}", e))?;
+                if !status.is_success() {
+                    return Err(format!("API error {}: {}", status, &resp_text[..resp_text.len().min(500)]));
+                }
+                let json: serde_json::Value = serde_json::from_str(&resp_text)
+                    .map_err(|e| format!("parsing JSON: {} (first 200 chars: {})", e, &resp_text[..resp_text.len().min(200)]))?;
+                let b64 = json["data"][0]["b64_json"].as_str()
+                    .ok_or_else(|| format!("Unexpected response: {}", json))?;
+                use base64::Engine;
+                let bytes = base64::engine::general_purpose::STANDARD.decode(b64)
+                    .map_err(|e| e.to_string())?;
+                let slug = model_id.replace('/', "-").replace(' ', "_");
+                let path = format!("/tmp/ominix-chat-video-{}.mp4", slug);
                 std::fs::write(&path, &bytes).map_err(|e| e.to_string())?;
                 Ok(path)
             })();

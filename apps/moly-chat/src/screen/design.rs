@@ -272,12 +272,111 @@ live_design! {
 
         }
 
-        // Mode-specific controls bar (TTS voice, Image settings, ASR upload)
+        // Mode-specific controls bar (VLM image, TTS voice, Image settings, ASR upload)
         mode_controls = <View> {
             width: Fill, height: Fit
             flow: Down
             padding: {left: 16, right: 16, bottom: 8}
             visible: false
+
+            // ── VLM image upload ──────────────────────────────────────
+            vlm_controls = <View> {
+                width: Fill, height: Fit
+                flow: Down
+                spacing: 8
+                visible: false
+
+                <Label> {
+                    width: Fit, height: Fit
+                    text: "Image"
+                    draw_text: { color: #374151, text_style: <FONT_SEMIBOLD>{ font_size: 12.0 } }
+                }
+
+                vlm_drop_zone = <View> {
+                    width: Fill, height: 64
+                    show_bg: true
+                    draw_bg: {
+                        instance hover: 0.0
+                        fn pixel(self) -> vec4 {
+                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                            sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 8.0);
+                            sdf.fill(mix(#f9fafb, #eef2ff, self.hover));
+                            sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 8.0);
+                            sdf.stroke(mix(#d1d5db, #818cf8, self.hover), 1.0);
+                            return sdf.result;
+                        }
+                    }
+                    align: {x: 0.5, y: 0.5}
+                    vlm_drop_label = <Label> {
+                        text: "Drop image here"
+                        draw_text: { color: #9ca3af, text_style: <FONT_REGULAR>{ font_size: 12.0 } }
+                    }
+                }
+
+                vlm_file_row = <View> {
+                    width: Fill, height: Fit
+                    flow: Right
+                    spacing: 8
+                    align: {y: 0.5}
+
+                    vlm_browse_btn = <View> {
+                        width: Fit, height: 28, cursor: Hand
+                        align: {x: 0.5, y: 0.5}
+                        padding: {left: 12, right: 12}
+                        show_bg: true
+                        draw_bg: {
+                            instance hover: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.fill(mix(#6366f1, #4f46e5, self.hover));
+                                return sdf.result;
+                            }
+                        }
+                        animator: {
+                            hover = {
+                                default: off
+                                off = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 0.0}} }
+                                on  = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 1.0}} }
+                            }
+                        }
+                        <Label> { text: "Browse...", draw_text: { color: #ffffff, text_style: <FONT_MEDIUM>{ font_size: 12.0 } } }
+                    }
+                    vlm_file_label = <Label> {
+                        width: Fill, height: Fit
+                        text: ""
+                        draw_text: { color: #6b7280, text_style: <FONT_REGULAR>{ font_size: 11.0 } }
+                    }
+                    vlm_preview = <Image> {
+                        width: 48, height: 48
+                        visible: false
+                    }
+                    vlm_clear_btn = <View> {
+                        width: Fit, height: 24, cursor: Hand
+                        align: {x: 0.5, y: 0.5}
+                        padding: {left: 8, right: 8}
+                        visible: false
+                        show_bg: true
+                        draw_bg: {
+                            instance hover: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 4.0);
+                                sdf.fill(mix(#fee2e2, #fecaca, self.hover));
+                                return sdf.result;
+                            }
+                        }
+                        animator: {
+                            hover = {
+                                default: off
+                                off = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 0.0}} }
+                                on  = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 1.0}} }
+                            }
+                        }
+                        <Label> { text: "Clear", draw_text: { color: #dc2626, text_style: <FONT_MEDIUM>{ font_size: 10.0 } } }
+                    }
+                }
+            }
 
             // ── TTS voice selector ─────────────────────────────────────
             tts_controls = <View> {
@@ -596,41 +695,98 @@ live_design! {
                 }
             }
 
-            // ── ASR file upload ────────────────────────────────────────
+            // ── ASR audio upload ───────────────────────────────────────
             asr_controls = <View> {
                 width: Fill, height: Fit
-                flow: Right
-                spacing: 12
-                align: {y: 0.5}
+                flow: Down
+                spacing: 8
                 visible: false
 
-                asr_browse_btn = <View> {
-                    width: Fit, height: 28, cursor: Hand
-                    align: {x: 0.5, y: 0.5}
-                    padding: {left: 12, right: 12}
+                <Label> {
+                    width: Fit, height: Fit
+                    text: "Audio File"
+                    draw_text: { color: #374151, text_style: <FONT_SEMIBOLD>{ font_size: 12.0 } }
+                }
+
+                asr_drop_zone = <View> {
+                    width: Fill, height: 64
                     show_bg: true
                     draw_bg: {
                         instance hover: 0.0
                         fn pixel(self) -> vec4 {
                             let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                            sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
-                            sdf.fill(mix(#3b82f6, #2563db, self.hover));
+                            sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 8.0);
+                            sdf.fill(mix(#f9fafb, #ecfdf5, self.hover));
+                            sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 8.0);
+                            sdf.stroke(mix(#d1d5db, #10b981, self.hover), 1.0);
                             return sdf.result;
                         }
                     }
-                    animator: {
-                        hover = {
-                            default: off
-                            off = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 0.0}} }
-                            on  = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 1.0}} }
-                        }
+                    align: {x: 0.5, y: 0.5}
+                    asr_drop_label = <Label> {
+                        text: "Drop audio file here"
+                        draw_text: { color: #9ca3af, text_style: <FONT_REGULAR>{ font_size: 12.0 } }
                     }
-                    <Label> { text: "Upload Audio", draw_text: { color: #ffffff, text_style: <FONT_MEDIUM>{ font_size: 12.0 } } }
                 }
-                asr_file_label = <Label> {
-                    width: Fit, height: Fit
-                    text: ""
-                    draw_text: { color: #6b7280, text_style: <FONT_REGULAR>{ font_size: 11.0 } }
+
+                asr_file_row = <View> {
+                    width: Fill, height: Fit
+                    flow: Right
+                    spacing: 8
+                    align: {y: 0.5}
+
+                    asr_browse_btn = <View> {
+                        width: Fit, height: 28, cursor: Hand
+                        align: {x: 0.5, y: 0.5}
+                        padding: {left: 12, right: 12}
+                        show_bg: true
+                        draw_bg: {
+                            instance hover: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 6.0);
+                                sdf.fill(mix(#10b981, #059669, self.hover));
+                                return sdf.result;
+                            }
+                        }
+                        animator: {
+                            hover = {
+                                default: off
+                                off = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 0.0}} }
+                                on  = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 1.0}} }
+                            }
+                        }
+                        <Label> { text: "Browse...", draw_text: { color: #ffffff, text_style: <FONT_MEDIUM>{ font_size: 12.0 } } }
+                    }
+                    asr_file_label = <Label> {
+                        width: Fill, height: Fit
+                        text: ""
+                        draw_text: { color: #6b7280, text_style: <FONT_REGULAR>{ font_size: 11.0 } }
+                    }
+                    asr_clear_btn = <View> {
+                        width: Fit, height: 24, cursor: Hand
+                        align: {x: 0.5, y: 0.5}
+                        padding: {left: 8, right: 8}
+                        visible: false
+                        show_bg: true
+                        draw_bg: {
+                            instance hover: 0.0
+                            fn pixel(self) -> vec4 {
+                                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                sdf.box(0.5, 0.5, self.rect_size.x - 1.0, self.rect_size.y - 1.0, 4.0);
+                                sdf.fill(mix(#fee2e2, #fecaca, self.hover));
+                                return sdf.result;
+                            }
+                        }
+                        animator: {
+                            hover = {
+                                default: off
+                                off = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 0.0}} }
+                                on  = { from: {all: Forward{duration: 0.15}}, apply: {draw_bg: {hover: 1.0}} }
+                            }
+                        }
+                        <Label> { text: "Clear", draw_text: { color: #dc2626, text_style: <FONT_MEDIUM>{ font_size: 10.0 } } }
+                    }
                 }
             }
         }

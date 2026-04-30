@@ -367,6 +367,10 @@ pub struct ModelHubApp {
     #[rust] image_edit_state: ImageEditState,
     #[rust] video_state:  VideoState,
 
+    // ── Remove confirmation ──────────────────────────────────────────────────
+    /// Model ID pending removal confirmation (first click sets this, second click confirms)
+    #[rust] pending_remove_id: Option<String>,
+
     // ── Resizable split pane ─────────────────────────────────────────────────
     /// Width of the left panel in pixels; 0.0 means not yet initialized
     #[rust] left_panel_width:    f64,
@@ -761,6 +765,7 @@ impl ModelHubApp {
     }
 
     fn on_model_selected(&mut self, cx: &mut Cx, model_id: &str) {
+        self.reset_remove_confirmation(cx);
         let model = self.registry.as_ref()
             .and_then(|r| r.models.iter().find(|m| m.id == model_id))
             .cloned();
@@ -1159,18 +1164,49 @@ impl ModelHubApp {
             }
         }
         if rm {
-            if let Some(model) = self.registry.as_ref()
-                .and_then(|r| r.models.iter().find(|m| m.id == sel))
-            {
-                let path = expand_tilde(&model.storage.local_path);
-                if std::fs::remove_dir_all(&path).is_ok() {
-                    self.model_states.insert(sel.clone(), ModelUiState::NotDownloaded);
-                    self.load_states.remove(&sel);
-                    self.refresh_header_for(cx, &sel);
-                    self.view.redraw(cx);
-                    ::log::info!("Removed model {}", sel);
+            if self.pending_remove_id.as_deref() == Some(sel.as_str()) {
+                // Second click: confirmed — actually remove the model
+                self.pending_remove_id = None;
+                if let Some(model) = self.registry.as_ref()
+                    .and_then(|r| r.models.iter().find(|m| m.id == sel))
+                {
+                    let path = expand_tilde(&model.storage.local_path);
+                    if std::fs::remove_dir_all(&path).is_ok() {
+                        self.model_states.insert(sel.clone(), ModelUiState::NotDownloaded);
+                        self.load_states.remove(&sel);
+                        self.refresh_header_for(cx, &sel);
+                        self.view.redraw(cx);
+                        ::log::info!("Removed model {}", sel);
+                    }
                 }
+            } else {
+                // First click: show confirmation
+                self.pending_remove_id = Some(sel.clone());
+                self.set_remove_btn_text(cx, "Are you sure?");
+                self.view.redraw(cx);
             }
+        }
+    }
+
+    /// Set the remove button text on the active panel
+    fn set_remove_btn_text(&mut self, cx: &mut Cx, text: &str) {
+        let btn_id = match self.active_panel {
+            ActivePanel::Llm       => ids!(hub_llm_panel.hub_panel_header.panel_remove_btn),
+            ActivePanel::Vlm       => ids!(hub_vlm_panel.hub_panel_header.panel_remove_btn),
+            ActivePanel::Asr       => ids!(hub_asr_panel.hub_panel_header.panel_remove_btn),
+            ActivePanel::Tts       => ids!(hub_tts_panel.hub_panel_header.panel_remove_btn),
+            ActivePanel::Image     => ids!(hub_image_panel.hub_panel_header.panel_remove_btn),
+            ActivePanel::ImageEdit => ids!(hub_image_edit_panel.hub_panel_header.panel_remove_btn),
+            ActivePanel::Video     => ids!(hub_video_panel.hub_panel_header.panel_remove_btn),
+            _ => return,
+        };
+        self.view.button(btn_id).set_text(cx, text);
+    }
+
+    /// Reset the remove confirmation state (e.g. when switching models)
+    fn reset_remove_confirmation(&mut self, cx: &mut Cx) {
+        if self.pending_remove_id.take().is_some() {
+            self.set_remove_btn_text(cx, "Remove");
         }
     }
 
