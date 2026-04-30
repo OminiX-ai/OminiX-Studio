@@ -641,7 +641,7 @@ live_design! {
                                 chat_history_visible = <View> {
                                     width: Fill, height: Fit
                                     flow: Down
-                                    padding: {left: 32}
+                                    padding: {left: 8, right: 4, top: 2, bottom: 2}
 
                                     chat_item_0 = <ChatListItem> {}
                                     chat_item_1 = <ChatListItem> {}
@@ -685,7 +685,7 @@ live_design! {
                                 chat_history_more = <View> {
                                     width: Fill, height: Fit
                                     flow: Down
-                                    padding: {left: 32}
+                                    padding: {left: 8, right: 4, top: 0, bottom: 2}
                                     visible: false
 
                                     chat_item_3 = <ChatListItem> { visible: false }
@@ -1820,6 +1820,7 @@ impl MatchEvent for App {
                 self.current_view = NavigationTarget::ActiveChat;
                 self.store.set_current_view("ActiveChat");
                 self.apply_view_state(cx, NavigationTarget::ActiveChat);
+                self.update_sidebar_chats(cx);
             }
         }
 
@@ -2527,24 +2528,29 @@ impl App {
             .collect();
         let n = chats.len();
         self.sidebar_chat_ids = chats.iter().map(|c| c.id).collect();
+        let active_id = self.store.chats.current_chat_id;
 
         macro_rules! update_item {
             ($index:expr, $section:ident, $item:ident) => {
                 let vis = $index < n;
-                self.ui.view(ids!(body.body_layout.content.sidebar.sidebar_scroll.chat_section.$section.$item))
-                    .set_visible(cx, vis);
+                let item_view = self.ui.view(ids!(body.body_layout.content.sidebar.sidebar_scroll.chat_section.$section.$item));
+                item_view.set_visible(cx, vis);
                 if vis {
                     // Sanitize: collapse newlines, truncate to single display line
                     let raw = &chats[$index].title;
                     let single: String = raw.split_whitespace().collect::<Vec<_>>().join(" ");
-                    let display = if single.chars().count() > 28 {
-                        let head: String = single.chars().take(26).collect();
+                    let display = if single.chars().count() > 32 {
+                        let head: String = single.chars().take(30).collect();
                         format!("{}…", head)
                     } else {
                         single
                     };
                     self.ui.label(ids!(body.body_layout.content.sidebar.sidebar_scroll.chat_section.$section.$item.title))
                         .set_text(cx, &display);
+                    let is_active = active_id == Some(chats[$index].id);
+                    item_view.apply_over(cx, live! {
+                        draw_bg: { selected: (if is_active { 1.0 } else { 0.0 }) }
+                    });
                 }
             };
         }
@@ -2860,6 +2866,7 @@ impl App {
             self.current_view = NavigationTarget::ActiveChat;
             self.store.set_current_view("ActiveChat");
             self.apply_view_state(cx, NavigationTarget::ActiveChat);
+            self.update_sidebar_chats(cx);
         }
     }
 

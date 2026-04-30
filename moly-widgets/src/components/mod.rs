@@ -41,23 +41,38 @@ live_design! {
     // ========================================================================
 
     pub ChatListItem = <View> {
-        width: Fill, height: 32
-        padding: {left: 8, right: 8}
+        width: Fill, height: Fit
+        padding: {top: 8, bottom: 8, left: 10, right: 10}
+        margin: {top: 1, bottom: 1}
         align: {y: 0.5}
         cursor: Hand
         show_bg: true
         draw_bg: {
+            instance hover: 0.0
             instance selected: 0.0
             fn pixel(self) -> vec4 {
-                let base = (WHITE);
-                let selected_color = #eaecf0;
-                return mix(base, selected_color, self.selected);
+                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 6.0);
+                let base = (PANEL_BG);
+                let hover_color = (HOVER_BG);
+                let selected_color = #e0e7ff;
+                let bg = mix(base, hover_color, self.hover);
+                let bg = mix(bg, selected_color, self.selected);
+                sdf.fill(bg);
+                return sdf.result;
+            }
+        }
+        animator: {
+            hover = {
+                default: off
+                off = { from: {all: Forward{duration: 0.12}}, apply: {draw_bg: {hover: 0.0}} }
+                on  = { from: {all: Forward{duration: 0.12}}, apply: {draw_bg: {hover: 1.0}} }
             }
         }
         title = <Label> {
-            width: Fill
+            width: Fill, height: Fit
             draw_text: {
-                color: (GRAY_700)
+                color: (TEXT_PRIMARY)
                 text_style: { font_size: 11.0 }
                 wrap: Ellipsis
             }
