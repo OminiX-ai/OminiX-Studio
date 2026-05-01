@@ -1208,43 +1208,138 @@
                   }
             },
             {
-                  "id": "qwen-image-edit-2512-4bit",
-                  "name": "Qwen-Image-Edit-2512 (4-bit MLX)",
-                  "description": "Qwen-Image-Edit-2512 image editing, 4-bit MLX quantized. Edit images with text instructions on Apple Silicon.",
+                  "id": "qwen-image-edit-2511-q4km",
+                  "name": "Qwen-Image-Edit-2511 (Q4_K_M)",
+                  "description": "Qwen-Image-Edit-2511 diffusion-based image editing. Supply a reference image + text instruction to produce an edited image. Q4_K_M GGUF, ~12 GB peak memory.",
                   "category": "image_gen",
                   "subfolder": "Qwen Image",
                   "tags": [
                         "image-generation",
                         "qwen-image",
                         "image-editing",
-                        "mlx",
-                        "4bit"
+                        "gguf",
+                        "q4km",
+                        "pymlx"
                   ],
                   "source": {
-                        "kind": "hugging_face",
-                        "repo_id": "mlx-community/Qwen-Image-2512-4bit",
+                        "kind": "direct_url",
+                        "url": "https://huggingface.co/calcuis/qwen-image-edit-2511-gguf/resolve/main/qwen-image-edit-2511-Q4_K_M.gguf",
                         "revision": "main"
                   },
                   "storage": {
-                        "local_path": "~/.cache/huggingface/hub/models--mlx-community--Qwen-Image-2512-4bit",
-                        "size_bytes": 13000000000,
-                        "size_display": "~13 GB"
+                        "local_path": "~/.OminiX/models/qwen-image-edit-2511",
+                        "size_bytes": 9500000000,
+                        "size_display": "~9 GB"
                   },
                   "runtime": {
                         "api_type": "image_generation",
-                        "api_model_id": "qwen-image-edit-2512-4bit",
-                        "memory_gb": 16.0,
+                        "api_model_id": "qwen-image-edit-2511-q4km",
+                        "memory_gb": 12.0,
                         "platforms": [
                               "apple_silicon"
                         ],
                         "supports_images": true,
                         "supports_streaming": false,
-                        "quantization": "4bit"
+                        "quantization": "Q4_K_M",
+                        "inference_engine": "pymlx"
                   },
                   "ui": {
                         "panel_type": "image_edit",
                         "icon": "app"
-                  }
+                  },
+                  "extra_sources": [
+                        {
+                              "source": {
+                                    "kind": "direct_url",
+                                    "url": "https://huggingface.co/calcuis/qwen-image-edit-2511-gguf/resolve/main/qwen_image_vae.safetensors",
+                                    "revision": "main"
+                              },
+                              "storage": {
+                                    "local_path": "~/.OminiX/models/qwen-image-edit-2511",
+                                    "size_bytes": 0,
+                                    "size_display": ""
+                              }
+                        },
+                        {
+                              "source": {
+                                    "kind": "direct_url",
+                                    "url": "https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF/resolve/main/Qwen2.5-VL-7B-Instruct-UD-Q4_K_XL.gguf",
+                                    "revision": "main"
+                              },
+                              "storage": {
+                                    "local_path": "~/.OminiX/models/qwen-image-edit-2511",
+                                    "size_bytes": 0,
+                                    "size_display": ""
+                              }
+                        }
+                  ]
+            },
+            {
+                  "id": "qwen-image-2512-q4km",
+                  "name": "Qwen-Image-2512 (Q4_K_M GGUF)",
+                  "description": "Qwen-Image-2512 text-to-image generation via GGUF. High quality images from text prompts on Apple Silicon. Q4_K_M quantized, ~24 GB peak for 1024x1024.",
+                  "category": "image_gen",
+                  "subfolder": "Qwen Image",
+                  "tags": [
+                        "image-generation",
+                        "qwen-image",
+                        "text-to-image",
+                        "gguf",
+                        "q4km",
+                        "pymlx"
+                  ],
+                  "source": {
+                        "kind": "direct_url",
+                        "url": "https://huggingface.co/unsloth/Qwen-Image-2512-GGUF/resolve/main/qwen-image-2512-Q4_K_M.gguf",
+                        "revision": "main"
+                  },
+                  "storage": {
+                        "local_path": "~/.OminiX/models/qwen-image-2512-q4km",
+                        "size_bytes": 8500000000,
+                        "size_display": "~8 GB"
+                  },
+                  "runtime": {
+                        "api_type": "image_generation",
+                        "api_model_id": "qwen-image-2512-q4km",
+                        "memory_gb": 24.0,
+                        "platforms": [
+                              "apple_silicon"
+                        ],
+                        "supports_images": false,
+                        "supports_streaming": false,
+                        "quantization": "Q4_K_M",
+                        "inference_engine": "pymlx"
+                  },
+                  "ui": {
+                        "panel_type": "image_generation",
+                        "icon": "app"
+                  },
+                  "extra_sources": [
+                        {
+                              "source": {
+                                    "kind": "direct_url",
+                                    "url": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors",
+                                    "revision": "main"
+                              },
+                              "storage": {
+                                    "local_path": "~/.OminiX/models/qwen-image-2512-q4km",
+                                    "size_bytes": 0,
+                                    "size_display": ""
+                              }
+                        },
+                        {
+                              "source": {
+                                    "kind": "direct_url",
+                                    "url": "https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF/resolve/main/Qwen2.5-VL-7B-Instruct-UD-Q4_K_XL.gguf",
+                                    "revision": "main"
+                              },
+                              "storage": {
+                                    "local_path": "~/.OminiX/models/qwen-image-2512-q4km",
+                                    "size_bytes": 0,
+                                    "size_display": ""
+                              }
+                        }
+                  ]
             }
       ]
 }
