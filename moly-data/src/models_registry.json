@@ -1340,6 +1340,142 @@
                               }
                         }
                   ]
+            },
+            {
+                  "id": "flux-klein-4b-q4-gguf",
+                  "name": "FLUX.2-klein 4B (Q4_0 GGUF)",
+                  "description": "FLUX.2-klein 4B text-to-image via GGUF. Ultra-fast 4-step generation (~8s for 512x512). Uses Qwen3-4B as text encoder.",
+                  "category": "image_gen",
+                  "subfolder": "FLUX",
+                  "tags": [
+                        "image-generation",
+                        "flux",
+                        "text-to-image",
+                        "gguf",
+                        "q4",
+                        "fast",
+                        "pymlx"
+                  ],
+                  "source": {
+                        "kind": "direct_url",
+                        "url": "https://huggingface.co/leejet/FLUX.2-klein-4B-GGUF/resolve/main/flux-2-klein-4b-Q4_0.gguf",
+                        "revision": "main"
+                  },
+                  "storage": {
+                        "local_path": "~/.OminiX/models/flux-klein-4b-q4-gguf",
+                        "size_bytes": 2460000000,
+                        "size_display": "~2.3 GB"
+                  },
+                  "runtime": {
+                        "api_type": "image_generation",
+                        "api_model_id": "flux-klein-4b-q4-gguf",
+                        "memory_gb": 8.0,
+                        "platforms": [
+                              "apple_silicon"
+                        ],
+                        "supports_images": false,
+                        "supports_streaming": false,
+                        "quantization": "Q4_0",
+                        "inference_engine": "pymlx"
+                  },
+                  "ui": {
+                        "panel_type": "image_generation",
+                        "icon": "app"
+                  },
+                  "extra_sources": [
+                        {
+                              "source": {
+                                    "kind": "direct_url",
+                                    "url": "https://huggingface.co/black-forest-labs/FLUX.2-dev/resolve/main/ae.safetensors",
+                                    "revision": "main"
+                              },
+                              "storage": {
+                                    "local_path": "~/.OminiX/models/flux-klein-4b-q4-gguf",
+                                    "size_bytes": 168000000,
+                                    "size_display": "~160 MB"
+                              }
+                        },
+                        {
+                              "source": {
+                                    "kind": "direct_url",
+                                    "url": "https://huggingface.co/unsloth/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_0.gguf",
+                                    "revision": "main"
+                              },
+                              "storage": {
+                                    "local_path": "~/.OminiX/models/flux-klein-4b-q4-gguf",
+                                    "size_bytes": 2375000000,
+                                    "size_display": "~2.2 GB"
+                              }
+                        }
+                  ]
+            },
+            {
+                  "id": "cosmos-predict2-14b-t2i-q4km",
+                  "name": "Cosmos Predict2 14B T2I (Q4_K_M)",
+                  "description": "Cosmos Predict2 14B text-to-image via GGUF. High-quality 1360x768 images from NVIDIA's Cosmos foundation model. Uses T5-XXL text encoder.",
+                  "category": "image_gen",
+                  "subfolder": "Cosmos",
+                  "tags": [
+                        "image-generation",
+                        "cosmos",
+                        "text-to-image",
+                        "gguf",
+                        "q4km",
+                        "nvidia",
+                        "pymlx"
+                  ],
+                  "source": {
+                        "kind": "direct_url",
+                        "url": "https://huggingface.co/calcuis/cosmos-predict2-gguf/resolve/main/cosmos-predict2-14b-t2i-ex3-q4_k_m.gguf",
+                        "revision": "main"
+                  },
+                  "storage": {
+                        "local_path": "~/.OminiX/models/cosmos-predict2-14b-t2i",
+                        "size_bytes": 8175000000,
+                        "size_display": "~7.6 GB"
+                  },
+                  "runtime": {
+                        "api_type": "image_generation",
+                        "api_model_id": "cosmos-predict2-14b-t2i-q4km",
+                        "memory_gb": 16.0,
+                        "platforms": [
+                              "apple_silicon"
+                        ],
+                        "supports_images": false,
+                        "supports_streaming": false,
+                        "quantization": "Q4_K_M",
+                        "inference_engine": "pymlx"
+                  },
+                  "ui": {
+                        "panel_type": "image_generation",
+                        "icon": "app"
+                  },
+                  "extra_sources": [
+                        {
+                              "source": {
+                                    "kind": "direct_url",
+                                    "url": "https://huggingface.co/calcuis/cosmos-predict2-gguf/resolve/main/t5xxl_old_fp32-q4_0.gguf",
+                                    "revision": "main"
+                              },
+                              "storage": {
+                                    "local_path": "~/.OminiX/models/cosmos-predict2-14b-t2i",
+                                    "size_bytes": 2736000000,
+                                    "size_display": "~2.5 GB"
+                              }
+                        },
+                        {
+                              "source": {
+                                    "kind": "direct_url",
+                                    "url": "https://huggingface.co/calcuis/cosmos-predict2-gguf/resolve/main/pig_wan_vae_fp32-f16.gguf",
+                                    "revision": "main"
+                              },
+                              "storage": {
+                                    "local_path": "~/.OminiX/models/cosmos-predict2-14b-t2i",
+                                    "size_bytes": 254000000,
+                                    "size_display": "~240 MB"
+                              }
+                        }
+                  ]
             }
       ]
 }
